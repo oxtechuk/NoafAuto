@@ -1,0 +1,134 @@
+import { useEffect } from "react";
+import { installContactClickTracking } from "../services/analytics";
+import { Outlet } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { useLanguageStore } from "../store/language.store";
+import { APP_IMAGES } from "../constants/app-images";
+import { getSettings } from "../services/api";
+import { useSettingsStore } from "../store/settings.store";
+import { getImageUrl } from "../constants/app-images";
+import TopBar from "../components/top-bar";
+import Header from "../components/header";
+import Footer from "../components/Footer";
+import MobileBottomNav from "../components/MobileBottomNav";
+import ScrollToTop from "../components/ScrollToTop";
+import WhatsAppWidget from "../components/WhatsAppWidget";
+import RequestCarWidget from "../components/RequestCarWidget";
+import AnalyticsTracker from "../components/AnalyticsTracker";
+import SeoBlock from "../components/seo/SeoBlock";
+
+export default function RootLayout() {
+  const { t } = useTranslation();
+  const { language, setLanguage } = useLanguageStore();
+  const { loaded, settings, setSettings } = useSettingsStore();
+
+  const { data: fetchedSettings } = useQuery({
+    queryKey: ["settings", language],
+    queryFn: getSettings,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (fetchedSettings) {
+      setSettings(fetchedSettings);
+    }
+  }, [fetchedSettings, setSettings]);
+
+  const handleLanguageToggle = () => {
+    const nextLang = language === "ar" ? "en" : "ar";
+    setLanguage(nextLang);
+  };
+
+  useEffect(() => installContactClickTracking(), []);
+
+  useEffect(() => {
+    if (!loaded || !settings?.favicon) return;
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (link) link.href = getImageUrl(settings.favicon);
+  }, [loaded, settings]);
+
+  const navItems = [
+    { label: t("nav.home"), path: "/" },
+    { label: t("nav.cars"), path: "/cars" },
+    { label: t("nav.offers"), path: "/offers" },
+    { label: t("nav.finance"), path: "/finance-calculator" },
+    { label: t("nav.blog"), path: "/blog" },
+    { label: t("nav.about"), path: "/about" },
+    { label: t("nav.contact"), path: "/contact" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#F0F2F5]">
+      <AnalyticsTracker />
+      <ScrollToTop />
+      <ToastContainer
+        position="top-center"
+        rtl={language === "ar"}
+        theme="colored"
+      />
+
+      <div className="hidden md:block sticky top-0 z-40">
+        <TopBar
+          phone={settings?.contact?.phone || t("topbar.phone", { defaultValue: "920018657" })}
+          email={settings?.contact?.email || t("topbar.email", { defaultValue: "info@zadcapital.sa" })}
+          location={settings?.contact?.address || t("topbar.location", { defaultValue: "الرياض، المملكة العربية السعودية" })}
+          onLanguageToggle={handleLanguageToggle}
+        />
+        <Header
+          logoSrc={getImageUrl(settings?.header_logo ?? settings?.logo ?? null) || APP_IMAGES.LOGO}
+          logoAlt="زاد كابيتال"
+          navItems={navItems}
+          ctaText={t("nav.requestCar")}
+          ctaPath="/request-car"
+        />
+      </div>
+
+      <main className="pb-[96px] md:pb-0">
+        <Outlet />
+        <SeoBlock />
+      </main>
+
+      <div className="hidden md:block">
+        <Footer
+          logoSrc={APP_IMAGES.Logo_COLORED}
+          logoAlt={t("rootLayout.logoAlt")}
+          quickLinks={[
+            { label: t("rootLayout.quickLinks.0.label"), to: t("rootLayout.quickLinks.0.to") },
+            { label: t("rootLayout.quickLinks.1.label"), to: t("rootLayout.quickLinks.1.to") },
+            { label: t("rootLayout.quickLinks.2.label"), to: t("rootLayout.quickLinks.2.to") },
+            { label: t("rootLayout.quickLinks.3.label"), to: t("rootLayout.quickLinks.3.to") },
+            { label: t("rootLayout.quickLinks.4.label"), to: t("rootLayout.quickLinks.4.to") },
+          ]}
+          socialLinks={[
+            {
+              name: "TikTok",
+              icon: APP_IMAGES.SOCIAL_TIKTOK,
+              url: "https://www.tiktok.com",
+            },
+            {
+              name: "Facebook",
+              icon: APP_IMAGES.SOCIAL_FACEBOOK,
+              url: "https://www.facebook.com",
+            },
+            {
+              name: "Instagram",
+              icon: APP_IMAGES.SOCIAL_INSTAGRAM,
+              url: "https://www.instagram.com",
+            },
+          ]}
+          phone={t("rootLayout.phone")}
+          email={t("rootLayout.email")}
+          address={t("rootLayout.address")}
+          copyright={t("rootLayout.copyright")}
+        />
+      </div>
+
+      <MobileBottomNav />
+      <RequestCarWidget />
+      <WhatsAppWidget />
+    </div>
+  );
+}

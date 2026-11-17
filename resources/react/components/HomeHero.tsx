@@ -1,0 +1,229 @@
+import { useState, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight, Calculator, Car } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useLanguageStore } from "../store/language.store";
+import { getImageUrl } from "../constants/app-images";
+import type { IHomeHeroProps } from "../interfaces/IHomeHeroProps";
+
+export default function HomeHero({ slides = [] }: IHomeHeroProps) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const direction = useLanguageStore((s) => s.direction);
+  const isRTL = direction === "rtl";
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [imgErrors, setImgErrors] = useState<Record<string | number, boolean>>({});
+
+  const handleImgError = (id: string | number) => {
+    setImgErrors((prev) => ({ ...prev, [id]: true }));
+  };
+
+  const totalSlides = slides.length;
+
+  const handlePrev = useCallback(() => {
+    setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
+  }, [totalSlides]);
+
+  const handleNext = useCallback(() => {
+    setCurrentSlide((prev) => (prev + 1) % totalSlides);
+  }, [totalSlides]);
+
+  // Auto-slide effect
+  useEffect(() => {
+    if (totalSlides <= 1) return;
+    const interval = setInterval(handleNext, 5000);
+    return () => clearInterval(interval);
+  }, [totalSlides, handleNext]);
+
+  if (slides.length === 0) return null;
+
+  // Exactly one H1 per page: the first slide that has a title (image-only
+  // slides have none). If no slide has a title, a visually hidden H1 is used.
+  const headingSlideIdx = slides.findIndex((slide) => Boolean(slide.title?.trim()));
+
+  return (
+    <section className="w-full pb-4 sm:pb-8 pt-0" dir={direction}>
+      {headingSlideIdx === -1 && (
+        <h1 className="sr-only">تمويل سيارات بالتقسيط في السعودية | زاد كابيتال</h1>
+      )}
+      {/* Full-width Slideshow Slider Container - Responsive 32:9 (1920x540) on desktop & 64:35 (768x420) on mobile */}
+      <div className="relative w-full overflow-hidden bg-[#051023] aspect-[768/420] md:aspect-[1920/540]">
+        {/* Ambient Decorative Glows */}
+        <div className="absolute -top-24 -start-24 w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-[#163F8B]/25 blur-[100px] pointer-events-none z-0" />
+        <div className="absolute -bottom-20 end-10 w-64 h-64 sm:w-80 sm:h-80 rounded-full bg-[#EDC98E]/10 blur-[90px] pointer-events-none z-0" />
+
+        {/* Slides Wrapper */}
+        <div
+          className="flex h-full transition-transform duration-500 ease-in-out"
+          style={{
+            transform: `translateX(${isRTL ? "" : "-"}${currentSlide * 100}%)`,
+          }}
+        >
+          {slides.map((slide, idx) => {
+            const slideKey = slide.id || idx;
+            const desktopRaw = slide.image_desktop || slide.image;
+            const desktopImg = desktopRaw ? getImageUrl(desktopRaw) : null;
+            const mobileImg = slide.image_mobile
+              ? getImageUrl(slide.image_mobile)
+              : null;
+            const mainImg = desktopImg || mobileImg;
+            const hasImgError = imgErrors[slideKey];
+
+            const slideTitle = slide.title?.trim();
+            const slideSubtitle = slide.subtitle?.trim();
+            const slideDesc = slide.description?.trim();
+            const slideBadge = slide.badge?.trim();
+            const hasButton = Boolean(slide.button_text?.trim() && slide.button_url?.trim());
+            const hasTextContent = Boolean(
+              slideTitle || slideBadge || slideSubtitle || slideDesc || hasButton
+            );
+            const slideLink = slide.button_url || slide.link;
+
+            return (
+              <div
+                key={slideKey}
+                onClick={() => {
+                  if (!hasButton && slideLink) {
+                    if (slideLink.startsWith("/") || slideLink.startsWith("#")) {
+                      navigate(slideLink);
+                    } else {
+                      window.location.href = slideLink;
+                    }
+                  }
+                }}
+                className={`relative h-full w-full shrink-0 flex items-center justify-between text-white overflow-hidden bg-[#051023] ${
+                  !hasButton && slideLink ? "cursor-pointer" : ""
+                }`}
+                dir={direction}
+              >
+                {/* Background Responsive Banner Image (Desktop & Mobile) */}
+                {mainImg && !hasImgError && (
+                  <picture className="absolute inset-0 h-full w-full pointer-events-none">
+                    {mobileImg && (
+                      <source media="(max-width: 767px)" srcSet={mobileImg} />
+                    )}
+                    <img
+                      src={mainImg}
+                      alt={slideTitle || "Banner"}
+                      loading={idx === 0 ? "eager" : "lazy"}
+                      fetchPriority={idx === 0 ? "high" : "auto"}
+                      decoding="async"
+                      onError={() => handleImgError(slideKey)}
+                      className="h-full w-full object-cover object-center"
+                    />
+                  </picture>
+                )}
+
+                {/* Subtle Bottom Gradient for Mobile Contrast */}
+                {hasTextContent && (
+                  <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 via-black/30 to-transparent sm:hidden pointer-events-none z-[1]" />
+                )}
+
+                {/* Content Overlay Grid */}
+                {hasTextContent && (
+                  <div
+                    className={`relative z-10 mx-auto max-w-7xl px-4 sm:px-10 lg:px-12 w-full h-full flex flex-col justify-end pb-5 sm:justify-center sm:pb-0 ${
+                      isRTL ? "items-end sm:items-start" : "items-start"
+                    } text-start`}
+                  >
+                    <div className="max-w-xl flex flex-col items-start">
+                      {slideBadge && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 mb-1 sm:mb-3.5 rounded-full text-[9px] sm:text-[12px] font-black bg-[#EDC98E] text-[#16254F] shadow-sm tracking-wide">
+                          {slideBadge}
+                        </span>
+                      )}
+
+                      {slideTitle && (
+                        idx === headingSlideIdx ? (
+                          <h1 className="text-[13px] sm:text-[32px] md:text-[40px] lg:text-[46px] font-black text-white leading-tight drop-shadow-md">
+                            {slideTitle}
+                          </h1>
+                        ) : (
+                          <h2 className="text-[13px] sm:text-[32px] md:text-[40px] lg:text-[46px] font-black text-white leading-tight drop-shadow-md">
+                            {slideTitle}
+                          </h2>
+                        )
+                      )}
+
+                      {(slideSubtitle || slideDesc) && (
+                        <p className="mt-0.5 sm:mt-3 text-[10px] sm:text-[15px] md:text-[16px] text-gray-200/90 font-medium leading-relaxed max-w-lg line-clamp-1 sm:line-clamp-3 drop-shadow-sm">
+                          {slideSubtitle || slideDesc}
+                        </p>
+                      )}
+
+                      {/* CTA Action Button - Only rendered if both button_text and button_url are provided */}
+                      {hasButton && (
+                        <div className="mt-1.5 sm:mt-7 flex flex-wrap items-center gap-1.5 sm:gap-4">
+                          {slide.button_url!.startsWith("http://") || slide.button_url!.startsWith("https://") ? (
+                            <a
+                              href={slide.button_url!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="h-[28px] sm:h-[48px] px-2.5 sm:px-7 rounded-lg sm:rounded-2xl bg-[#EDC98E] text-[#16254F] hover:bg-[#e2bc7c] font-black text-[10.5px] sm:text-[15px] flex items-center justify-center gap-1 sm:gap-2 shadow-[0_4px_12px_rgba(237,201,142,0.25)] hover:scale-105 transition-all duration-300 active:scale-95 text-decoration-none"
+                            >
+                              <span>{slide.button_text}</span>
+                            </a>
+                          ) : (
+                            <Link
+                              to={slide.button_url!}
+                              className="h-[28px] sm:h-[48px] px-2.5 sm:px-7 rounded-lg sm:rounded-2xl bg-[#EDC98E] text-[#16254F] hover:bg-[#e2bc7c] font-black text-[10.5px] sm:text-[15px] flex items-center justify-center gap-1 sm:gap-2 shadow-[0_4px_12px_rgba(237,201,142,0.25)] hover:scale-105 transition-all duration-300 active:scale-95 text-decoration-none"
+                            >
+                              <span>{slide.button_text}</span>
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Slider Navigation Arrows */}
+        {slides.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={isRTL ? handleNext : handlePrev}
+              className="absolute top-1/2 -translate-y-1/2 left-1.5 sm:left-6 z-20 flex h-7 w-7 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-black/40 hover:bg-[#EDC98E] hover:text-[#16254F] text-white backdrop-blur-md transition-all duration-200 active:scale-95 cursor-pointer border border-white/10"
+              aria-label="Previous Slide"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 sm:h-6 sm:w-6" />
+            </button>
+            <button
+              type="button"
+              onClick={isRTL ? handlePrev : handleNext}
+              className="absolute top-1/2 -translate-y-1/2 right-1.5 sm:right-6 z-20 flex h-7 w-7 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-black/40 hover:bg-[#EDC98E] hover:text-[#16254F] text-white backdrop-blur-md transition-all duration-200 active:scale-95 cursor-pointer border border-white/10"
+              aria-label="Next Slide"
+            >
+              <ChevronRight className="h-3.5 w-3.5 sm:h-6 sm:w-6" />
+            </button>
+
+            {/* Indicators / Dots */}
+            <div
+              className="absolute bottom-2 sm:bottom-6 left-1/2 -translate-x-1/2 flex gap-1 sm:gap-2 z-20"
+              dir="ltr"
+            >
+              {slides.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentSlide(idx)}
+                  aria-label={`الانتقال إلى الشريحة ${idx + 1}`}
+                  className={`h-[3px] sm:h-[6px] rounded-full transition-all duration-300 cursor-pointer ${
+                    idx === currentSlide
+                      ? "w-[22px] sm:w-[65px] md:w-[90px] bg-[#EDC98E]"
+                      : "w-[10px] sm:w-[24px] md:w-[32px] bg-white/40 hover:bg-white/80"
+                  }`}
+                  aria-label={`Slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}

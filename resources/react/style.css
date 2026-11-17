@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+
+/* Cairo Font is served via optimized WOFF2 subsets with font-display: swap */
+
+:root {
+  --brand-primary-color: #16254F;
+  --brand-primary-light-color: #16254F;
+  --brand-secondary-color: #EDC98E;
+  --barand-footer-color: #080E1E;
+  --brand-CTA-BG-color: #16254F;
+
+  --brand-primary-gradient: linear-gradient(90deg,
+      var(--brand-primary-light-color) 0%,
+      var(--brand-primary-color) 100%);
+
+  --brand-overlay-gradient: linear-gradient(270deg,
+      rgba(0, 98, 241, 0.15) 0%,
+      rgba(0, 0, 0, 0) 100%);
+
+  --contact-cta-bg-base: #041119;
+
+  --contact-cta-gradient: linear-gradient(90deg,
+      rgba(0, 98, 241, 0.2) 0%,
+      rgba(2, 58, 141, 0.59) 49%,
+      #051023 100%);
+
+  --contact-cta-bg: var(--contact-cta-gradient), var(--contact-cta-bg-base);
+
+  --contact-cta-border: rgba(0, 98, 241, 0.2);
+
+  --background: #FAFAFB;
+  --border: #e5e4e7;
+
+  --font-main: "Cairo", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-main);
+  font-size: 18px;
+  line-height: 145%;
+  letter-spacing: 0.18px;
+  background: var(--background);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-main);
+}
+
+p,
+button,
+input,
+textarea,
+select,
+a {
+  font-family: var(--font-main);
+}
+
+p {
+  margin: 0;
+}
+
+.highlight {
+  color: var(--brand-secondary-color);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+@media (max-width: 1024px) {
+  body {
+    font-size: 16px;
+  }
+}
+
+/* Premium Blog HTML Content Styling */
+.blog-content-html {
+  color: #111827;
+  font-size: 17px;
+  line-height: 1.85;
+  text-align: start;
+}
+.blog-content-html h1,
+.blog-content-html h2,
+.blog-content-html h3,
+.blog-content-html h4 {
+  color: #0F172A;
+  font-weight: 800;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+.blog-content-html h1 { font-size: 28px; }
+.blog-content-html h2 { font-size: 22px; }
+.blog-content-html h3 { font-size: 19px; }
+.blog-content-html p {
+  margin-bottom: 1.25rem;
+}
+.blog-content-html ul {
+  list-style-type: none;
+  padding: 0;
+  margin-bottom: 1.5rem;
+}
+.blog-content-html ul li {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+.blog-content-html ul li::before {
+  content: "✓";
+  position: absolute;
+  top: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background-color: var(--brand-secondary-color, #EDC98E);
+  color: var(--brand-primary-color, #16254F);
+  font-size: 10px;
+  font-weight: 900;
+}
+[dir="rtl"] .blog-content-html ul li {
+  padding-right: 2rem;
+  padding-left: 0;
+}
+[dir="rtl"] .blog-content-html ul li::before {
+  right: 0;
+  left: auto;
+}
+[dir="ltr"] .blog-content-html ul li {
+  padding-left: 2rem;
+  padding-right: 0;
+}
+[dir="ltr"] .blog-content-html ul li::before {
+  left: 0;
+  right: auto;
+}
+.blog-content-html ol {
+  list-style-type: decimal;
+  margin-bottom: 1.5rem;
+}
+[dir="rtl"] .blog-content-html ol {
+  padding-right: 1.5rem;
+  padding-left: 0;
+}
+[dir="ltr"] .blog-content-html ol {
+  padding-left: 1.5rem;
+  padding-right: 0;
+}
+.blog-content-html ol li {
+  margin-bottom: 0.5rem;
+}
+.blog-content-html blockquote {
+  padding-right: 1.5rem;
+  margin: 1.5rem 0;
+  font-style: italic;
+  color: #4B5563;
+  font-weight: 600;
+}
+.blog-content-html strong {
+  font-weight: 700;
+  color: #0F172A;
+}
+
+/* Lazy image skeleton shimmer */
+.lazy-img-skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: lazy-img-shimmer 1.2s ease-in-out infinite;
+}
+
+/* Generic content skeleton shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: lazy-img-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes lazy-img-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
