@@ -194,9 +194,9 @@ class HomeCacheService extends BaseCacheService
 
     public function forgetHome(): void
     {
-        Cache::forget('home.data');
-        Cache::forget('store.api.home.resolved.ar');
-        Cache::forget('store.api.home.resolved.en');
+        $this->forget('home.data');
+        $this->forget('store.api.home.resolved.ar');
+        $this->forget('store.api.home.resolved.en');
     }
 
     /**
@@ -206,6 +206,6 @@ class HomeCacheService extends BaseCacheService
      */
     public function forgetSection(string $key): void
     {
-        Cache::forget("home.section.{$key}");
+        $this->forget("home.section.{$key}");
     }
 }

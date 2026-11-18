@@ -1,6 +1,6 @@
 @php
     $currentUser = auth()->guard('employee')->user();
-    $logo = \App\Models\Setting::where('key', 'site_logo')->first()?->value;
+    $logo = ($globalSettings['site_logo'] ?? null);
 @endphp
 <header class="crm-topbar">
 

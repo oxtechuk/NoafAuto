@@ -45,14 +45,14 @@ class SpecificationController extends Controller
 
     public function update(Request $request, Specification $specification)
     {
-        $request->validate([
+        $data = $request->validate([
             'name' => 'required|array',
             'name.ar' => 'required|string',
             'name.en' => 'required|string',
             'icon' => 'nullable|string',
         ]);
 
-        $specification->update($request->all());
+        $specification->update($data);
 
         return back()->with('success', 'تم تحديث المواصفة بنجاح');
     }

@@ -135,12 +135,12 @@ class BaseCacheService
 
     public function forgetHeroSlides(): void
     {
-        Cache::forget('settings.hero_slides');
+        $this->forget('settings.hero_slides');
     }
 
     public function forgetSettings(): void
     {
-        Cache::forget('settings.all');
+        $this->forget('settings.all');
     }
 
     public function flushAll(): void

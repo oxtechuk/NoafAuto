@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Casts\AsImageUrl;
+use Database\Factories\BrandFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +12,8 @@ use Spatie\Translatable\HasTranslations;
 
 class Brand extends Model
 {
-    use HasTranslations;
+    /** @use HasFactory<BrandFactory> */
+    use HasFactory, HasTranslations;
 
     public $translatable = ['name'];
 

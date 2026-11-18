@@ -5,7 +5,6 @@ namespace App\Services\Cache;
 use App\Models\CalculatorBank;
 use App\Models\CalculatorFactor;
 use App\Models\Car;
-use Illuminate\Support\Facades\Cache;
 
 class CalculatorCacheService extends BaseCacheService
 {
@@ -27,6 +26,6 @@ class CalculatorCacheService extends BaseCacheService
 
     public function forgetCalculator(): void
     {
-        Cache::forget('calculator.data');
+        $this->forget('calculator.data');
     }
 }

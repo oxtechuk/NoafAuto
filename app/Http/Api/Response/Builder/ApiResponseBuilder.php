@@ -82,7 +82,7 @@ final class ApiResponseBuilder
 
     public function build(): ApiResponse
     {
-        return new ApiResponse(
+        $response = new ApiResponse(
             success: $this->success,
             message: $this->message,
             data: $this->data,
@@ -90,5 +90,22 @@ final class ApiResponseBuilder
             meta: $this->meta,
             status: $this->status,
         );
+
+        $this->reset();
+
+        return $response;
+    }
+
+    /**
+     * The builder is a container singleton, so state must never leak into the next response.
+     */
+    private function reset(): void
+    {
+        $this->success = true;
+        $this->message = '';
+        $this->data = null;
+        $this->errors = null;
+        $this->meta = null;
+        $this->status = 200;
     }
 }

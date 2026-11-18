@@ -405,7 +405,7 @@
                             'description' => __('الهيرو الرئيسي وشرائحه أصبحا يُداران من شاشة مخصصة (عنوان، وصف، صورة ديسكتوب/موبايل، زر، شارة، ترتيب لكل شريحة).'),
                             'route' => 'crm.settings.hero-slides.index',
                             'permission' => 'manage-hero-slides',
-                            'count' => \App\Models\HeroSlide::count(),
+                            'count' => ($sectionCounts['hero_slides'] ?? 0),
                             'countLabel' => __('شريحة'),
                         ])
                     </div>
@@ -420,7 +420,7 @@
                             'description' => __('عنوان ووصف وشارة وزر كل قسم من أقسام الصفحة الرئيسية (البحث، الماركات، السيارات المميزة، البانر الترويجي، أحدث السيارات، الميزانية، التمويل، الفوتر) — بما فيها القسم المميز القديم الذي أصبح جزءاً من البانر الترويجي.'),
                             'route' => 'crm.settings.home-sections.index',
                             'permission' => 'manage-home-sections',
-                            'count' => \App\Models\HomeSection::count(),
+                            'count' => ($sectionCounts['home_sections'] ?? 0),
                             'countLabel' => __('قسم'),
                         ])
                     </div>
@@ -435,7 +435,7 @@
                             'description' => __('خطوات قسم "كيف يعمل التمويل" في الصفحة الرئيسية — رقم وعنوان ووصف وأيقونة لكل خطوة.'),
                             'route' => 'crm.settings.finance-steps.index',
                             'permission' => 'manage-finance-steps',
-                            'count' => \App\Models\FinanceStep::count(),
+                            'count' => ($sectionCounts['finance_steps'] ?? 0),
                             'countLabel' => __('خطوة'),
                         ])
                     </div>
@@ -450,7 +450,7 @@
                             'description' => __('التبويبات السعرية في قسم "سيارات حسب ميزانيتك" (مثال: أقل من 300 ألف، 300-500 ألف...).'),
                             'route' => 'crm.settings.budget-ranges.index',
                             'permission' => 'manage-budget-ranges',
-                            'count' => \App\Models\BudgetRange::count(),
+                            'count' => ($sectionCounts['budget_ranges'] ?? 0),
                             'countLabel' => __('نطاق'),
                         ])
                     </div>
@@ -528,7 +528,7 @@
                                 'description' => __('البطاقات التي كانت تُعرض هنا كسيارات (Bento) استُبدلت ببطاقات CMS حقيقية (عنوان، وصف، صورة، زر، شارة) لأنها ليست سيارات فعلية حسب تصميم الصفحة الرئيسية.'),
                                 'route' => 'crm.settings.promo-cards.index',
                                 'permission' => 'manage-promo-cards',
-                                'count' => \App\Models\PromoCard::count(),
+                                'count' => ($sectionCounts['promo_cards'] ?? 0),
                                 'countLabel' => __('بطاقة'),
                             ])
 

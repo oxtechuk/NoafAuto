@@ -7,7 +7,10 @@ export default defineConfig({
     base: '',
     plugins: [
         laravel({
-            input: ['resources/react/main.tsx'],
+            input: [
+                'resources/react/main.tsx',
+                'resources/react/admin/main.tsx',
+            ],
             publicDirectory: 'public',
             hotFile: 'public/hot',
             refresh: true,

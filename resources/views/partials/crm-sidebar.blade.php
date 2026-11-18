@@ -1,6 +1,6 @@
 @php
-    $logo = \App\Models\Setting::where('key', 'site_logo')->first()?->value;
-    $siteName = \App\Models\Setting::where('key', 'site_name')->first()?->value;
+    $logo = ($globalSettings['site_logo'] ?? null);
+    $siteName = ($globalSettings['site_name'] ?? null);
     $siteNameText = is_array($siteName) ? ($siteName[app()->getLocale()] ?? ($siteName['ar'] ?? 'Zad Capital')) : ($siteName ?? 'Zad Capital');
     $currentUser = auth()->guard('employee')->user();
     $r = request()->route()?->getName() ?? '';

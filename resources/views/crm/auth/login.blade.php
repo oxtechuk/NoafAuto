@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     @php
-        $siteNameSetting = \App\Models\Setting::where('key', 'site_name')->first()?->value;
+        $siteNameSetting = ($globalSettings['site_name'] ?? null);
         $siteNameText = is_array($siteNameSetting) ? ($siteNameSetting[app()->getLocale()] ?? ($siteNameSetting['ar'] ?? 'زد كابيتال')) : ($siteNameSetting ?? 'زد كابيتال');
-        $siteFavicon = \App\Models\Setting::where('key', 'site_favicon')->first()?->value;
+        $siteFavicon = ($globalSettings['site_favicon'] ?? null);
     @endphp
     <title>{{ __('تسجيل دخول المديرين | ') . $siteNameText }}</title>
     @if($siteFavicon)
@@ -330,7 +330,7 @@
             <div class="form-content-wrapper">
                 <div class="logo-section">
                     @php
-                        $siteLogoSetting = \App\Models\Setting::where('key', 'site_logo')->first()?->value;
+                        $siteLogoSetting = ($globalSettings['site_logo'] ?? null);
                     @endphp
                     @if($siteLogoSetting)
                         <img src="{{ asset('storage/' . $siteLogoSetting) }}" alt="{{ $siteNameText }}" style="max-height: 75px; width: auto; filter: drop-shadow(0 4px 10px rgba(41, 155, 224, 0.15));">

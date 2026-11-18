@@ -11,7 +11,6 @@ Route::get('/lang/{lang}', [LanguageController::class, 'switchLang'])->name('lan
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 Route::get('/llms.txt', [SitemapController::class, 'llms'])->name('llms');
 
-
 use App\Http\Controllers\Store\StoreSpaController;
 
 // =============================================
@@ -38,8 +37,12 @@ Route::get('/compare', [StoreSpaController::class, 'compare'])->name('store.comp
 Route::get('/terms', [StoreSpaController::class, 'terms'])->name('store.terms');
 Route::get('/privacy', [StoreSpaController::class, 'privacy'])->name('store.privacy');
 
+Route::get('/admin/{any?}', function () {
+    return view('admin');
+})->where('any', '.*')->name('admin.spa');
+
 Route::get('/{any}', [StoreSpaController::class, 'fallback'])
-    ->where('any', '^(?!crm|manager-login|api|store-api|storage).*$');
+    ->where('any', '^(?!crm|admin|docs|manager-login|api|store-api|storage).*$');
 
 // =============================================
 //  CRM (Admin Dashboard)
@@ -87,9 +90,9 @@ use App\Http\Controllers\CRM\TranslationController;
 
 // Unique Secure Login
 Route::get('/manager-login', [AuthController::class, 'showLoginForm'])->name('crm.login');
-Route::post('/manager-login', [AuthController::class, 'login'])->name('crm.login.post');
+Route::post('/manager-login', [AuthController::class, 'login'])->middleware('throttle:login')->name('crm.login.post');
 
-Route::prefix('crm')->name('crm.')->middleware(['auth:employee', 'guard.employee'])->group(function () {
+Route::prefix('crm')->name('crm.')->middleware(['auth:employee', 'guard.employee', 'employee.active'])->group(function () {
 
     // === Open routes (accessible to all authenticated employees) ===
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

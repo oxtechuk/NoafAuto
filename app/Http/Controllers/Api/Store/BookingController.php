@@ -119,10 +119,11 @@ final class BookingController extends ApiBaseController
         } catch (\Throwable $e) {
             logger()->error('Booking creation failed: '.$e->getMessage(), [
                 'exception' => $e,
-                'input' => $request->all(),
+                'car_id' => $request->input('car_id'),
+                'booking_type' => $request->input('booking_type'),
             ]);
 
-            return $this->respondError('Failed to process booking request: '.$e->getMessage(), 422);
+            return $this->respondError('Failed to process booking request.', 422);
         }
     }
 }

@@ -45,7 +45,7 @@ class BlogCacheService extends BaseCacheService
 
     public function forgetBlogCategories(): void
     {
-        Cache::forget('blog.categories');
+        $this->forget('blog.categories');
         $this->forgetBlog();
     }
 
@@ -64,7 +64,7 @@ class BlogCacheService extends BaseCacheService
 
     public function forgetBlog(): void
     {
-        Cache::forget('blog.hero');
+        $this->forget('blog.hero');
         Cache::increment('blog.cache_version');
     }
 

@@ -4,7 +4,6 @@ namespace App\Services\Cache;
 
 use App\Models\Car;
 use App\Models\Offer;
-use Illuminate\Support\Facades\Cache;
 
 class OfferCacheService extends BaseCacheService
 {
@@ -39,6 +38,6 @@ class OfferCacheService extends BaseCacheService
 
     public function forgetOffers(): void
     {
-        Cache::forget('offers.data');
+        $this->forget('offers.data');
     }
 }

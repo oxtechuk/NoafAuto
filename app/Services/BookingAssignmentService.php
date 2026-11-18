@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\Employee;
 use App\Models\Lead;
-use App\Models\Setting;
 use App\Notifications\NewBookingNotification;
 use App\Notifications\NewLeadNotification;
+use App\Services\Cache\BaseCacheService;
 
 class BookingAssignmentService
 {
@@ -49,7 +49,7 @@ class BookingAssignmentService
     public function autoAssign(Booking $booking)
     {
         // 1. Check if auto assignment is enabled in settings (default true)
-        $settings = Setting::all()->pluck('value', 'key');
+        $settings = app(BaseCacheService::class)->rememberSettings();
         $isEnabled = ! isset($settings['auto_assign_bookings']) || $settings['auto_assign_bookings'] == '1';
 
         if (! $isEnabled) {
@@ -106,7 +106,7 @@ class BookingAssignmentService
     public function autoAssignLead(Lead $lead)
     {
         // 1. Check if auto assignment is enabled in settings (default true)
-        $settings = Setting::all()->pluck('value', 'key');
+        $settings = app(BaseCacheService::class)->rememberSettings();
         $isEnabled = ! isset($settings['auto_assign_bookings']) || $settings['auto_assign_bookings'] == '1';
 
         if (! $isEnabled) {

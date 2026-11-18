@@ -45,14 +45,14 @@ class SafetyFeatureController extends Controller
 
     public function update(Request $request, SafetyFeature $safetyFeature)
     {
-        $request->validate([
+        $data = $request->validate([
             'name' => 'required|array',
             'name.ar' => 'required|string',
             'name.en' => 'required|string',
             'icon' => 'nullable|string',
         ]);
 
-        $safetyFeature->update($request->all());
+        $safetyFeature->update($data);
 
         return back()->with('success', 'تم تحديث ميزة السلامة بنجاح');
     }

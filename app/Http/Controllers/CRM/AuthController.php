@@ -34,6 +34,7 @@ class AuthController extends Controller
             $credentials['email'] = $request->username;
             unset($credentials['username']);
         }
+        $credentials['is_active'] = true;
         $remember = $request->boolean('remember');
 
         if (Auth::guard('employee')->attempt($credentials, $remember)) {

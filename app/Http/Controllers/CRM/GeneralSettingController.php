@@ -3,10 +3,16 @@
 namespace App\Http\Controllers\CRM;
 
 use App\Http\Controllers\Controller;
+use App\Models\BudgetRange;
+use App\Models\FinanceStep;
+use App\Models\HeroSlide;
+use App\Models\HomeSection;
+use App\Models\PromoCard;
 use App\Models\Setting;
 use App\Services\ImageOptimizerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class GeneralSettingController extends Controller
 {
@@ -73,7 +79,27 @@ class GeneralSettingController extends Controller
         $offersHeroRaw = $settings['store_offers_hero'] ?? [];
         $offersHero = is_array($offersHeroRaw) ? $offersHeroRaw : (json_decode((string) $offersHeroRaw, true) ?: []);
 
-        return view('crm.settings.general', compact('settings', 'socialMedia', 'footerQuickLinks', 'footerServiceLinks', 'homepageStats', 'aboutSections', 'aboutStats', 'aboutBranches', 'bookingHero', 'bookingSteps', 'bookingSections', 'carsHero', 'offersHero', 'financeStats'));
+        $sectionCounts = $this->sectionCounts();
+
+        return view('crm.settings.general', compact('settings', 'socialMedia', 'footerQuickLinks', 'footerServiceLinks', 'homepageStats', 'aboutSections', 'aboutStats', 'aboutBranches', 'bookingHero', 'bookingSteps', 'bookingSections', 'carsHero', 'offersHero', 'financeStats', 'sectionCounts'));
+    }
+
+    /**
+     * Count the records of each homepage section in a single query.
+     *
+     * @return array<string, int>
+     */
+    private function sectionCounts(): array
+    {
+        $counts = DB::query()->select([
+            'hero_slides' => HeroSlide::query()->selectRaw('count(*)'),
+            'home_sections' => HomeSection::query()->selectRaw('count(*)'),
+            'finance_steps' => FinanceStep::query()->selectRaw('count(*)'),
+            'budget_ranges' => BudgetRange::query()->selectRaw('count(*)'),
+            'promo_cards' => PromoCard::query()->selectRaw('count(*)'),
+        ])->first();
+
+        return array_map('intval', (array) $counts);
     }
 
     public function seo()

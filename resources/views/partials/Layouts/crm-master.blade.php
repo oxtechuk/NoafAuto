@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     @php
-        $siteNameSetting = \App\Models\Setting::where('key', 'site_name')->first()?->value;
+        $siteNameSetting = ($globalSettings['site_name'] ?? null);
         $siteNameText = is_array($siteNameSetting) ? ($siteNameSetting[app()->getLocale()] ?? ($siteNameSetting['ar'] ?? 'زد كابيتال')) : ($siteNameSetting ?? 'زد كابيتال');
-        $siteFavicon = \App\Models\Setting::where('key', 'site_favicon')->first()?->value;
+        $siteFavicon = ($globalSettings['site_favicon'] ?? null);
     @endphp
     <title>@yield('title', 'لوحة التحكم | ' . $siteNameText)</title>
     @if($siteFavicon)

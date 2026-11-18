@@ -26,7 +26,7 @@ final class FixAttributionsCommand extends Command
         }
 
         $fixedBookings = 0;
-        $bookings = Booking::all();
+        $bookings = Booking::query()->lazyById(500);
 
         foreach ($bookings as $booking) {
             $resolved = AttributionHelper::resolveChannel(
@@ -57,7 +57,7 @@ final class FixAttributionsCommand extends Command
         }
 
         $fixedLeads = 0;
-        $leads = Lead::all();
+        $leads = Lead::query()->lazyById(500);
 
         foreach ($leads as $lead) {
             $resolved = AttributionHelper::resolveChannel(

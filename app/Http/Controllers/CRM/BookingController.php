@@ -9,17 +9,33 @@ use App\Models\BookingNote;
 use App\Models\CalculatorBank;
 use App\Models\Car;
 use App\Models\Employee;
-use App\Models\Setting;
-use App\Notifications\NewBookingNotification;
 use App\Services\AttributionHelper;
-use App\Services\TwilioWhatsAppService;
-use Carbon\Carbon;
+use App\Services\Bookings\BookingWorkflowException;
+use App\Services\Bookings\BookingWorkflowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
 class BookingController extends Controller
 {
+    private const DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'doc', 'docx', 'xls', 'xlsx'];
+
+    private const OFFER_RULES = [
+        'calculator_bank_id' => 'nullable|exists:calculator_banks,id',
+        'total_price' => 'nullable|numeric|min:0',
+        'purchase_price' => 'nullable|numeric|min:0',
+        'authorization_price' => 'nullable|numeric|min:0',
+        'expenses' => 'nullable|numeric|min:0',
+        'net_commission' => 'nullable|numeric',
+        'down_payment' => 'nullable|numeric|min:0',
+        'duration_years' => 'nullable|integer|min:1|max:10',
+        'monthly_installment' => 'nullable|numeric|min:0',
+        'balloon_payment' => 'nullable|numeric|min:0',
+        'offer_notes' => 'nullable|string|max:2000',
+        'delivery_note' => 'nullable|string|max:2000',
+    ];
+
     /**
      * Active bookings list (مسار المبيعات النشط)
      */
@@ -597,6 +613,8 @@ class BookingController extends Controller
 
     public function show(Booking $booking)
     {
+        Gate::authorize('view', $booking);
+
         $booking->load(['car.brand', 'employee', 'financingBank', 'notes_list.employee', 'documents.employee', 'tasks.assignedTo']);
         $employees = Employee::where('is_active', true)->get();
         $statuses = Booking::STATUSES;
@@ -607,332 +625,65 @@ class BookingController extends Controller
 
     public function updateOffer(Request $request, Booking $booking)
     {
-        $data = $request->validate([
-            'calculator_bank_id' => 'nullable|exists:calculator_banks,id',
-            'total_price' => 'nullable|numeric|min:0',
-            'purchase_price' => 'nullable|numeric|min:0',
-            'authorization_price' => 'nullable|numeric|min:0',
-            'expenses' => 'nullable|numeric|min:0',
-            'net_commission' => 'nullable|numeric',
-            'down_payment' => 'nullable|numeric|min:0',
-            'duration_years' => 'nullable|integer|min:1|max:10',
-            'monthly_installment' => 'nullable|numeric|min:0',
-            'balloon_payment' => 'nullable|numeric|min:0',
-            'offer_notes' => 'nullable|string|max:2000',
-            'delivery_note' => 'nullable|string|max:2000',
-        ]);
+        Gate::authorize('update', $booking);
+
+        $data = $request->validate(self::OFFER_RULES);
 
         $booking->update($data);
 
         return back()->with('success', 'تم تحديث تفاصيل العرض والبيانات المالية بنجاح');
     }
 
-    public function updateStatus(Request $request, Booking $booking)
+    public function updateStatus(Request $request, Booking $booking, BookingWorkflowService $workflow)
     {
-        $request->validate(['status' => 'required|in:'.implode(',', array_keys(Booking::STATUSES))]);
+        Gate::authorize('update', $booking);
 
-        $targetStatus = $request->status;
-        $oldStatus = $booking->status;
-        $employee = auth('employee')->user();
+        $request->validate($workflow->targetStatusRules());
 
-        // Check if the current status is supervisor approval and user is not admin
-        if ($oldStatus === 'waiting_supervisor_approval' && ! $employee->isAdmin()) {
-            return back()->with('error', 'لا يمكن تعديل حالة الطلب وهو بانتظار اعتماد المشرف.');
+        try {
+            $workflow->ensureStatusCanChange($booking, auth('employee')->user());
+        } catch (BookingWorkflowException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        // Case 1: Target status is delivered / received (تم التسليم)
-        if ($targetStatus === 'received') {
-            $request->validate([
-                'purchase_price' => 'nullable|numeric|min:0',
-                'authorization_price' => 'nullable|numeric|min:0',
-                'expenses' => 'nullable|numeric|min:0',
-                'net_commission' => 'nullable|numeric',
-                'down_payment' => 'nullable|numeric|min:0',
-                'monthly_installment' => 'nullable|numeric|min:0',
-                'note' => 'nullable|string|max:2000',
-            ]);
+        $input = $request->validate($workflow->statusRules($request->status), $workflow->messages());
 
-            $purchasePrice = $request->filled('purchase_price') ? (float) $request->purchase_price : null;
-            $authPrice = $request->filled('authorization_price') ? (float) $request->authorization_price : null;
-            $expenses = $request->filled('expenses') ? (float) $request->expenses : null;
-            $netCommission = $request->filled('net_commission') ? (float) $request->net_commission : null;
-            $downPayment = $request->filled('down_payment') ? (float) $request->down_payment : $booking->down_payment;
-            $monthlyInstallment = $request->filled('monthly_installment') ? (float) $request->monthly_installment : $booking->monthly_installment;
-            $deliveryNote = $request->filled('note') ? trim($request->note) : ($booking->delivery_note ?? null);
-
-            $booking->update([
-                'status' => 'received',
-                'purchase_price' => $purchasePrice,
-                'authorization_price' => $authPrice,
-                'expenses' => $expenses,
-                'net_commission' => $netCommission,
-                'down_payment' => $downPayment,
-                'monthly_installment' => $monthlyInstallment,
-                'delivery_note' => $deliveryNote,
-                'delivered_at' => $booking->delivered_at ?? now(),
-                'pending_reason' => null,
-                'follow_up_at' => null,
-                'proposed_status' => null,
-                'last_contacted_at' => now(),
-            ]);
-
-            $noteDetails = "تم تسليم الطلب بنجاح (تم الاستلام):\n"
-                .'- سعر شراء السيارة: '.($purchasePrice !== null ? number_format($purchasePrice, 2).' ر.س' : '—')."\n"
-                .'- سعر تعميد السيارة: '.($authPrice !== null ? number_format($authPrice, 2).' ر.س' : '—')."\n"
-                .'- المصروفات: '.($expenses !== null ? number_format($expenses, 2).' ر.س' : '—')."\n"
-                .'- صافي عمولة الشركة: '.($netCommission !== null ? number_format($netCommission, 2).' ر.س' : '—')."\n"
-                .'- القسط الشهري: '.($monthlyInstallment > 0 ? number_format($monthlyInstallment, 2).' ر.س' : '—')."\n"
-                .'- الدفعة الأولى: '.($downPayment > 0 ? number_format($downPayment, 2).' ر.س' : '—');
-            if ($request->filled('note')) {
-                $noteDetails .= "\nملاحظة التسليم: ".$request->note;
-            }
-
-            BookingNote::create([
-                'booking_id' => $booking->id,
-                'employee_id' => $employee->id,
-                'note' => $noteDetails,
-                'type' => 'status_change',
-                'old_status' => $oldStatus,
-                'new_status' => 'received',
-            ]);
-
-            if ($booking->assignedTo && $booking->assignedTo->id !== $employee->id) {
-                $booking->assignedTo->notify(new NewBookingNotification($booking, __('تم تسليم الطلب'), __('تم تغيير حالة طلب العميل ').$booking->client_name.__(' إلى تم التسليم')));
-            }
-
-            return back()->with('success', 'تم نقل الطلب إلى قائمة "تم التسليم" بنجاح.');
-        }
-
-        // Case 2: Target status is pending (قيد الانتظار)
-        if ($targetStatus === 'pending') {
-            $request->validate([
-                'pending_reason' => 'required|string|max:500',
-                'follow_up_at' => 'required|date|after:now',
-                'note' => 'required|string|max:2000',
-            ], [
-                'pending_reason.required' => 'يرجى إدخال سبب الانتظار.',
-                'follow_up_at.required' => 'يرجى تحديد وقت وتاريخ إعادة المتابعة.',
-                'follow_up_at.after' => 'يجب أن يكون وقت المتابعة في المستقبل.',
-                'note.required' => 'يرجى كتابة ملاحظة توضيحية.',
-            ]);
-
-            $booking->update([
-                'status' => 'pending',
-                'pending_reason' => $request->pending_reason,
-                'follow_up_at' => $request->follow_up_at,
-                'proposed_status' => null,
-                'last_contacted_at' => now(),
-            ]);
-
-            BookingNote::create([
-                'booking_id' => $booking->id,
-                'employee_id' => $employee->id,
-                'note' => "تفاصيل قيد الانتظار:\n- سبب الانتظار: {$request->pending_reason}\n- موعد المتابعة: ".Carbon::parse($request->follow_up_at)->format('d/m/Y H:i')."\n- ملاحظة: {$request->note}",
-                'type' => 'status_change',
-                'old_status' => $oldStatus,
-                'new_status' => 'pending',
-            ]);
-
-            return back()->with('success', 'تم نقل الطلب إلى "قيد الانتظار" بنجاح.');
-        }
-
-        // Case 3: Target status is a closing lost status
-        $isLostStatus = (Booking::STATUSES[$targetStatus]['is_lost'] ?? false) || ((Booking::STATUSES[$targetStatus]['group'] ?? '') === 'lost');
-
-        if ($isLostStatus) {
-            if (! $employee->isAdmin()) {
-                // Not a supervisor: route to supervisor approval
-                $booking->update([
-                    'status' => 'waiting_supervisor_approval',
-                    'proposed_status' => $targetStatus,
-                    'last_contacted_at' => now(),
-                ]);
-
-                $noteText = 'طلب إغلاق الحجز بـ "'.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus).'" بانتظار اعتماد المشرف.';
-                if ($request->filled('note')) {
-                    $noteText .= "\nملاحظة الموظف: ".$request->note;
-                }
-
-                BookingNote::create([
-                    'booking_id' => $booking->id,
-                    'employee_id' => $employee->id,
-                    'note' => $noteText,
-                    'type' => 'status_change',
-                    'old_status' => $oldStatus,
-                    'new_status' => 'waiting_supervisor_approval',
-                ]);
-
-                return back()->with('success', 'تم إرسال طلب إغلاق الحجز للمشرف للاعتماد.');
-            } else {
-                // Supervisor can close directly
-                $booking->update([
-                    'status' => $targetStatus,
-                    'proposed_status' => null,
-                    'pending_reason' => null,
-                    'follow_up_at' => null,
-                    'last_contacted_at' => now(),
-                ]);
-
-                $noteText = 'تم إغلاق الحجز مباشرة من قبل المشرف إلى "'.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus).'".';
-                if ($request->filled('note')) {
-                    $noteText .= "\nملاحظة المشرف: ".$request->note;
-                }
-
-                BookingNote::create([
-                    'booking_id' => $booking->id,
-                    'employee_id' => $employee->id,
-                    'note' => $noteText,
-                    'type' => 'status_change',
-                    'old_status' => $oldStatus,
-                    'new_status' => $targetStatus,
-                ]);
-
-                return back()->with('success', 'تم إغلاق الحجز بنجاح.');
-            }
-        }
-
-        // Case 4: Normal active status update (returning from pending/closed or advancing in pipeline)
-        $booking->update([
-            'status' => $targetStatus,
-            'proposed_status' => null,
-            'pending_reason' => null,
-            'follow_up_at' => null,
-            'last_contacted_at' => now(),
-        ]);
-
-        BookingNote::create([
-            'booking_id' => $booking->id,
-            'employee_id' => $employee->id,
-            'note' => 'تم تغيير الحالة من "'.(Booking::STATUSES[$oldStatus]['label'] ?? $oldStatus).'" إلى "'.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus).'"',
-            'type' => 'status_change',
-            'old_status' => $oldStatus,
-            'new_status' => $targetStatus,
-        ]);
-
-        if ($booking->assignedTo && $booking->assignedTo->id !== $employee->id) {
-            $booking->assignedTo->notify(new NewBookingNotification($booking, __('تحديث حالة الطلب'), __('تم تغيير حالة طلب العميل').' '.$booking->client_name.' '.__('إلى').' '.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus)));
-        }
-
-        // Send WhatsApp if configured
-        $settings = Setting::whereIn('key', ['whatsapp_template_status_update'])->pluck('value', 'key');
-        $template = $settings['whatsapp_template_status_update'] ?? '';
-
-        if (! empty($template) && ! empty($booking->client_phone)) {
-            $message = str_replace(
-                ['{customer_name}', '{car_name}', '{status}'],
-                [$booking->client_name, $booking->car?->name ?? 'السيارة', Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus],
-                $template
-            );
-            $twilioService = app(TwilioWhatsAppService::class);
-            $twilioService->sendWhatsApp($booking->client_phone, $message);
-        }
-
-        return back()->with('success', 'تم تحديث حالة الطلب بنجاح');
+        return $this->runWorkflow(fn () => $workflow->changeStatus($booking, auth('employee')->user(), $request->status, $input));
     }
 
-    public function approveStatus(Booking $booking)
+    public function approveStatus(Booking $booking, BookingWorkflowService $workflow)
     {
-        $employee = auth('employee')->user();
-        if (! $employee->isAdmin()) {
-            abort(403, 'غير مصرح لك بزيارة هذه الصفحة');
-        }
+        $this->authorizeSupervisor($booking, 'غير مصرح لك بزيارة هذه الصفحة');
 
-        if ($booking->status !== 'waiting_supervisor_approval' || empty($booking->proposed_status)) {
+        return $this->runWorkflow(fn () => $workflow->approveClose($booking, auth('employee')->user()));
+    }
+
+    public function rejectStatus(Request $request, Booking $booking, BookingWorkflowService $workflow)
+    {
+        $this->authorizeSupervisor($booking, 'غير مصرح لك بزيارة هذه الصفحة');
+
+        if ($booking->status !== BookingWorkflowService::AWAITING_APPROVAL || empty($booking->proposed_status)) {
             return back()->with('error', 'الطلب ليس بانتظار اعتماد الإغلاق.');
         }
 
-        $oldStatus = $booking->status;
-        $targetStatus = $booking->proposed_status;
+        $input = $request->validate($workflow->rejectRules(), $workflow->rejectMessages());
 
-        $booking->update([
-            'status' => $targetStatus,
-            'proposed_status' => null,
-            'last_contacted_at' => now(),
-        ]);
-
-        BookingNote::create([
-            'booking_id' => $booking->id,
-            'employee_id' => $employee->id,
-            'note' => 'تم اعتماد إغلاق الطلب بـ "'.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus).'" من قبل المشرف: '.$employee->name,
-            'type' => 'status_change',
-            'old_status' => $oldStatus,
-            'new_status' => $targetStatus,
-        ]);
-
-        if ($booking->assignedTo) {
-            $booking->assignedTo->notify(new NewBookingNotification($booking, __('اعتماد إغلاق الطلب'), __('تم اعتماد إغلاق طلب العميل').' '.$booking->client_name.' '.__('كـ').' '.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus)));
-        }
-
-        return back()->with('success', 'تم اعتماد إغلاق الطلب بنجاح.');
+        return $this->runWorkflow(fn () => $workflow->rejectClose($booking, auth('employee')->user(), $input['status'], $input['note']));
     }
 
-    public function rejectStatus(Request $request, Booking $booking)
+    public function assign(Request $request, Booking $booking, BookingWorkflowService $workflow)
     {
-        $employee = auth('employee')->user();
-        if (! $employee->isAdmin()) {
-            abort(403, 'غير مصرح لك بزيارة هذه الصفحة');
-        }
-
-        if ($booking->status !== 'waiting_supervisor_approval' || empty($booking->proposed_status)) {
-            return back()->with('error', 'الطلب ليس بانتظار اعتماد الإغلاق.');
-        }
-
-        $activeStatuses = array_keys(array_filter(Booking::STATUSES, fn ($s) => ($s['group'] === 'active' && ($s['is_close'] ?? false) === false)));
-
-        $request->validate([
-            'status' => 'required|in:'.implode(',', $activeStatuses),
-            'note' => 'required|string|max:2000',
-        ], [
-            'status.required' => 'يرجى اختيار المرحلة المراد إعادة الطلب إليها.',
-            'note.required' => 'يرجى كتابة سبب رفض الإغلاق / إعادة الطلب.',
-        ]);
-
-        $oldStatus = $booking->status;
-        $targetStatus = $request->status;
-
-        $booking->update([
-            'status' => $targetStatus,
-            'proposed_status' => null,
-            'last_contacted_at' => now(),
-        ]);
-
-        BookingNote::create([
-            'booking_id' => $booking->id,
-            'employee_id' => $employee->id,
-            'note' => 'تم رفض إغلاق الطلب وإعادته لمرحلة "'.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus)."\" من قبل المشرف.\nالسبب: ".$request->note,
-            'type' => 'status_change',
-            'old_status' => $oldStatus,
-            'new_status' => $targetStatus,
-        ]);
-
-        if ($booking->assignedTo) {
-            $booking->assignedTo->notify(new NewBookingNotification($booking, __('رفض إغلاق الطلب وإعادته لمرحلة أخرى'), __('تم رفض طلب إغلاق العميل').' '.$booking->client_name.' '.__('وإعادته لمرحلة').' '.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus)));
-        }
-
-        return back()->with('success', 'تم رفض الإغلاق وإعادة الطلب لمرحلة '.(Booking::STATUSES[$targetStatus]['label'] ?? $targetStatus).' بنجاح.');
-    }
-
-    public function assign(Request $request, Booking $booking)
-    {
-        $employee = auth('employee')->user();
-        if (! $employee->isAdmin()) {
-            abort(403, __('غير مصرح لك بإعادة إسناد أو تحويل الطلب. الصلاحية مقتصرة على المشرف/المدير فقط.'));
-        }
+        $this->authorizeSupervisor($booking, __('غير مصرح لك بإعادة إسناد أو تحويل الطلب. الصلاحية مقتصرة على المشرف/المدير فقط.'));
 
         $request->validate(['employee_id' => 'required|exists:employees,id']);
-        $booking->update(['assigned_to' => $request->employee_id]);
 
-        // Notify the assigned employee
-        $assignedEmployee = Employee::find($request->employee_id);
-        if ($assignedEmployee) {
-            $assignedEmployee->notify(new NewBookingNotification($booking, __('طلب جديد'), __('تم تعيين طلب جديد لك للعميل').' '.$booking->client_name));
-        }
-
-        return back()->with('success', 'تم توزيع الطلب على الموظف بنجاح');
+        return back()->with('success', $workflow->assign($booking, Employee::findOrFail($request->employee_id)));
     }
 
     public function addNote(Request $request, Booking $booking)
     {
+        Gate::authorize('update', $booking);
+
         $request->validate(['note' => 'required|string|max:2000', 'type' => 'in:note,call']);
         BookingNote::create([
             'booking_id' => $booking->id,
@@ -946,9 +697,11 @@ class BookingController extends Controller
 
     public function uploadDocument(Request $request, Booking $booking)
     {
+        Gate::authorize('update', $booking);
+
         $request->validate([
             'title' => 'nullable|string|max:255',
-            'file' => 'required|file|max:10240', // 10MB max
+            'file' => ['required', 'file', 'max:10240', 'mimes:'.implode(',', self::DOCUMENT_EXTENSIONS)],
         ]);
 
         $file = $request->file('file');
@@ -958,7 +711,7 @@ class BookingController extends Controller
             'employee_id' => auth('employee')->id(),
             'title' => $request->title ?? $file->getClientOriginalName(),
             'file_path' => $path,
-            'file_type' => $file->getClientOriginalExtension(),
+            'file_type' => $file->extension(),
         ]);
 
         return back()->with('success', 'تم رفع المستند بنجاح');
@@ -966,6 +719,8 @@ class BookingController extends Controller
 
     public function deleteDocument(BookingDocument $document)
     {
+        Gate::authorize('update', $document->booking);
+
         if ($document->file_path && Storage::disk('public')->exists($document->file_path)) {
             Storage::disk('public')->delete($document->file_path);
         }
@@ -976,13 +731,32 @@ class BookingController extends Controller
 
     public function destroy(Booking $booking)
     {
-        $employee = auth('employee')->user();
-        if (! $employee->isAdmin()) {
-            abort(403, __('غير مصرح لك بحذف الطلبات. صلاحية الحذف مقتصرة على المشرف/المدير فقط.'));
-        }
+        $this->authorizeSupervisor($booking, __('غير مصرح لك بحذف الطلبات. صلاحية الحذف مقتصرة على المشرف/المدير فقط.'));
 
         $booking->delete();
 
         return redirect()->route('crm.bookings.index')->with('success', 'تم حذف الطلب بنجاح');
+    }
+
+    /**
+     * Keep the CRM's existing localized 403 messages for supervisor-only actions.
+     */
+    private function authorizeSupervisor(Booking $booking, string $message): void
+    {
+        if (Gate::denies('supervise', $booking)) {
+            abort(403, $message);
+        }
+    }
+
+    /**
+     * @param  callable(): string  $transition
+     */
+    private function runWorkflow(callable $transition)
+    {
+        try {
+            return back()->with('success', $transition());
+        } catch (BookingWorkflowException $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 }

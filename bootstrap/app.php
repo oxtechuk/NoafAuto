@@ -2,7 +2,11 @@
 
 use App\Http\Api\Exceptions\Handlers\GlobalExceptionHandler;
 use App\Http\Middleware\ApiLocalizationMiddleware;
+use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\EnsureEmployeeIsActive;
 use App\Http\Middleware\LocalizationMiddleware;
+use App\Http\Middleware\MarkDeprecatedApi;
+use App\Http\Middleware\SecurityHeadersMiddleware;
 use App\Http\Middleware\SetEmployeeGuard;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -24,11 +28,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function () {
             Route::middleware('api')
+                ->prefix('api/v1')
+                ->name('v1.')
+                ->group(base_path('routes/store-api.php'));
+
+            // Legacy unversioned store API, kept for clients still on an old build.
+            Route::middleware(['api', MarkDeprecatedApi::class])
                 ->prefix('api')
                 ->group(base_path('routes/store-api.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->prepend(AssignRequestId::class);
+        $middleware->append(SecurityHeadersMiddleware::class);
+
         $middleware->web(append: [
             LocalizationMiddleware::class,
         ]);
@@ -40,6 +53,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => PermissionMiddleware::class,
             'guard.employee' => SetEmployeeGuard::class,
+            'employee.active' => EnsureEmployeeIsActive::class,
         ]);
 
         $middleware->redirectTo(
@@ -52,7 +66,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (PostTooLargeException $e, Request $request) {
             $locale = 'ar';
 
-            if ($request->expectsJson() || $request->is('api/*') || $request->is('erp/*')) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 $locale = $request->header('Accept-Language', 'ar');
                 if (! in_array($locale, ['ar', 'en'], true)) {
                     $locale = 'ar';
@@ -73,7 +87,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ? 'حجم الملف المرفوع كبير جداً. يرجى رفع ملف بحجم أصغر.'
                 : 'The uploaded file is too large. Please upload a smaller file.';
 
-            if ($request->expectsJson() || $request->is('api/*') || $request->is('erp/*')) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
                     'message' => $message,
@@ -129,7 +143,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (AuthenticationException $e, Request $request) {
-            if ($request->expectsJson() || $request->is('api/*') || $request->is('erp/*')) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json(['message' => __('Unauthenticated')], 401);
             }
 

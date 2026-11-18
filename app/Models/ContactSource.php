@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Database\Factories\ContactSourceFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ContactSource extends Model
 {
+    /** @use HasFactory<ContactSourceFactory> */
+    use HasFactory;
+
     protected $fillable = ['name', 'sort_order', 'is_active'];
 
     protected function casts(): array

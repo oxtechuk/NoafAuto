@@ -8,7 +8,6 @@ use App\Models\Car;
 use App\Models\CarCategory;
 use App\Models\CarModel;
 use App\Models\CarType;
-use Illuminate\Support\Facades\Cache;
 
 class CarCacheService extends BaseCacheService
 {
@@ -104,6 +103,6 @@ class CarCacheService extends BaseCacheService
 
     public function forgetCars(): void
     {
-        Cache::forget('cars.filters');
+        $this->forget('cars.filters');
     }
 }

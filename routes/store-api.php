@@ -37,20 +37,20 @@ Route::prefix('store')->name('store.api.')->group(function () {
 
     // Booking & Calculator (US2)
     Route::get('/booking/meta', [BookingController::class, 'meta'])->name('booking.meta');
-    Route::post('/booking', [BookingController::class, 'store'])->name('booking.store');
-    Route::post('/bookings', [BookingController::class, 'store'])->name('bookings.store');
+    Route::post('/booking', [BookingController::class, 'store'])->middleware('throttle:public-forms')->name('booking.store');
+    Route::post('/bookings', [BookingController::class, 'store'])->middleware('throttle:public-forms')->name('bookings.store');
     Route::get('/calculator/banks', [CalculatorController::class, 'banks'])->name('calculator.banks');
     Route::post('/calculator/calculate', [CalculatorController::class, 'calculate'])->name('calculator.calculate');
-    Route::post('/calculator/lead', [CalculatorController::class, 'saveLead'])->name('calculator.lead');
-    Route::post('/calculator/otp/send', [CalculatorController::class, 'sendOtp'])->name('calculator.otp.send');
-    Route::post('/calculator/otp/verify', [CalculatorController::class, 'verifyOtp'])->name('calculator.otp.verify');
+    Route::post('/calculator/lead', [CalculatorController::class, 'saveLead'])->middleware('throttle:public-forms')->name('calculator.lead');
+    Route::post('/calculator/otp/send', [CalculatorController::class, 'sendOtp'])->middleware('throttle:otp')->name('calculator.otp.send');
+    Route::post('/calculator/otp/verify', [CalculatorController::class, 'verifyOtp'])->middleware('throttle:otp-verify')->name('calculator.otp.verify');
 
     // Content & Engagement (US3)
     Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
     Route::get('/blog/categories', [BlogController::class, 'categories'])->name('blog.categories');
     Route::get('/blog/{slug}', [BlogController::class, 'show'])->name('blog.show');
     Route::get('/offers', [OfferController::class, 'index'])->name('offers.index');
-    Route::post('/newsletter', [NewsletterController::class, 'store'])->name('newsletter.store');
+    Route::post('/newsletter', [NewsletterController::class, 'store'])->middleware('throttle:public-forms')->name('newsletter.store');
 
     // FAQs
     Route::get('/faqs', FaqController::class)->name('faqs');
@@ -58,7 +58,7 @@ Route::prefix('store')->name('store.api.')->group(function () {
     // Home & Static (US4)
     Route::get('/home', [HomeController::class, '__invoke'])->name('home');
     Route::get('/about', [AboutController::class, '__invoke'])->name('about');
-    Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
+    Route::post('/contact', [ContactController::class, 'store'])->middleware('throttle:public-forms')->name('contact.store');
     Route::get('/testimonials', [TestimonialController::class, '__invoke'])->name('testimonials');
     Route::get('/partners', [PartnerController::class, '__invoke'])->name('partners');
 

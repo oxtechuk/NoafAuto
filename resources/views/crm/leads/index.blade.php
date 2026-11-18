@@ -1,5 +1,5 @@
 @extends('partials.Layouts.crm-master')
-@section('title', __('العملاء') . ' | ' . (\App\Models\Setting::where('key', 'site_name')->first()?->value['ar'] ?? 'زد كابيتال'))
+@section('title', __('العملاء') . ' | ' . ($globalSettings['site_name']['ar'] ?? 'زد كابيتال'))
 
 @section('content')
 <div class="container-fluid" dir="{{ app()->getLocale() == 'ar' ? 'rtl' : 'ltr' }}">

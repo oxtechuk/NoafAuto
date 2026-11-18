@@ -5,8 +5,8 @@ namespace App\Http\Controllers\CRM;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Lead;
-use App\Models\Setting;
 use App\Services\AttributionHelper;
+use App\Services\Cache\BaseCacheService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -14,7 +14,7 @@ class ReportController extends Controller
 {
     public function bookings(Request $request)
     {
-        $settings = Setting::all()->pluck('value', 'key');
+        $settings = app(BaseCacheService::class)->rememberSettings();
         $from = $request->input('from', now()->subMonth()->toDateString());
         $to = $request->input('to', now()->toDateString());
 

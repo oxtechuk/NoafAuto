@@ -36,11 +36,22 @@ use App\Observers\PromoCardObserver;
 use App\Observers\SettingObserver;
 use App\Observers\SpecificationObserver;
 use App\Observers\TestimonialObserver;
+use App\Policies\RolePolicy;
 use App\Services\Cache\BaseCacheService;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\View\View as ViewContract;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -57,17 +68,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        try {
-            View::share([
-                'globalSettings' => app(BaseCacheService::class)->rememberSettings(),
-            ]);
-        } catch (\Throwable $e) {
-            View::share([
-                'globalSettings' => [],
-            ]);
-        }
+        View::composer('*', function (ViewContract $view): void {
+            $view->with('globalSettings', $this->globalSettings());
+        });
+
+        $this->configureLazyLoadingPrevention();
+
+        $this->configureRateLimiting();
 
         $this->registerObservers();
+
+        Gate::policy(Role::class, RolePolicy::class);
+        Gate::define('viewApiDocs', fn ($user = null) => app()->environment('local', 'testing') || (bool) $user?->hasRole('super-admin'));
 
         // Fix for MySQL older versions (index key length)
         Schema::defaultStringLength(191);
@@ -76,6 +88,66 @@ class AppServiceProvider extends ServiceProvider
         if (str_contains(config('app.url'), 'https')) {
             URL::forceScheme('https');
         }
+    }
+
+    /**
+     * Resolve the cached settings only when a view is actually rendered,
+     * so API requests and console commands never pay for this lookup.
+     */
+    private function globalSettings(): mixed
+    {
+        try {
+            return app(BaseCacheService::class)->rememberSettings();
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Surface N+1 queries outside production: fail tests, log locally.
+     */
+    private function configureLazyLoadingPrevention(): void
+    {
+        Model::preventLazyLoading(! $this->app->isProduction());
+
+        if (! $this->app->runningUnitTests()) {
+            Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation): void {
+                Log::warning('Lazy loading violation', [
+                    'model' => $model::class,
+                    'relation' => $relation,
+                ]);
+            });
+        }
+    }
+
+    /**
+     * Protect authentication, paid SMS and public forms from abuse.
+     */
+    private function configureRateLimiting(): void
+    {
+        RateLimiter::for('api', function (Request $request): Limit {
+            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('login', function (Request $request): Limit {
+            return Limit::perMinute(5)->by(Str::lower((string) $request->input('username')).'|'.$request->ip());
+        });
+
+        RateLimiter::for('otp', function (Request $request): array {
+            return [
+                Limit::perMinute(3)->by('otp-ip:'.$request->ip()),
+                Limit::perHour(10)->by('otp-ip-hour:'.$request->ip()),
+                Limit::perHour(5)->by('otp-phone:'.preg_replace('/\D+/', '', (string) $request->input('phone'))),
+            ];
+        });
+
+        RateLimiter::for('otp-verify', function (Request $request): Limit {
+            return Limit::perMinute(5)->by(preg_replace('/\D+/', '', (string) $request->input('phone')).'|'.$request->ip());
+        });
+
+        RateLimiter::for('public-forms', function (Request $request): Limit {
+            return Limit::perMinute(10)->by($request->ip());
+        });
     }
 
     private function registerObservers(): void
