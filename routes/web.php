@@ -41,8 +41,10 @@ Route::get('/admin/{any?}', function () {
     return view('admin');
 })->where('any', '.*')->name('admin.spa');
 
+Route::redirect('/login', '/admin/login')->name('login');
+
 Route::get('/{any}', [StoreSpaController::class, 'fallback'])
-    ->where('any', '^(?!crm|admin|docs|manager-login|api|store-api|storage).*$');
+    ->where('any', '^(?!crm|admin|login|docs|manager-login|api|store-api|storage).*$');
 
 // =============================================
 //  CRM (Admin Dashboard)

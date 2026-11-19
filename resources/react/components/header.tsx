@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { LogIn } from "lucide-react";
 import { useLanguageStore } from "../store/language.store";
 import type { IHeaderProps } from "../interfaces/IHeaderProps";
 import LazyImg from "./LazyImg";
@@ -54,13 +55,24 @@ export default function Header({
             })}
           </nav>
 
-          {/* CTA Button - Golden Amber */}
-          <NavLink
-            to={ctaPath}
-            className="inline-flex h-[44px] items-center justify-center rounded-2xl bg-[#EDC98E] px-7 text-[15px] font-bold text-[#16254F] shadow-sm transition hover:bg-[#D9B477] hover:shadow"
-          >
-            {ctaText}
-          </NavLink>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            <NavLink
+              to={ctaPath}
+              className="inline-flex h-[44px] items-center justify-center rounded-2xl bg-[#EDC98E] px-6 text-[15px] font-bold text-[#16254F] shadow-sm transition hover:bg-[#D9B477] hover:shadow"
+            >
+              {ctaText}
+            </NavLink>
+
+            <a
+              href="/login"
+              className="inline-flex h-[44px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 text-[14px] font-bold text-[#16254F] shadow-xs transition hover:bg-slate-50 hover:border-slate-300"
+              title="تسجيل الدخول"
+            >
+              <LogIn className="h-4 w-4 text-slate-500" />
+              <span className="hidden sm:inline">تسجيل الدخول</span>
+            </a>
+          </div>
         </div>
       </div>
     </header>

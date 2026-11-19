@@ -58,7 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->redirectTo(
             guests: function ($request) {
-                return route('crm.login');
+                return route('login');
             }
         );
     })

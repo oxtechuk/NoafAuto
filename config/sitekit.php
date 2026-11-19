@@ -33,4 +33,15 @@ return [
 
     'manifest_url' => env('SITEKIT_MANIFEST_URL'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Deploy Webhook Secret
+    |--------------------------------------------------------------------------
+    |
+    | Secret key for automated deployment triggers across client instances.
+    |
+    */
+
+    'deploy_secret' => env('SITEKIT_DEPLOY_SECRET'),
+
 ];

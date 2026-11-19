@@ -1,0 +1,110 @@
+name: Auto-Deploy and Broadcast to All Instances
+
+on:
+  push:
+    branches:
+      - main
+      - Master
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    name: Run Quality & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_sqlite, gd, sodium
+          coverage: none
+
+      - name: Install Composer Dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Setup Environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run PHPUnit Test Suite
+        run: php -d memory_limit=512M artisan test --compact
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install NPM Dependencies
+        run: npm ci
+
+      - name: Build Production Assets (Vite)
+        run: npm run build
+
+  broadcast-deployment:
+    name: Propagate Updates to All Instances
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/Master'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Broadcast Webhook to Client Instances
+        env:
+          DEPLOY_SECRET: ${{ secrets.SITEKIT_DEPLOY_SECRET }}
+          INSTANCE_URLS: ${{ secrets.SITEKIT_INSTANCE_URLS }}
+        run: |
+          echo "================================================="
+          echo " Starting Sitekit Multi-Instance Deployment"
+          echo " Commit: ${{ github.sha }}"
+          echo "================================================="
+
+          if [ -z "$INSTANCE_URLS" ] || [ -z "$DEPLOY_SECRET" ]; then
+            echo "Notice: SITEKIT_INSTANCE_URLS or SITEKIT_DEPLOY_SECRET secrets are not configured yet."
+            echo "To enable instant propagation, add SITEKIT_INSTANCE_URLS (comma-separated URLs) and SITEKIT_DEPLOY_SECRET to your GitHub repo secrets."
+            exit 0
+          fi
+
+          IFS=',' read -ra ADDR <<< "$INSTANCE_URLS"
+          for url in "${ADDR[@]}"; do
+            trimmed_url=$(echo "$url" | xargs)
+            if [ -n "$trimmed_url" ]; then
+              echo "Deploying update to instance: $trimmed_url"
+              response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+                -X POST "$trimmed_url/api/v1/system/deploy-webhook" \
+                -H "X-Deploy-Secret: $DEPLOY_SECRET" \
+                -H "Content-Type: application/json" \
+                -d '{"pull": true}')
+
+              body=$(echo "$response" | sed '$d')
+              http_status=$(echo "$response" | tail -n1 | cut -d':' -f2)
+
+              if [ "$http_status" -ge 200 ] && [ "$http_status" -lt 300 ]; then
+                echo " Successfully deployed to $trimmed_url (HTTP $http_status)"
+              else
+                echo " Failed deployment to $trimmed_url (HTTP $http_status): $body"
+              fi
+            fi
+          done
+
+      - name: Generate Release Manifest Artifact
+        run: |
+          mkdir -p build/dist
+          cat <<EOF > build/dist/manifest.json
+          {
+            "version": "1.0.0",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "released_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "changelog": "Automated build and update propagation across all Sitekit instances."
+          }
+          EOF
+
+      - name: Upload Release Manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: sitekit-release-manifest
+          path: build/dist/manifest.json

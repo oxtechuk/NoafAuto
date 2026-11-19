@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\BookingController as V1BookingController;
 use App\Http\Controllers\Api\V1\BrandController as V1BrandController;
 use App\Http\Controllers\Api\V1\CarController as V1CarController;
 use App\Http\Controllers\Api\V1\DashboardController as V1DashboardController;
+use App\Http\Controllers\Api\V1\DeployWebhookController;
 use App\Http\Controllers\Api\V1\EmployeeController as V1EmployeeController;
 use App\Http\Controllers\Api\V1\LeadController as V1LeadController;
 use App\Http\Controllers\Api\V1\ModuleController as V1ModuleController;
@@ -19,6 +20,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('/health', [SystemController::class, 'health'])->name('health');
     Route::get('/system/info', [SystemController::class, 'info'])->name('system.info');
     Route::get('/version', [SystemController::class, 'version'])->name('version');
+    Route::post('/system/deploy-webhook', [DeployWebhookController::class, 'handle'])->name('system.deploy-webhook');
 
     // Cookie-based SPA authentication for employees (call /sanctum/csrf-cookie first).
     Route::prefix('auth')->name('auth.')->middleware('web')->group(function () {
