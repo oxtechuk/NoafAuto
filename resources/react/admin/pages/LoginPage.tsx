@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
+import { Button } from '../../shared/components/ui/Button';
+import { Input } from '../../shared/components/ui/Input';
 import { LogIn } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -30,19 +30,19 @@ export const LoginPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4" dir="rtl">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-800">
-                <div className="p-8 text-center bg-gradient-to-br from-indigo-700 to-indigo-900 text-white">
-                    <div className="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-white/10 backdrop-blur-md mb-4 font-black text-2xl">
-                        S
+        <div className="min-h-screen bg-[var(--tenant-sidebar-bg)] flex items-center justify-center p-4" dir="rtl">
+            <div className="w-full max-w-md bg-[var(--surface-primary)] rounded-[var(--radius-xl)] shadow-xl overflow-hidden border border-[var(--border-default)]">
+                <div className="p-8 text-center bg-[var(--tenant-primary)] text-white">
+                    <div className="inline-flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)] bg-white/10 backdrop-blur-md mb-4 font-black text-2xl text-[var(--tenant-secondary)]">
+                        ت
                     </div>
-                    <h1 className="text-xl font-bold tracking-tight">لوحة تحكم Sitekit CRM</h1>
-                    <p className="text-xs text-indigo-200 mt-1">سجل الدخول للمتابعة وإدارة العمليات اليومية</p>
+                    <h1 className="text-xl font-bold tracking-tight">نظام إدارة تعميد CRM</h1>
+                    <p className="text-xs text-white/70 mt-1">سجل الدخول للمتابعة وإدارة العمليات اليومية</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-8 space-y-5">
                     {error && (
-                        <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
+                        <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--status-danger-bg)] border border-[var(--status-danger)]/20 text-xs text-[var(--status-danger)] font-medium">
                             {error}
                         </div>
                     )}

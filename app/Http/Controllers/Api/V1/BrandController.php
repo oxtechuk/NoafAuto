@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Api\Contracts\ApiResponse;
+use App\Http\Api\Response\Builder\ApiResponseBuilder;
 use App\Http\Controllers\Api\ApiBaseController;
 use App\Http\Requests\Api\V1\Brands\BrandRequest;
 use App\Http\Resources\V1\BrandResource;
 use App\Models\Brand;
+use App\Services\ImageOptimizerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -18,6 +20,13 @@ class BrandController extends ApiBaseController
     private const RELATIONS = ['brandType'];
 
     private const MAX_PER_PAGE = 100;
+
+    public function __construct(
+        ApiResponseBuilder $responseBuilder,
+        protected ImageOptimizerService $imageOptimizer
+    ) {
+        parent::__construct($responseBuilder);
+    }
 
     public function index(Request $request): ApiResponse
     {
@@ -65,6 +74,14 @@ class BrandController extends ApiBaseController
         $nameEn = $data['name']['en'] ?? $data['name']['ar'];
         $data['slug'] = Str::slug($nameEn) ?: 'brand-'.Str::random(6);
 
+        if ($request->hasFile('logo')) {
+            $data['logo'] = $this->imageOptimizer->storeAndOptimize(
+                $request->file('logo'),
+                'brands',
+                ['maxWidth' => 400, 'quality' => 85]
+            );
+        }
+
         $brand = Brand::create($data);
 
         return $this->respondCreated($this->brandData($brand), 'Brand created successfully');
@@ -86,6 +103,14 @@ class BrandController extends ApiBaseController
             $data['slug'] = Str::slug($data['name']['en']);
         }
 
+        if ($request->hasFile('logo')) {
+            $data['logo'] = $this->imageOptimizer->storeAndOptimize(
+                $request->file('logo'),
+                'brands',
+                ['maxWidth' => 400, 'quality' => 85]
+            );
+        }
+
         $brand->update($data);
 
         return $this->respondSuccess($this->brandData($brand), 'Brand updated successfully');
@@ -98,6 +123,20 @@ class BrandController extends ApiBaseController
         $brand->delete();
 
         return $this->respondDeleted('Brand deleted successfully');
+    }
+
+    public function models(Brand $brand): ApiResponse
+    {
+        $models = $brand->models()->where('is_active', true)->orderBy('name')->get();
+
+        return $this->respondSuccess(
+            $models->map(fn ($m) => [
+                'id' => $m->id,
+                'name' => $m->getTranslation('name', app()->getLocale(), false) ?: $m->name,
+                'name_translations' => $m->getTranslations('name'),
+            ])->values()->all(),
+            'Brand models retrieved successfully'
+        );
     }
 
     /**

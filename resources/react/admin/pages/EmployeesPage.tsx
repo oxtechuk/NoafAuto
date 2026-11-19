@@ -42,8 +42,8 @@ interface EmployeeItem {
 }
 
 export const EmployeesPage: React.FC = () => {
-    const { user: currentUser, hasPermission } = useAuth();
-    const canManage = hasPermission('manage-employees') || true;
+    const { user: currentUser, can } = useAuth();
+    const canManage = can('manage-employees');
 
     const [employees, setEmployees] = useState<EmployeeItem[]>([]);
     const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -69,8 +69,9 @@ export const EmployeesPage: React.FC = () => {
 
     const fetchRoles = async () => {
         try {
-            const res = await apiClient.get<{ data: RoleItem[] }>('/api/v1/roles');
-            setRoles(res.data || []);
+            const res = await apiClient.get<any>('/api/v1/roles');
+            const roleData = res.data?.data || res.data || [];
+            setRoles(Array.isArray(roleData) ? roleData : []);
         } catch (err) {
             console.error('Failed to load roles', err);
         }
@@ -82,16 +83,16 @@ export const EmployeesPage: React.FC = () => {
             const params: Record<string, any> = { page: pageNumber, per_page: 15 };
             if (search) params.search = search;
 
-            const res = await apiClient.get<{
-                data: EmployeeItem[];
-                meta?: { current_page: number; last_page: number; total: number };
-            }>('/api/v1/employees', { params });
+            const res = await apiClient.get<any>('/api/v1/employees', { params });
+            const payload = res.data;
+            const empList = payload?.data?.data || payload?.data || [];
+            setEmployees(Array.isArray(empList) ? empList : []);
 
-            setEmployees(res.data || []);
-            if (res.meta) {
-                setPage(res.meta.current_page);
-                setLastPage(res.meta.last_page);
-                setTotal(res.meta.total);
+            const meta = payload?.data?.meta || payload?.meta;
+            if (meta) {
+                setPage(meta.current_page || 1);
+                setLastPage(meta.last_page || 1);
+                setTotal(meta.total || 0);
             }
         } catch (err) {
             console.error('Failed to load employees', err);
@@ -215,7 +216,7 @@ export const EmployeesPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                        <UserCheck className="h-6 w-6 text-indigo-600" />
+                        <UserCheck className="h-6 w-6 text-[var(--tenant-primary)]" />
                         الموظفون والأدوار والصلاحيات
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
@@ -240,7 +241,7 @@ export const EmployeesPage: React.FC = () => {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="بحث بالاسم، البريد الإلكتروني، أو رقم الجوال..."
-                            className="w-full ps-9 pe-4 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
+                            className="w-full ps-9 pe-4 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary)]/20 focus:border-[var(--tenant-primary)] bg-white"
                         />
                     </div>
                 </div>
@@ -278,7 +279,7 @@ export const EmployeesPage: React.FC = () => {
                                     <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
                                         <td className="py-3.5 px-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-9 w-9 rounded-full bg-indigo-50 text-indigo-700 font-bold flex items-center justify-center text-sm border border-indigo-200">
+                                                <div className="h-9 w-9 rounded-full bg-[var(--tenant-primary)]/10 text-[var(--tenant-primary)] font-bold flex items-center justify-center text-sm border border-[var(--tenant-primary)]/20">
                                                     {emp.name.charAt(0)}
                                                 </div>
                                                 <div>
@@ -311,7 +312,7 @@ export const EmployeesPage: React.FC = () => {
                                                             key={r}
                                                             className="inline-flex items-center gap-1 text-[11px] font-medium bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-200"
                                                         >
-                                                            <Shield className="h-3 w-3 text-indigo-600" />
+                                                            <Shield className="h-3 w-3 text-[var(--tenant-primary)]" />
                                                             {r}
                                                         </span>
                                                     ))
@@ -338,7 +339,7 @@ export const EmployeesPage: React.FC = () => {
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
                                                     onClick={() => openEditModal(emp)}
-                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                                    className="p-1.5 text-slate-400 hover:text-[var(--tenant-primary)] hover:bg-[var(--tenant-primary)]/10 rounded"
                                                     title="تعديل الموظف والأدوار"
                                                 >
                                                     <Edit2 className="h-4 w-4" />
@@ -475,7 +476,7 @@ export const EmployeesPage: React.FC = () => {
                                                 key={r.id}
                                                 className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border text-xs font-medium transition-colors ${
                                                     checked
-                                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-800 font-semibold'
+                                                        ? 'bg-[var(--tenant-primary)]/10 border-[var(--tenant-primary)]/30 text-[var(--tenant-primary)] font-semibold'
                                                         : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
                                                 }`}
                                             >
@@ -483,7 +484,7 @@ export const EmployeesPage: React.FC = () => {
                                                     type="checkbox"
                                                     checked={checked}
                                                     onChange={() => toggleRoleSelection(r.name)}
-                                                    className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                                                    className="rounded text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary)] h-4 w-4"
                                                 />
                                                 <span>{r.name}</span>
                                             </label>
@@ -498,7 +499,7 @@ export const EmployeesPage: React.FC = () => {
                                         type="checkbox"
                                         checked={form.is_active}
                                         onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                                        className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                                        className="rounded text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary)] h-4 w-4"
                                     />
                                     حساب نشط (يمكن للموظف تسجيل الدخول والعمل)
                                 </label>

@@ -8,6 +8,7 @@ interface AuthContextType {
     login: (credentials: { username: string; password: string; remember?: boolean }) => Promise<void>;
     logout: () => Promise<void>;
     can: (permission: string) => boolean;
+    hasPermission: (permission: string) => boolean;
     hasRole: (role: string) => boolean;
 }
 
@@ -66,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, can, hasRole }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, can, hasPermission: can, hasRole }}>
             {children}
         </AuthContext.Provider>
     );
@@ -86,7 +87,7 @@ export const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children 
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-slate-50">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--tenant-primary)]"></div>
             </div>
         );
     }

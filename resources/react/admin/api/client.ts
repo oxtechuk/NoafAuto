@@ -1,13 +1,30 @@
 import axios from 'axios';
 
 export const apiClient = axios.create({
-    baseURL: '/api/v1',
     headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
     },
     withCredentials: true,
     withXSRFToken: true,
+});
+
+// Normalize request URLs so /api/v1 is never duplicated
+apiClient.interceptors.request.use((config) => {
+    if (config.url) {
+        // Remove accidental duplicate prefixes e.g. /api/v1/api/v1
+        config.url = config.url.replace(/^\/?api\/v1\/api\/v1/, '/api/v1');
+
+        // Ensure all API endpoints start with /api/v1 (unless they are sanctum or absolute)
+        if (
+            !config.url.startsWith('/api/v1') &&
+            !config.url.startsWith('/sanctum') &&
+            !config.url.startsWith('http')
+        ) {
+            config.url = `/api/v1${config.url.startsWith('/') ? config.url : '/' + config.url}`;
+        }
+    }
+    return config;
 });
 
 apiClient.interceptors.response.use(

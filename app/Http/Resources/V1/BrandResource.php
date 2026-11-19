@@ -18,12 +18,17 @@ class BrandResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $logo = $this->logo;
+        if ($logo && preg_match('#https?://[^/]+/(images/[^\s]+)#', $logo, $matches)) {
+            $logo = '/'.$matches[1];
+        }
+
         return [
             'id' => $this->id,
             'name' => $this->getTranslation('name', app()->getLocale(), false) ?: $this->name,
             'name_translations' => $this->getTranslations('name'),
             'slug' => $this->slug,
-            'logo' => $this->logo,
+            'logo' => $logo,
             'is_active' => (bool) $this->is_active,
             'brand_type_id' => $this->brand_type_id,
             'brand_type' => $this->whenLoaded('brandType', fn () => $this->brandType ? [

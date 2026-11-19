@@ -85,7 +85,7 @@ export const ReportsPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                        <BarChart3 className="h-6 w-6 text-indigo-600" />
+                        <BarChart3 className="h-6 w-6 text-[var(--tenant-primary)]" />
                         التقارير الإحصائية والتحليلات
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
@@ -99,7 +99,7 @@ export const ReportsPage: React.FC = () => {
                         onClick={() => setPeriod('month')}
                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                             period === 'month'
-                                ? 'bg-indigo-600 text-white shadow-xs'
+                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
                                 : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
@@ -109,7 +109,7 @@ export const ReportsPage: React.FC = () => {
                         onClick={() => setPeriod('quarter')}
                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                             period === 'quarter'
-                                ? 'bg-indigo-600 text-white shadow-xs'
+                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
                                 : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
@@ -119,7 +119,7 @@ export const ReportsPage: React.FC = () => {
                         onClick={() => setPeriod('year')}
                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                             period === 'year'
-                                ? 'bg-indigo-600 text-white shadow-xs'
+                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
                                 : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
@@ -129,7 +129,7 @@ export const ReportsPage: React.FC = () => {
                         onClick={() => setPeriod('all')}
                         className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                             period === 'all'
-                                ? 'bg-indigo-600 text-white shadow-xs'
+                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
                                 : 'text-slate-600 hover:text-slate-900'
                         }`}
                     >
@@ -217,7 +217,7 @@ export const ReportsPage: React.FC = () => {
                 <Card orientation="vertical" className="p-5">
                     <div className="flex items-center justify-between border-b pb-3 mb-4">
                         <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                            <Car className="h-5 w-5 text-indigo-600" />
+                            <Car className="h-5 w-5 text-[var(--tenant-primary)]" />
                             السيارات الأكثر طلباً ومبيعاً
                         </h2>
                     </div>
@@ -234,7 +234,7 @@ export const ReportsPage: React.FC = () => {
                                     className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className="h-7 w-7 rounded-full bg-indigo-100 text-indigo-800 font-bold text-xs flex items-center justify-center">
+                                        <div className="h-7 w-7 rounded-full bg-[var(--tenant-primary)]/10 text-[var(--tenant-primary)] font-bold text-xs flex items-center justify-center">
                                             #{index + 1}
                                         </div>
                                         <div>
@@ -264,7 +264,7 @@ export const ReportsPage: React.FC = () => {
                 <Card orientation="vertical" className="p-5">
                     <div className="flex items-center justify-between border-b pb-3 mb-4">
                         <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                            <Users className="h-5 w-5 text-indigo-600" />
+                            <Users className="h-5 w-5 text-[var(--tenant-primary)]" />
                             إنتاجية مستشاري المبيعات
                         </h2>
                     </div>
@@ -313,7 +313,7 @@ export const ReportsPage: React.FC = () => {
                 <div className="flex items-center justify-between border-b pb-3 mb-4">
                     <div>
                         <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                            <Target className="h-5 w-5 text-indigo-600" />
+                            <Target className="h-5 w-5 text-[var(--tenant-primary)]" />
                             عائد الحملات الإعلانية وقنوات الاستقطاب (Marketing Attribution)
                         </h2>
                         <p className="text-xs text-slate-500 mt-1">
@@ -360,7 +360,7 @@ export const ReportsPage: React.FC = () => {
                                             <td className="py-3 px-4 text-center font-bold text-slate-900">
                                                 {s.bookings_count || 0}
                                             </td>
-                                            <td className="py-3 px-4 text-center font-semibold text-indigo-600">
+                                            <td className="py-3 px-4 text-center font-semibold text-[var(--tenant-primary)]">
                                                 {conv}%
                                             </td>
                                             <td className="py-3 px-4 text-center">

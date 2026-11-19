@@ -18,7 +18,7 @@ class AuthController extends Controller
             return redirect()->route('crm.dashboard');
         }
 
-        return view('crm.auth.login');
+        return redirect('/admin/login');
     }
 
     /**

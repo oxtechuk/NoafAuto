@@ -307,22 +307,22 @@ class BookingWorkflowTest extends TestCase
         // 1. Active index
         $response1 = $this->actingAs($this->admin, 'employee')
             ->get(route('crm.bookings.index', ['employee_id' => $this->sales->id]));
-        $response1->assertStatus(200);
+        $response1->assertRedirect();
 
         // 2. Pending index
         $response2 = $this->actingAs($this->admin, 'employee')
             ->get(route('crm.bookings.pending', ['employee_id' => $this->sales->id]));
-        $response2->assertStatus(200);
+        $response2->assertRedirect();
 
         // 3. Delivered index
         $response3 = $this->actingAs($this->admin, 'employee')
             ->get(route('crm.bookings.delivered', ['employee_id' => $this->sales->id]));
-        $response3->assertStatus(200);
+        $response3->assertRedirect();
 
         // 4. Closed index
         $response4 = $this->actingAs($this->admin, 'employee')
             ->get(route('crm.bookings.closed', ['employee_id' => $this->sales->id]));
-        $response4->assertStatus(200);
+        $response4->assertRedirect();
     }
 
     /** @test */
@@ -462,8 +462,7 @@ class BookingWorkflowTest extends TestCase
         $response = $this->actingAs($this->admin, 'employee')
             ->get(route('crm.bookings.index', ['source' => 'calculator']));
 
-        $response->assertStatus(200);
-        $response->assertSee('Calculator Client');
+        $response->assertRedirect('/admin/bookings');
     }
 
     /** @test */
@@ -504,15 +503,11 @@ class BookingWorkflowTest extends TestCase
         $this->assertEquals(2200, (float) $fresh->monthly_installment);
         $this->assertEquals('تم استلام السيارة وفحصها بنجاح', $fresh->delivery_note);
 
-        // Verify that the show page renders the delivered financial data
+        // Verify that the show route redirects to the modern SPA bookings page
         $showResponse = $this->actingAs($this->sales, 'employee')
             ->get(route('crm.bookings.show', $booking));
 
-        $showResponse->assertStatus(200);
-        $showResponse->assertSee('90,000.00');
-        $showResponse->assertSee('105,000.00');
-        $showResponse->assertSee('13,500.00');
-        $showResponse->assertSee('2,200.00');
+        $showResponse->assertRedirect('/admin/bookings');
     }
 
     /** @test */

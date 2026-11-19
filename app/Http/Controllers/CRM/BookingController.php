@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingDocument;
 use App\Models\BookingNote;
-use App\Models\CalculatorBank;
 use App\Models\Car;
 use App\Models\Employee;
 use App\Services\AttributionHelper;
@@ -615,12 +614,7 @@ class BookingController extends Controller
     {
         Gate::authorize('view', $booking);
 
-        $booking->load(['car.brand', 'employee', 'financingBank', 'notes_list.employee', 'documents.employee', 'tasks.assignedTo']);
-        $employees = Employee::where('is_active', true)->get();
-        $statuses = Booking::STATUSES;
-        $calculatorBanks = CalculatorBank::activeOrdered()->get();
-
-        return view('crm.bookings.show', compact('booking', 'employees', 'statuses', 'calculatorBanks'));
+        return redirect("/admin/bookings?booking_id={$booking->id}");
     }
 
     public function updateOffer(Request $request, Booking $booking)

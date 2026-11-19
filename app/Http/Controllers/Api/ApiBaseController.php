@@ -9,13 +9,31 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 abstract class ApiBaseController extends Controller
 {
+    protected ?ApiResponseBuilder $responseBuilder = null;
+
     public function __construct(
-        protected readonly ApiResponseBuilder $responseBuilder,
-    ) {}
+        ?ApiResponseBuilder $responseBuilder = null,
+    ) {
+        $this->responseBuilder = $responseBuilder ?? app(ApiResponseBuilder::class);
+    }
+
+    protected function getResponseBuilder(): ApiResponseBuilder
+    {
+        return $this->responseBuilder ??= app(ApiResponseBuilder::class);
+    }
+
+    public function __get(string $name): mixed
+    {
+        if ($name === 'responseBuilder') {
+            return $this->getResponseBuilder();
+        }
+
+        return null;
+    }
 
     protected function respond(mixed $data = null, string $message = 'Operation completed successfully', int $status = 200): ApiResponse
     {
-        return $this->responseBuilder
+        return $this->getResponseBuilder()
             ->success($status < 400)
             ->message($message)
             ->data($data)
@@ -35,7 +53,7 @@ abstract class ApiBaseController extends Controller
 
     protected function respondError(string $message = 'An error occurred', int $status = 400): ApiResponse
     {
-        return $this->responseBuilder
+        return $this->getResponseBuilder()
             ->success(false)
             ->message($message)
             ->status($status)
@@ -44,7 +62,7 @@ abstract class ApiBaseController extends Controller
 
     protected function respondPaginated(LengthAwarePaginator $paginator, string $message = 'Resources retrieved successfully'): ApiResponse
     {
-        return $this->responseBuilder->paginated($paginator, $message);
+        return $this->getResponseBuilder()->paginated($paginator, $message);
     }
 
     protected function respondDeleted(string $message = 'Resource deleted successfully'): ApiResponse

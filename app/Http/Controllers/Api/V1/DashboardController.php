@@ -47,27 +47,50 @@ class DashboardController extends ApiBaseController
             ->when(! $isAdmin, fn (Builder $q) => $q->where('assigned_to', $employee->id))
             ->when($isAdmin && $request->filled('employee_id'), fn (Builder $q) => $q->where('assigned_to', $request->input('employee_id')));
 
+        $activeList = "'".implode("','", self::ACTIVE_STATUSES)."'";
+        $completedList = "'".implode("','", self::COMPLETED_STATUSES)."'";
+
+        $bookingAgg = (clone $bookingsQuery)->selectRaw("
+            COUNT(*) as total,
+            COALESCE(SUM(CASE WHEN status IN ({$activeList}) THEN 1 ELSE 0 END), 0) as active,
+            COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+            COALESCE(SUM(CASE WHEN status IN ({$completedList}) THEN 1 ELSE 0 END), 0) as completed,
+            COALESCE(SUM(CASE WHEN status LIKE 'lost_%' OR status = 'rejected' THEN 1 ELSE 0 END), 0) as closed,
+            COALESCE(SUM(CASE WHEN status IN ({$completedList}) THEN COALESCE(net_commission, 0) ELSE 0 END), 0) as total_commission
+        ")->first();
+
+        $leadAgg = (clone $leadsQuery)->selectRaw("
+            COUNT(*) as total,
+            COALESCE(SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END), 0) as new_leads
+        ")->first();
+
+        $todayStr = today()->toDateString();
+        $taskAgg = (clone $tasksQuery)->selectRaw("
+            COUNT(*) as total,
+            COALESCE(SUM(CASE WHEN DATE(due_date) = '{$todayStr}' AND status != 'done' THEN 1 ELSE 0 END), 0) as today_tasks,
+            COALESCE(SUM(CASE WHEN DATE(due_date) < '{$todayStr}' AND status != 'done' THEN 1 ELSE 0 END), 0) as overdue_tasks,
+            COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) as done_tasks
+        ")->first();
+
         $stats = [
             'range' => $range,
             'bookings' => [
-                'total' => (clone $bookingsQuery)->count(),
-                'active' => (clone $bookingsQuery)->whereIn('status', self::ACTIVE_STATUSES)->count(),
-                'pending' => (clone $bookingsQuery)->where('status', 'pending')->count(),
-                'completed' => (clone $bookingsQuery)->whereIn('status', self::COMPLETED_STATUSES)->count(),
-                'closed' => (clone $bookingsQuery)->where(function (Builder $q) {
-                    $q->where('status', 'like', 'lost_%')->orWhere('status', 'rejected');
-                })->count(),
-                'total_commission' => (float) (clone $bookingsQuery)->whereIn('status', self::COMPLETED_STATUSES)->sum('net_commission'),
+                'total' => (int) ($bookingAgg->total ?? 0),
+                'active' => (int) ($bookingAgg->active ?? 0),
+                'pending' => (int) ($bookingAgg->pending ?? 0),
+                'completed' => (int) ($bookingAgg->completed ?? 0),
+                'closed' => (int) ($bookingAgg->closed ?? 0),
+                'total_commission' => (float) ($bookingAgg->total_commission ?? 0),
             ],
             'leads' => [
-                'total' => (clone $leadsQuery)->count(),
-                'new' => (clone $leadsQuery)->where('status', 'new')->count(),
+                'total' => (int) ($leadAgg->total ?? 0),
+                'new' => (int) ($leadAgg->new_leads ?? 0),
             ],
             'tasks' => [
-                'total' => (clone $tasksQuery)->count(),
-                'today' => (clone $tasksQuery)->whereDate('due_date', today())->where('status', '!=', 'done')->count(),
-                'overdue' => (clone $tasksQuery)->whereDate('due_date', '<', today())->where('status', '!=', 'done')->count(),
-                'done' => (clone $tasksQuery)->where('status', 'done')->count(),
+                'total' => (int) ($taskAgg->total ?? 0),
+                'today' => (int) ($taskAgg->today_tasks ?? 0),
+                'overdue' => (int) ($taskAgg->overdue_tasks ?? 0),
+                'done' => (int) ($taskAgg->done_tasks ?? 0),
             ],
         ];
 
@@ -106,7 +129,7 @@ class DashboardController extends ApiBaseController
             })
             ->latest('created_at')
             ->limit(10)
-            ->get(['id', 'order_number', 'client_name', 'client_phone', 'status', 'created_at']);
+            ->get(['id', 'client_name', 'client_phone', 'status', 'created_at']);
 
         return $this->respondSuccess([
             'overdue_tasks' => $overdueTasks,

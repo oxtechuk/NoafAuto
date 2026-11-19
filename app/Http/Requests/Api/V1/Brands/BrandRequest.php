@@ -18,6 +18,7 @@ final class BrandRequest extends ApiBaseRequest
             'name.ar' => ['required', 'string', 'max:100'],
             'name.en' => ['nullable', 'string', 'max:100'],
             'brand_type_id' => ['nullable', 'exists:brand_types,id'],
+            'logo' => ['nullable'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }

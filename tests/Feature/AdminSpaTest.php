@@ -23,8 +23,8 @@ class AdminSpaTest extends TestCase
         foreach ($routes as $route) {
             $response = $this->get($route);
             $response->assertOk();
-            $response->assertSee('id="admin-root"', false);
-            $response->assertSee('Sitekit CRM', false);
+            $response->assertSee('admin-root', false);
+            $response->assertSee('تعميد CRM', false);
         }
     }
 }

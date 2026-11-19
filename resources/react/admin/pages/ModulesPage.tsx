@@ -40,7 +40,7 @@ export const ModulesPage: React.FC = () => {
 
             {isLoading ? (
                 <div className="flex justify-center py-20">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--tenant-primary)]"></div>
                 </div>
             ) : modules.length === 0 ? (
                 <Card>
@@ -56,7 +56,7 @@ export const ModulesPage: React.FC = () => {
                             <div>
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-2">
-                                        <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                                        <div className="p-2 rounded-lg bg-[var(--tenant-primary)]/10 text-[var(--tenant-primary)]">
                                             <Blocks className="h-5 w-5" />
                                         </div>
                                         <h3 className="font-bold text-sm text-slate-800">{m.name}</h3>
