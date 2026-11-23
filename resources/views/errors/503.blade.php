@@ -1,13 +1,23 @@
 <!DOCTYPE html>
-<html lang="{{ App::getLocale() }}" dir="{{ App::getLocale() == 'ar' ? 'rtl' : 'ltr' }}">
 @php
-    $settings = app(\App\Services\Cache\BaseCacheService::class)->rememberSettings();
-    $contactEmail = $settings['contact_email'] ?? null;
+    $locale = App::getLocale();
+    $rawSiteName = $globalSettings['site_name'] ?? ($globalSettings->get('site_name') ?? null);
+    $siteName = is_array($rawSiteName)
+        ? ($rawSiteName[$locale] ?? $rawSiteName['ar'] ?? reset($rawSiteName))
+        : ($rawSiteName ?: 'تعميد');
+
+    $faviconPath = $globalSettings['site_favicon'] ?? ($globalSettings->get('site_favicon') ?? null);
+    $faviconUrl = $faviconPath
+        ? (str_starts_with($faviconPath, 'http://') || str_starts_with($faviconPath, 'https://') ? $faviconPath : asset('storage/' . ltrim($faviconPath, '/')))
+        : asset('favicon.svg');
+    $contactEmail = $contactEmail ?? ($globalSettings['contact_email'] ?? ($globalSettings->get('contact_email') ?? null));
 @endphp
+<html lang="{{ $locale }}" dir="{{ $locale == 'ar' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ __('تحت الصيانة') }} — Zad Capital</title>
+    <title>{{ __('تحت الصيانة') }} — {{ $siteName }}</title>
+    <link rel="icon" href="{{ $faviconUrl }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">

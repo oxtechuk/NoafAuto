@@ -1,5 +1,5 @@
 import React from 'react';
-import { CrudTableManager } from '../../../shared/components/crm/CrudTableManager';
+import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
 
 // 1. Blog Posts Page
 export const BlogPostsPage: React.FC = () => {
@@ -16,7 +16,7 @@ export const BlogPostsPage: React.FC = () => {
                     title: 'التصنيف',
                     render: (val, row) => (
                         <span className="text-slate-600 font-medium">
-                            {row.category?.name || '-'}
+                            {formatLocaleString(row.category?.name)}
                         </span>
                     ),
                 },

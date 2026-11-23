@@ -268,6 +268,11 @@ class Booking extends Model
         return $this->belongsTo(CalculatorBank::class, 'calculator_bank_id');
     }
 
+    public function calculatorBank(): BelongsTo
+    {
+        return $this->financingBank();
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return self::STATUSES[$this->status]['label'] ?? $this->status;

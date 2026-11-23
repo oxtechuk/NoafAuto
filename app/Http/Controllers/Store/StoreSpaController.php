@@ -18,7 +18,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Schema;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class StoreSpaController extends Controller
 {
@@ -30,21 +29,27 @@ class StoreSpaController extends Controller
     ];
 
     protected string $baseUrl;
+
     protected string $siteName;
+
     protected string $defaultOgImage;
+
     protected SeoContentBuilder $seo;
+
     protected SeoEntryResolver $seoEntries;
 
     public function __construct()
     {
-        $appUrl = rtrim(config('app.url', 'https://zad-capital.sa'), '/');
-        if (! str_contains($appUrl, 'localhost') && ! str_contains($appUrl, '127.0.0.1')) {
-            $this->baseUrl = 'https://zad-capital.sa';
+        $appUrl = rtrim(config('app.url', url('/')), '/');
+        $this->baseUrl = $appUrl;
+
+        $rawSiteName = Setting::where('key', 'site_name')->value('value');
+        if (is_array($rawSiteName)) {
+            $this->siteName = (string) ($rawSiteName[app()->getLocale()] ?? ($rawSiteName['ar'] ?? reset($rawSiteName)));
         } else {
-            $this->baseUrl = $appUrl;
+            $this->siteName = (string) ($rawSiteName ?: config('app.name', 'تعميد'));
         }
 
-        $this->siteName = 'زاد كابيتال';
         $this->seo = new SeoContentBuilder(app(SettingApiService::class), $this->baseUrl);
         $this->defaultOgImage = $this->seo->logoUrl();
         $this->seoEntries = app(SeoEntryResolver::class);
@@ -60,8 +65,8 @@ class StoreSpaController extends Controller
             $metaDesc = $metaDesc ?: ($seoSettings['meta_description'] ?? null);
         }
 
-        $title = $metaTitle ?: 'زاد كابيتال | تمويل سيارات بالتقسيط في السعودية';
-        $description = $metaDesc ?: 'احصل على أفضل عروض تمويل وتقسيط السيارات في السعودية من زاد كابيتال. أقل قسط شهري وبدون دفعة أولى لجميع الماركات.';
+        $title = $metaTitle ?: "{$this->siteName} | تمويل سيارات بالتقسيط في السعودية";
+        $description = $metaDesc ?: "احصل على أفضل عروض تمويل وتقسيط السيارات في السعودية من {$this->siteName}. أقل قسط شهري وبدون دفعة أولى لجميع الماركات.";
 
         $jsonLd = [
             '@context' => 'https://schema.org',
@@ -69,13 +74,13 @@ class StoreSpaController extends Controller
                 $this->seo->organization(),
                 [
                     '@type' => 'WebSite',
-                    '@id' => $this->baseUrl . '/#website',
+                    '@id' => $this->baseUrl.'/#website',
                     'url' => $this->baseUrl,
-                    'name' => 'زاد كابيتال',
-                    'publisher' => ['@id' => $this->baseUrl . '/#organization'],
+                    'name' => $this->siteName,
+                    'publisher' => ['@id' => $this->baseUrl.'/#organization'],
                     'potentialAction' => [
                         '@type' => 'SearchAction',
-                        'target' => $this->baseUrl . '/cars?search={search_term_string}',
+                        'target' => $this->baseUrl.'/cars?search={search_term_string}',
                         'query-input' => 'required name=search_term_string',
                     ],
                 ],
@@ -85,7 +90,7 @@ class StoreSpaController extends Controller
         return $this->renderSpa([
             'metaTitle' => $title,
             'metaDescription' => $description,
-            'canonicalUrl' => $this->baseUrl . '/',
+            'canonicalUrl' => $this->baseUrl.'/',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
             'jsonLd' => $jsonLd,
@@ -96,9 +101,9 @@ class StoreSpaController extends Controller
     public function cars(Request $request): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'سيارات بالتقسيط في السعودية | زاد كابيتال',
-            'metaDescription' => 'تصفح أحدث موديلات السيارات المتاحة للتمويل والتقسيط في المملكة من زاد كابيتال. احسب قسطك واختر سيارتك المفضلة.',
-            'canonicalUrl' => $this->baseUrl . '/cars',
+            'metaTitle' => "سيارات بالتقسيط في السعودية | {$this->siteName}",
+            'metaDescription' => "تصفح أحدث موديلات السيارات المتاحة للتمويل والتقسيط في المملكة من {$this->siteName}. احسب قسطك واختر سيارتك المفضلة.",
+            'canonicalUrl' => $this->baseUrl.'/cars',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
             'seoContent' => $this->seo->cars(),
@@ -120,7 +125,7 @@ class StoreSpaController extends Controller
                         ->first();
 
                     if ($redirect && ! empty($redirect->new_slug)) {
-                        return redirect($this->baseUrl . '/cars/' . SitemapController::encodeSlug($redirect->new_slug), 301);
+                        return redirect($this->baseUrl.'/cars/'.SitemapController::encodeSlug($redirect->new_slug), 301);
                     }
                 }
             } catch (\Throwable) {
@@ -133,7 +138,7 @@ class StoreSpaController extends Controller
         $carName = trim((string) ($car->getTranslation('name', 'ar') ?: $car->name));
         $carYear = ($car->year && ! str_contains($carName, (string) $car->year)) ? " {$car->year}" : '';
         $installmentPart = $car->min_installment
-            ? ' · قسط من ' . number_format((float) $car->min_installment) . ' ريال'
+            ? ' · قسط من '.number_format((float) $car->min_installment).' ريال'
             : '';
 
         $title = "{$carName}{$carYear} بالتقسيط{$installmentPart}";
@@ -143,12 +148,12 @@ class StoreSpaController extends Controller
 
         $priceFormatted = number_format((float) ($car->current_price ?? $car->cash_price ?? 0));
         $instFormatted = number_format((float) ($car->min_installment ?? 0));
-        $description = "اشترِ {$carName} بالتقسيط من زاد كابيتال. السعر {$priceFormatted} ريال والقسط الشهري يبدأ من {$instFormatted} ريال. اطّلع على المواصفات واحسب قسطك.";
+        $description = "اشترِ {$carName} بالتقسيط من {$this->siteName}. السعر {$priceFormatted} ريال والقسط الشهري يبدأ من {$instFormatted} ريال. اطّلع على المواصفات واحسب قسطك.";
 
         $carImage = $car->main_image ?: $this->defaultOgImage;
-        $canonicalUrl = $this->baseUrl . '/cars/' . SitemapController::encodeSlug($slug);
+        $canonicalUrl = $this->baseUrl.'/cars/'.SitemapController::encodeSlug($slug);
 
-        $brandName = $car->brand?->name ?? 'زاد كابيتال';
+        $brandName = $car->brand?->name ?? $this->siteName;
         $availability = ($car->availability_status === 'available')
             ? 'https://schema.org/InStock'
             : 'https://schema.org/PreOrder';
@@ -182,13 +187,13 @@ class StoreSpaController extends Controller
                             '@type' => 'ListItem',
                             'position' => 1,
                             'name' => 'الرئيسية',
-                            'item' => $this->baseUrl . '/',
+                            'item' => $this->baseUrl.'/',
                         ],
                         [
                             '@type' => 'ListItem',
                             'position' => 2,
                             'name' => 'السيارات',
-                            'item' => $this->baseUrl . '/cars',
+                            'item' => $this->baseUrl.'/cars',
                         ],
                         [
                             '@type' => 'ListItem',
@@ -215,9 +220,9 @@ class StoreSpaController extends Controller
     public function blogIndex(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'مدونة زاد كابيتال | نصائح وأخبار تمويل وتقسيط السيارات',
+            'metaTitle' => "مدونة {$this->siteName} | نصائح وأخبار تمويل وتقسيط السيارات",
             'metaDescription' => 'دليلك الشامل لمعرفة أحدث مستجدات سوق السيارات وحلول التمويل الذكية في المملكة العربية السعودية.',
-            'canonicalUrl' => $this->baseUrl . '/blog',
+            'canonicalUrl' => $this->baseUrl.'/blog',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'blog',
             'seoContent' => $this->seo->blogIndex(),
@@ -237,9 +242,9 @@ class StoreSpaController extends Controller
         }
 
         $title = $post->meta_title ?: ($post->getTranslation('title', 'ar') ?: $post->title);
-        $title = "{$title} | زاد كابيتال";
+        $title = "{$title} | {$this->siteName}";
         $description = $post->meta_description ?: ($post->getTranslation('excerpt', 'ar') ?: strip_tags((string) $post->content));
-        $canonicalUrl = $this->baseUrl . '/blog/' . SitemapController::encodeSlug($slug);
+        $canonicalUrl = $this->baseUrl.'/blog/'.SitemapController::encodeSlug($slug);
         $postImage = $post->thumbnail ?: $this->defaultOgImage;
 
         $headline = $this->seo->postTitle($post);
@@ -259,15 +264,15 @@ class StoreSpaController extends Controller
                 'articleSection' => is_array($category) ? ($category['ar'] ?? reset($category)) : $category,
                 'wordCount' => count(preg_split('/\s+/u', trim(strip_tags($content)), -1, PREG_SPLIT_NO_EMPTY)),
                 'mainEntityOfPage' => ['@type' => 'WebPage', '@id' => $canonicalUrl],
-                'author' => ['@id' => $this->baseUrl . '/#organization'],
-                'publisher' => ['@id' => $this->baseUrl . '/#organization'],
+                'author' => ['@id' => $this->baseUrl.'/#organization'],
+                'publisher' => ['@id' => $this->baseUrl.'/#organization'],
             ], fn ($value) => $value !== null && $value !== ''),
             $this->seo->organization(),
             [
                 '@type' => 'BreadcrumbList',
                 'itemListElement' => [
-                    ['@type' => 'ListItem', 'position' => 1, 'name' => 'الرئيسية', 'item' => $this->baseUrl . '/'],
-                    ['@type' => 'ListItem', 'position' => 2, 'name' => 'المدونة', 'item' => $this->baseUrl . '/blog'],
+                    ['@type' => 'ListItem', 'position' => 1, 'name' => 'الرئيسية', 'item' => $this->baseUrl.'/'],
+                    ['@type' => 'ListItem', 'position' => 2, 'name' => 'المدونة', 'item' => $this->baseUrl.'/blog'],
                     ['@type' => 'ListItem', 'position' => 3, 'name' => $headline, 'item' => $canonicalUrl],
                 ],
             ],
@@ -300,57 +305,57 @@ class StoreSpaController extends Controller
     public function offers(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'عروض تمويل السيارات | زاد كابيتال',
-            'metaDescription' => 'اكتشف أحدث العروض والتخفيضات الاستثنائية على تمويل وتقسيط السيارات في السعودية مع زاد كابيتال.',
-            'canonicalUrl' => $this->baseUrl . '/offers',
+            'metaTitle' => "عروض تمويل السيارات | {$this->siteName}",
+            'metaDescription' => "اكتشف أحدث العروض والتخفيضات الاستثنائية على تمويل وتقسيط السيارات في السعودية مع {$this->siteName}.",
+            'canonicalUrl' => $this->baseUrl.'/offers',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
-            'seoContent' => $this->seo->simple('عروض تمويل السيارات', '', [['text' => 'كل السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl . '/cars'], ['text' => 'حاسبة تمويل السيارات', 'url' => $this->baseUrl . '/finance-calculator']]),
+            'seoContent' => $this->seo->simple('عروض تمويل السيارات', '', [['text' => 'كل السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl.'/cars'], ['text' => 'حاسبة تمويل السيارات', 'url' => $this->baseUrl.'/finance-calculator']]),
         ]);
     }
 
     public function about(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'من نحن | زاد كابيتال لتمويل السيارات',
-            'metaDescription' => 'تعرف على شركة زاد كابيتال، شريكك الأول في تمويل السيارات بأقساط ميسرة وأعلى معايير الشفافية بالمملكة.',
-            'canonicalUrl' => $this->baseUrl . '/about',
+            'metaTitle' => "من نحن | {$this->siteName} لتمويل السيارات",
+            'metaDescription' => "تعرف على شركة {$this->siteName}، شريكك الأول في تمويل السيارات بأقساط ميسرة وأعلى معايير الشفافية بالمملكة.",
+            'canonicalUrl' => $this->baseUrl.'/about',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
-            'seoContent' => $this->seo->simple('من نحن', '', [['text' => 'تواصل معنا', 'url' => $this->baseUrl . '/contact'], ['text' => 'السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl . '/cars']]),
+            'seoContent' => $this->seo->simple('من نحن', '', [['text' => 'تواصل معنا', 'url' => $this->baseUrl.'/contact'], ['text' => 'السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl.'/cars']]),
         ]);
     }
 
     public function contact(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'تواصل معنا | زاد كابيتال',
-            'metaDescription' => 'تواصل مع مستشاري تمويل السيارات في زاد كابيتال عبر الهاتف الموحد أو واتساب، ويسعدنا خدمتكم على مدار الساعة.',
-            'canonicalUrl' => $this->baseUrl . '/contact',
+            'metaTitle' => "تواصل معنا | {$this->siteName}",
+            'metaDescription' => "تواصل مع مستشاري تمويل السيارات في {$this->siteName} عبر الهاتف الموحد أو واتساب، ويسعدنا خدمتكم على مدار الساعة.",
+            'canonicalUrl' => $this->baseUrl.'/contact',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
-            'seoContent' => $this->seo->simple('تواصل معنا', '', [['text' => 'حاسبة تمويل السيارات', 'url' => $this->baseUrl . '/finance-calculator'], ['text' => 'طلب تمويل سيارة', 'url' => $this->baseUrl . '/request-car']]),
+            'seoContent' => $this->seo->simple('تواصل معنا', '', [['text' => 'حاسبة تمويل السيارات', 'url' => $this->baseUrl.'/finance-calculator'], ['text' => 'طلب تمويل سيارة', 'url' => $this->baseUrl.'/request-car']]),
         ]);
     }
 
     public function financeCalculator(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'حاسبة تمويل السيارات الفورية | زاد كابيتال',
+            'metaTitle' => "حاسبة تمويل السيارات الفورية | {$this->siteName}",
             'metaDescription' => 'احسب قسطك الشهري بدقة خلال ثوانٍ، وقارن بين خيارات البنوك وشركات التمويل المعتمدة في السعودية.',
-            'canonicalUrl' => $this->baseUrl . '/finance-calculator',
+            'canonicalUrl' => $this->baseUrl.'/finance-calculator',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
-            'seoContent' => $this->seo->simple('حاسبة تمويل السيارات', '', [['text' => 'كل السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl . '/cars'], ['text' => 'عروض تمويل السيارات', 'url' => $this->baseUrl . '/offers'], ['text' => 'كيف تحسب قسط السيارة الشهري قبل الشراء', 'url' => $this->baseUrl . '/blog/كيف-تحسب-قسط-السيارة']]),
+            'seoContent' => $this->seo->simple('حاسبة تمويل السيارات', '', [['text' => 'كل السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl.'/cars'], ['text' => 'عروض تمويل السيارات', 'url' => $this->baseUrl.'/offers'], ['text' => 'كيف تحسب قسط السيارة الشهري قبل الشراء', 'url' => $this->baseUrl.'/blog/كيف-تحسب-قسط-السيارة']]),
         ]);
     }
 
     public function brands(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'ماركات السيارات المتاحة بالتقسيط | زاد كابيتال',
+            'metaTitle' => "ماركات السيارات المتاحة بالتقسيط | {$this->siteName}",
             'metaDescription' => 'تصفح قائمة ماركات السيارات المتوفرة للتمويل الفوري، تويوتا، نيسان، هيونداي، كيا وغيرها بأفضل الأسعار.',
-            'canonicalUrl' => $this->baseUrl . '/brands',
+            'canonicalUrl' => $this->baseUrl.'/brands',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
             'seoContent' => $this->seo->brands(),
@@ -374,14 +379,14 @@ class StoreSpaController extends Controller
             // Old misspelled brand slugs that were already indexed
             $legacy = self::LEGACY_BRAND_SLUGS[mb_strtolower($decoded)] ?? null;
             if ($legacy && Brand::where('is_active', true)->where('slug', $legacy)->exists()) {
-                return redirect($this->baseUrl . '/brands/' . SitemapController::encodeSlug($legacy), 301);
+                return redirect($this->baseUrl.'/brands/'.SitemapController::encodeSlug($legacy), 301);
             }
 
             return $this->notFound();
         }
 
         if ($brand->slug && $decoded !== $brand->slug) {
-            return redirect($this->baseUrl . '/brands/' . SitemapController::encodeSlug($brand->slug), 301);
+            return redirect($this->baseUrl.'/brands/'.SitemapController::encodeSlug($brand->slug), 301);
         }
 
         $brandName = trim((string) ($brand->getTranslation('name', 'ar') ?: $brand->name));
@@ -395,17 +400,17 @@ class StoreSpaController extends Controller
         $hasCars = Car::where('brand_id', $brand->id)->where('is_active', true)->exists();
 
         $minPart = $minInstallment
-            ? ' · أقساط تبدأ من ' . number_format((float) $minInstallment) . ' ريال'
+            ? ' · أقساط تبدأ من '.number_format((float) $minInstallment).' ريال'
             : '';
 
-        $title = "سيارات {$brandName} بالتقسيط 2026{$minPart} | زاد كابيتال";
+        $title = "سيارات {$brandName} بالتقسيط 2026{$minPart} | {$this->siteName}";
         if (mb_strlen($title) > 65) {
-            $title = "سيارات {$brandName} بالتقسيط 2026 | زاد كابيتال";
+            $title = "سيارات {$brandName} بالتقسيط 2026 | {$this->siteName}";
         }
 
-        $description = "تصفح أحدث عروض وموديلات سيارات {$brandName} بالتقسيط في السعودية من زاد كابيتال. احسب قسطك الشهري واستفد من عروض التمويل الميسرة بدون دفعة أولى.";
+        $description = "تصفح أحدث عروض وموديلات سيارات {$brandName} بالتقسيط في السعودية من {$this->siteName}. احسب قسطك الشهري واستفد من عروض التمويل الميسرة بدون دفعة أولى.";
         $canonicalSlug = $brand->slug ?: (string) $brand->id;
-        $canonicalUrl = $this->baseUrl . '/brands/' . SitemapController::encodeSlug($canonicalSlug);
+        $canonicalUrl = $this->baseUrl.'/brands/'.SitemapController::encodeSlug($canonicalSlug);
         $brandLogo = $brand->logo ?: $this->defaultOgImage;
 
         $jsonLd = [
@@ -424,13 +429,13 @@ class StoreSpaController extends Controller
                             '@type' => 'ListItem',
                             'position' => 1,
                             'name' => 'الرئيسية',
-                            'item' => $this->baseUrl . '/',
+                            'item' => $this->baseUrl.'/',
                         ],
                         [
                             '@type' => 'ListItem',
                             'position' => 2,
                             'name' => 'الماركات',
-                            'item' => $this->baseUrl . '/brands',
+                            'item' => $this->baseUrl.'/brands',
                         ],
                         [
                             '@type' => 'ListItem',
@@ -458,21 +463,21 @@ class StoreSpaController extends Controller
     public function compare(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'مقارنة السيارات: السعر والمواصفات والقسط | زاد كابيتال',
+            'metaTitle' => "مقارنة السيارات: السعر والمواصفات والقسط | {$this->siteName}",
             'metaDescription' => 'قارن بين مواصفات وأسعار وأقساط السيارات جنباً إلى جنب لتختار السيارة الأنسب لاحتياجاتك وميزانيتك.',
-            'canonicalUrl' => $this->baseUrl . '/compare',
+            'canonicalUrl' => $this->baseUrl.'/compare',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
-            'seoContent' => $this->seo->simple('مقارنة السيارات: السعر والمواصفات والقسط', '', [['text' => 'كل السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl . '/cars']]),
+            'seoContent' => $this->seo->simple('مقارنة السيارات: السعر والمواصفات والقسط', '', [['text' => 'كل السيارات المتاحة بالتقسيط', 'url' => $this->baseUrl.'/cars']]),
         ]);
     }
 
     public function terms(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'الشروط والأحكام | زاد كابيتال',
-            'metaDescription' => 'الشروط والأحكام الخاصة بخدمات الوساطة التمويلية وشراء وتمويل السيارات عبر شركة زاد كابيتال.',
-            'canonicalUrl' => $this->baseUrl . '/terms',
+            'metaTitle' => "الشروط والأحكام | {$this->siteName}",
+            'metaDescription' => "الشروط والأحكام الخاصة بخدمات الوساطة التمويلية وشراء وتمويل السيارات عبر شركة {$this->siteName}.",
+            'canonicalUrl' => $this->baseUrl.'/terms',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
             'seoContent' => $this->seo->simple('الشروط والأحكام', '', []),
@@ -482,9 +487,9 @@ class StoreSpaController extends Controller
     public function privacy(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'سياسة الخصوصية | زاد كابيتال',
-            'metaDescription' => 'سياسة الخصوصية وحماية البيانات الشخصية لعملاء زاد كابيتال لتمويل السيارات في المملكة العربية السعودية.',
-            'canonicalUrl' => $this->baseUrl . '/privacy',
+            'metaTitle' => "سياسة الخصوصية | {$this->siteName}",
+            'metaDescription' => "سياسة الخصوصية وحماية البيانات الشخصية لعملاء {$this->siteName} لتمويل السيارات في المملكة العربية السعودية.",
+            'canonicalUrl' => $this->baseUrl.'/privacy',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
             'seoContent' => $this->seo->simple('سياسة الخصوصية', '', []),
@@ -494,9 +499,9 @@ class StoreSpaController extends Controller
     public function requestCar(): Response
     {
         return $this->renderSpa([
-            'metaTitle' => 'طلب تمويل سيارة | زاد كابيتال',
+            'metaTitle' => "طلب تمويل سيارة | {$this->siteName}",
             'metaDescription' => 'قدّم طلب تمويل سيارتك الآن بخطوات بسيطة وسيقوم فريقنا بمتابعة طلبك مع أفضل جهات التمويل.',
-            'canonicalUrl' => $this->baseUrl . '/request-car',
+            'canonicalUrl' => $this->baseUrl.'/request-car',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
             'metaRobots' => 'noindex, follow',
@@ -511,7 +516,7 @@ class StoreSpaController extends Controller
     public function notFound(): Response
     {
         return response()->view('app', [
-            'metaTitle' => 'الصفحة غير موجودة | زاد كابيتال',
+            'metaTitle' => "الصفحة غير موجودة | {$this->siteName}",
             'metaDescription' => 'عذراً، الصفحة التي تبحث عنها غير موجودة أو تم نقلها.',
             'ogImage' => $this->defaultOgImage,
             'ogType' => 'website',
@@ -523,7 +528,7 @@ class StoreSpaController extends Controller
     /**
      * Helper to render the SPA shell view with SEO payload.
      *
-     * @param array<string, mixed> $seo
+     * @param  array<string, mixed>  $seo
      */
     protected function renderSpa(array $seo, int $status = 200): Response
     {
@@ -542,7 +547,7 @@ class StoreSpaController extends Controller
      * Overlay the SEO team's copy for this page (seo_entries): title, meta description,
      * extra text and FAQ (also as FAQPage structured data).
      *
-     * @param array<string, mixed> $seo
+     * @param  array<string, mixed>  $seo
      * @return array<string, mixed>
      */
     private function applySeoEntry(array $seo): array

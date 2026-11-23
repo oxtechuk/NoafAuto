@@ -33,9 +33,11 @@ export const LoginPage: React.FC = () => {
         <div className="min-h-screen bg-[var(--tenant-sidebar-bg)] flex items-center justify-center p-4" dir="rtl">
             <div className="w-full max-w-md bg-[var(--surface-primary)] rounded-[var(--radius-xl)] shadow-xl overflow-hidden border border-[var(--border-default)]">
                 <div className="p-8 text-center bg-[var(--tenant-primary)] text-white">
-                    <div className="inline-flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)] bg-white/10 backdrop-blur-md mb-4 font-black text-2xl text-[var(--tenant-secondary)]">
-                        ت
-                    </div>
+                    <img
+                        src="/images/logo.png"
+                        alt="تعميد"
+                        className="h-20 max-h-20 w-auto mx-auto mb-4 object-contain"
+                    />
                     <h1 className="text-xl font-bold tracking-tight">نظام إدارة تعميد CRM</h1>
                     <p className="text-xs text-white/70 mt-1">سجل الدخول للمتابعة وإدارة العمليات اليومية</p>
                 </div>

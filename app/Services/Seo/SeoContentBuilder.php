@@ -35,6 +35,13 @@ final class SeoContentBuilder
     // Pages
     // ------------------------------------------------------------------
 
+    public function siteName(): string
+    {
+        $siteName = $this->footer()['site_name'] ?? null;
+
+        return (is_string($siteName) && $siteName !== '') ? $siteName : config('app.name', 'تعميد');
+    }
+
     public function home(string $intro): array
     {
         $cars = $this->activeCars()
@@ -59,10 +66,11 @@ final class SeoContentBuilder
     public function cars(): array
     {
         $cars = $this->activeCars()->sortBy(fn (Car $car) => (float) $car->min_installment);
+        $siteName = $this->siteName();
 
         return $this->page(
             'سيارات بالتقسيط في السعودية',
-            ["كل السيارات المتاحة للتمويل بالتقسيط من زاد كابيتال ({$cars->count()} سيارة)، مع السعر وأقل قسط شهري لكل سيارة."],
+            ["كل السيارات المتاحة للتمويل بالتقسيط من {$siteName} ({$cars->count()} سيارة)، مع السعر وأقل قسط شهري لكل سيارة."],
             sections: [$this->carSection('السيارات المتاحة', $cars)],
             breadcrumb: [['الرئيسية', '/'], ['السيارات', null]],
         );
@@ -90,7 +98,7 @@ final class SeoContentBuilder
             $description !== '' ? preg_split('/\R+/u', $description) : [],
             facts: array_values($facts),
             sections: [
-                $this->postSection('مقالات عن هذه السيارة', $this->postsLinkingTo('/cars/' . $this->arSlug($car))),
+                $this->postSection('مقالات عن هذه السيارة', $this->postsLinkingTo('/cars/'.$this->arSlug($car))),
                 [
                     'title' => 'احسب قسطك',
                     'items' => [['text' => 'حاسبة تمويل السيارات', 'url' => $this->url('/finance-calculator')]],
@@ -105,10 +113,11 @@ final class SeoContentBuilder
         $cars = $this->activeCars()
             ->where('brand_id', $brand->id)
             ->sortBy(fn (Car $car) => (float) $car->min_installment);
+        $siteName = $this->siteName();
 
         return $this->page(
             "سيارات {$brandName} بالتقسيط",
-            ["سيارات {$brandName} المتاحة للتمويل بالتقسيط من زاد كابيتال ({$cars->count()} سيارة)، مع السعر وأقل قسط شهري."],
+            ["سيارات {$brandName} المتاحة للتمويل بالتقسيط من {$siteName} ({$cars->count()} سيارة)، مع السعر وأقل قسط شهري."],
             sections: [$this->carSection("سيارات {$brandName}", $cars)],
             breadcrumb: [['الرئيسية', '/'], ['الماركات', '/brands'], [$brandName, null]],
         );
@@ -123,9 +132,9 @@ final class SeoContentBuilder
                 $slug = $brand?->slug ?: (string) $brand?->id;
 
                 return [
-                    'text' => 'سيارات ' . $brand?->name . ' بالتقسيط',
-                    'url' => $this->url('/brands/' . SitemapController::encodeSlug($slug)),
-                    'meta' => $cars->count() . ' سيارة · قسط من ' . $this->money($cars->min('min_installment')),
+                    'text' => 'سيارات '.$brand?->name.' بالتقسيط',
+                    'url' => $this->url('/brands/'.SitemapController::encodeSlug($slug)),
+                    'meta' => $cars->count().' سيارة · قسط من '.$this->money($cars->min('min_installment')),
                 ];
             })
             ->filter(fn (array $item) => $item['url'] !== $this->url('/brands/'))
@@ -143,7 +152,7 @@ final class SeoContentBuilder
     public function blogIndex(): array
     {
         return $this->page(
-            'مدونة زاد كابيتال',
+            "مدونة {$this->siteName()}",
             ['نصائح وأسعار وأقساط السيارات وطرق التمويل في السعودية.'],
             sections: [$this->postSection('المقالات', $this->publishedPosts())],
             breadcrumb: [['الرئيسية', '/'], ['المدونة', null]],
@@ -177,16 +186,17 @@ final class SeoContentBuilder
         $footer = $this->footer();
         $contact = $footer['contact'] ?? [];
         $branch = $footer['about_branches'][0] ?? [];
+        $siteName = $this->siteName();
 
         return array_filter([
             '@type' => 'Organization',
             '@id' => $this->url('/#organization'),
-            'name' => 'زاد كابيتال',
-            'alternateName' => 'Zad Capital',
+            'name' => $siteName,
+            'alternateName' => $siteName,
             'url' => $this->baseUrl,
             'logo' => ['@type' => 'ImageObject', 'url' => $this->logoUrl()],
             'email' => $contact['email'] ?? null,
-            'telephone' => '+966-920018657',
+            'telephone' => $contact['phone'] ?? null,
             'address' => [
                 '@type' => 'PostalAddress',
                 'streetAddress' => 'طريق الصحابة، حي اليرموك',
@@ -240,9 +250,9 @@ final class SeoContentBuilder
             return [];
         }
 
-        $dom = new DOMDocument();
+        $dom = new DOMDocument;
         libxml_use_internal_errors(true);
-        $dom->loadHTML('<?xml encoding="UTF-8"><div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        $dom->loadHTML('<?xml encoding="UTF-8"><div>'.$html.'</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         libxml_clear_errors();
 
         $faq = [];
@@ -274,7 +284,7 @@ final class SeoContentBuilder
                 }
                 $current = ['question' => $text, 'answer' => ''];
             } elseif ($current && in_array($tag, ['p', 'ul', 'ol'], true)) {
-                $current['answer'] = trim($current['answer'] . ' ' . $text);
+                $current['answer'] = trim($current['answer'].' '.$text);
             }
         }
         if ($current) {
@@ -319,10 +329,10 @@ final class SeoContentBuilder
             'title' => $title,
             'items' => $cars->map(fn (Car $car) => [
                 'text' => $car->name,
-                'url' => $this->url('/cars/' . SitemapController::encodeSlug($this->arSlug($car))),
+                'url' => $this->url('/cars/'.SitemapController::encodeSlug($this->arSlug($car))),
                 'meta' => trim(implode(' · ', array_filter([
-                    (float) $car->min_installment > 0 ? 'قسط من ' . $this->money($car->min_installment) : null,
-                    'السعر ' . $this->money($car->current_price ?? $car->cash_price),
+                    (float) $car->min_installment > 0 ? 'قسط من '.$this->money($car->min_installment) : null,
+                    'السعر '.$this->money($car->current_price ?? $car->cash_price),
                 ]))),
             ])->values()->all(),
         ];
@@ -334,7 +344,7 @@ final class SeoContentBuilder
             'title' => $title,
             'items' => $posts->map(fn (BlogPost $post) => [
                 'text' => $this->postTitle($post),
-                'url' => $this->url('/blog/' . SitemapController::encodeSlug((string) $post->slug)),
+                'url' => $this->url('/blog/'.SitemapController::encodeSlug((string) $post->slug)),
                 'meta' => trim((string) ($post->getTranslation('excerpt', 'ar', false) ?: '')),
             ])->values()->all(),
         ];
@@ -370,12 +380,12 @@ final class SeoContentBuilder
 
     private function money(mixed $amount): ?string
     {
-        return (float) $amount > 0 ? number_format((float) $amount) . ' ريال' : null;
+        return (float) $amount > 0 ? number_format((float) $amount).' ريال' : null;
     }
 
     private function url(string $path): string
     {
-        return $this->baseUrl . '/' . ltrim($path, '/');
+        return $this->baseUrl.'/'.ltrim($path, '/');
     }
 
     private function footer(): array

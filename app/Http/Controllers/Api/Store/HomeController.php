@@ -13,7 +13,6 @@ use App\Http\Resources\Store\HomeOfferResource;
 use App\Http\Resources\Store\PartnerResource;
 use App\Http\Resources\Store\TestimonialResource;
 use App\Services\Api\Store\HomeApiService;
-
 use Illuminate\Support\Facades\Cache;
 
 final class HomeController extends ApiBaseController

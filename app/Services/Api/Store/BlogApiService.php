@@ -92,7 +92,7 @@ final class BlogApiService
      */
     public function linkingToCar(string $carSlug, int $limit = 6): Collection
     {
-        $needles = ['/cars/' . $carSlug, '/cars/' . rawurlencode($carSlug)];
+        $needles = ['/cars/'.$carSlug, '/cars/'.rawurlencode($carSlug)];
 
         return BlogPost::published()
             ->with('categories', 'employee')

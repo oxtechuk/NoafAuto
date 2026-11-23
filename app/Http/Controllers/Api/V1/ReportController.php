@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\Employee;
 use App\Models\Lead;
 use App\Services\AttributionHelper;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class ReportController extends ApiBaseController
@@ -46,7 +47,32 @@ class ReportController extends ApiBaseController
             ->orderByDesc('total_bookings')
             ->take(5)
             ->with(['car' => fn ($q) => $q->select('id', 'name', 'brand_id')->with('brand:id,name')])
-            ->get();
+            ->get()
+            ->map(function ($row) {
+                $carName = $row->car?->name;
+                $carNameResolved = is_array($carName)
+                    ? ($carName[app()->getLocale()] ?? $carName['ar'] ?? $carName['en'] ?? '')
+                    : (string) ($carName ?? '');
+
+                $brandName = $row->car?->brand?->name;
+                $brandNameResolved = is_array($brandName)
+                    ? ($brandName[app()->getLocale()] ?? $brandName['ar'] ?? $brandName['en'] ?? '')
+                    : (string) ($brandName ?? '');
+
+                return [
+                    'car_id' => $row->car_id,
+                    'total_bookings' => (int) $row->total_bookings,
+                    'total_sold' => (int) $row->total_sold,
+                    'car' => [
+                        'id' => $row->car?->id,
+                        'name' => $carNameResolved ?: ('سيارة #'.$row->car_id),
+                        'brand' => [
+                            'id' => $row->car?->brand?->id,
+                            'name' => $brandNameResolved ?: 'ماركة معتمدة',
+                        ],
+                    ],
+                ];
+            });
 
         $installments = [
             'avg_down_payment' => (float) ((clone $base)->where('down_payment', '>', 0)->avg('down_payment') ?? 0),
@@ -81,12 +107,12 @@ class ReportController extends ApiBaseController
         $bookings = Booking::query()
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
-            ->get(['id', 'status', 'utm_source', 'utm_medium', 'http_referrer', 'click_id', 'source', 'net_commission']);
+            ->get(['id', 'status', 'utm_source', 'utm_medium', 'referrer', 'click_id', 'source', 'net_commission']);
 
         $leads = Lead::query()
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to)
-            ->get(['id', 'status', 'utm_source', 'utm_medium', 'http_referrer', 'click_id']);
+            ->get(['id', 'status', 'utm_source', 'utm_medium', 'referrer', 'click_id']);
 
         $channels = [];
 
@@ -94,7 +120,7 @@ class ReportController extends ApiBaseController
             $ch = AttributionHelper::resolveChannel(
                 $lead->utm_source,
                 $lead->utm_medium,
-                $lead->http_referrer,
+                $lead->referrer,
                 $lead->click_id
             );
             $channels[$ch]['leads_count'] = ($channels[$ch]['leads_count'] ?? 0) + 1;
@@ -104,7 +130,7 @@ class ReportController extends ApiBaseController
             $ch = AttributionHelper::resolveChannel(
                 $b->utm_source,
                 $b->utm_medium,
-                $b->http_referrer,
+                $b->referrer,
                 $b->click_id,
                 $b->source
             );
@@ -131,6 +157,57 @@ class ReportController extends ApiBaseController
             'to' => $to,
             'channels' => $report,
         ], 'Source attribution report retrieved successfully');
+    }
+
+    public function monthly(Request $request): ApiResponse
+    {
+        $this->authorizeReports($request);
+
+        $start = now()->subMonths(11)->startOfMonth();
+
+        $bookingRows = Booking::query()
+            ->where('created_at', '>=', $start)
+            ->get(['created_at', 'status', 'net_commission']);
+
+        $leadRows = Lead::query()
+            ->where('created_at', '>=', $start)
+            ->get(['created_at']);
+
+        $months = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $m = now()->copy()->subMonths($i)->startOfMonth();
+            $key = $m->format('Y-m');
+            $months[$key] = [
+                'key' => $key,
+                'label' => $m->translatedFormat('F Y'),
+                'bookings_count' => 0,
+                'sold_count' => 0,
+                'leads_count' => 0,
+                'revenue' => 0.0,
+            ];
+        }
+
+        foreach ($bookingRows as $b) {
+            $key = Carbon::parse($b->created_at)->format('Y-m');
+            if (isset($months[$key])) {
+                $months[$key]['bookings_count']++;
+                if (in_array($b->status, ['sold', 'received'], true)) {
+                    $months[$key]['sold_count']++;
+                    $months[$key]['revenue'] += (float) ($b->net_commission ?? 0);
+                }
+            }
+        }
+
+        foreach ($leadRows as $l) {
+            $key = Carbon::parse($l->created_at)->format('Y-m');
+            if (isset($months[$key])) {
+                $months[$key]['leads_count']++;
+            }
+        }
+
+        return $this->respondSuccess([
+            'months' => array_values($months),
+        ], 'Monthly performance report retrieved successfully');
     }
 
     private function authorizeReports(Request $request): void

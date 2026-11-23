@@ -22,6 +22,7 @@ const BookingsPage = React.lazy(() => import('../pages/BookingsPage').then(m => 
 const CarsPage = React.lazy(() => import('../pages/CarsPage').then(m => ({ default: m.CarsPage })));
 const CarFormPage = React.lazy(() => import('../pages/CarFormPage').then(m => ({ default: m.CarFormPage })));
 const EmployeesPage = React.lazy(() => import('../pages/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
+const RolesPage = React.lazy(() => import('../pages/RolesPage').then(m => ({ default: m.RolesPage })));
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const ReportsPage = React.lazy(() => import('../pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const ModulesPage = React.lazy(() => import('../pages/ModulesPage').then(m => ({ default: m.ModulesPage })));
@@ -295,7 +296,7 @@ export const AppRoutes: React.FC = () => {
                     path="roles"
                     element={
                         <Suspense fallback={<PageFallback />}>
-                            <EmployeesPage />
+                            <RolesPage />
                         </Suspense>
                     }
                 />

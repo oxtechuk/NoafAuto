@@ -43,16 +43,30 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         Route::get('reports/bookings', [V1ReportController::class, 'bookings'])->name('reports.bookings');
         Route::get('reports/sources', [V1ReportController::class, 'sources'])->name('reports.sources');
+        Route::get('reports/monthly', [V1ReportController::class, 'monthly'])->name('reports.monthly');
 
-        Route::apiResource('leads', V1LeadController::class);
+        // Client Sub-Modules (must precede leads apiResource)
+        Route::get('leads/calculator', [V1ClientController::class, 'calculatorLeadsIndex'])->name('leads.calculator.index');
+        Route::delete('leads/calculator/{lead}', [V1ClientController::class, 'calculatorLeadsDestroy'])->name('leads.calculator.destroy');
+
+        Route::get('leads/sources', [V1ClientController::class, 'contactSourcesIndex'])->name('leads.sources.index');
+        Route::post('leads/sources', [V1ClientController::class, 'contactSourcesStore'])->name('leads.sources.store');
+        Route::put('leads/sources/{source}', [V1ClientController::class, 'contactSourcesUpdate'])->name('leads.sources.update');
+        Route::delete('leads/sources/{source}', [V1ClientController::class, 'contactSourcesDestroy'])->name('leads.sources.destroy');
+
+        Route::get('leads/newsletter', [V1ClientController::class, 'newsletterIndex'])->name('leads.newsletter.index');
+        Route::delete('leads/newsletter/{subscriber}', [V1ClientController::class, 'newsletterDestroy'])->name('leads.newsletter.destroy');
+
+        Route::apiResource('leads', V1LeadController::class)->whereNumber('lead');
 
         Route::apiResource('bookings', V1BookingController::class)->except('update');
         Route::prefix('bookings/{booking}')->name('bookings.')->controller(V1BookingController::class)->group(function () {
             Route::patch('/offer', 'updateOffer')->name('offer');
-            Route::patch('/status', 'updateStatus')->name('status');
+            Route::match(['patch', 'post'], '/status', 'updateStatus')->name('status');
             Route::post('/approve', 'approve')->name('approve');
             Route::post('/reject', 'reject')->name('reject');
-            Route::patch('/assign', 'assign')->name('assign');
+            Route::match(['patch', 'post'], '/assign', 'assign')->name('assign');
+            Route::match(['patch', 'post'], '/auto-assign', 'autoAssign')->name('auto-assign');
             Route::post('/notes', 'addNote')->name('notes.store');
             Route::post('/documents', 'uploadDocument')->name('documents.store');
             Route::get('/documents/{document}/download', 'downloadDocument')->name('documents.download');
@@ -71,6 +85,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('employees/{employee}/toggle-active', [V1EmployeeController::class, 'toggleActive'])->name('employees.toggle-active');
 
         Route::get('roles/permissions', [V1RoleController::class, 'permissions'])->name('roles.permissions');
+        Route::post('roles/permissions', [V1RoleController::class, 'storePermission'])->name('roles.permissions.store');
         Route::apiResource('roles', V1RoleController::class);
 
         Route::get('brands/{brand}/models', [V1BrandController::class, 'models'])->name('brands.models');
@@ -121,18 +136,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::put('catalog/offers/{offer}', [V1CatalogController::class, 'offersUpdate'])->name('catalog.offers.update');
         Route::delete('catalog/offers/{offer}', [V1CatalogController::class, 'offersDestroy'])->name('catalog.offers.destroy');
 
-        // Client & Sales Sub-Modules
-        Route::get('leads/calculator', [V1ClientController::class, 'calculatorLeadsIndex'])->name('leads.calculator.index');
-        Route::delete('leads/calculator/{lead}', [V1ClientController::class, 'calculatorLeadsDestroy'])->name('leads.calculator.destroy');
-
-        Route::get('leads/sources', [V1ClientController::class, 'contactSourcesIndex'])->name('leads.sources.index');
-        Route::post('leads/sources', [V1ClientController::class, 'contactSourcesStore'])->name('leads.sources.store');
-        Route::put('leads/sources/{source}', [V1ClientController::class, 'contactSourcesUpdate'])->name('leads.sources.update');
-        Route::delete('leads/sources/{source}', [V1ClientController::class, 'contactSourcesDestroy'])->name('leads.sources.destroy');
-
-        Route::get('leads/newsletter', [V1ClientController::class, 'newsletterIndex'])->name('leads.newsletter.index');
-        Route::delete('leads/newsletter/{subscriber}', [V1ClientController::class, 'newsletterDestroy'])->name('leads.newsletter.destroy');
-
+        // Sales Sub-Modules
         Route::get('sales/tracking', [V1ClientController::class, 'trackingIndex'])->name('sales.tracking.index');
         Route::patch('sales/tracking/{booking}/stage', [V1ClientController::class, 'trackingUpdateStage'])->name('sales.tracking.stage');
 

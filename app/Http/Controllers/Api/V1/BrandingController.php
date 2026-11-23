@@ -16,11 +16,11 @@ class BrandingController extends ApiBaseController
     private const HEX_PATTERN = '/^#[0-9A-Fa-f]{6}$/';
 
     private const DEFAULTS = [
-        'primary_color' => '#092C29',
-        'primary_hover_color' => '#071F1D',
-        'secondary_color' => '#D5F52B',
-        'accent_color' => '#D5F52B',
-        'sidebar_bg_color' => '#0D3B37',
+        'primary_color' => '#002F29',
+        'primary_hover_color' => '#001F1B',
+        'secondary_color' => '#D5F500',
+        'accent_color' => '#D5F500',
+        'sidebar_bg_color' => '#002F29',
     ];
 
     public function show(Request $request): ApiResponse
@@ -34,9 +34,11 @@ class BrandingController extends ApiBaseController
                 ->first()
             : null;
 
-        $logoUrl = null;
+        $logoUrl = asset('images/logo.png');
         if ($branding?->logo_path) {
-            $logoUrl = asset('storage/'.$branding->logo_path);
+            $logoUrl = str_starts_with($branding->logo_path, 'images/') || str_starts_with($branding->logo_path, 'http')
+                ? asset($branding->logo_path)
+                : asset('storage/'.$branding->logo_path);
         }
 
         $settings = Setting::whereIn('key', [

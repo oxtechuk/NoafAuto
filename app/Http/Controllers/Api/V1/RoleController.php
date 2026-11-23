@@ -8,6 +8,7 @@ use App\Http\Api\Contracts\ApiResponse;
 use App\Http\Controllers\Api\ApiBaseController;
 use App\Http\Requests\Api\V1\Roles\RoleRequest;
 use App\Http\Resources\V1\RoleResource;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -90,6 +91,22 @@ class RoleController extends ApiBaseController
         $role->delete();
 
         return $this->respondDeleted('Role deleted successfully');
+    }
+
+    public function storePermission(Request $request): ApiResponse
+    {
+        Gate::authorize('create', Role::class);
+
+        $request->validate([
+            'name' => ['required', 'string', 'max:100', 'unique:permissions,name'],
+        ]);
+
+        $permission = Permission::create([
+            'name' => trim((string) $request->input('name')),
+            'guard_name' => 'employee',
+        ]);
+
+        return $this->respondCreated($permission, 'تم إنشاء الصلاحية بنجاح');
     }
 
     /**

@@ -48,6 +48,18 @@ export interface CrudTableManagerProps {
     customActions?: (row: any) => React.ReactNode;
 }
 
+export function formatLocaleString(val: any): string {
+    if (val === null || val === undefined) return '-';
+    if (typeof val === 'object') {
+        if ('ar' in val || 'en' in val) {
+            return val.ar || val.en || '-';
+        }
+        const vals = Object.values(val);
+        return vals.length > 0 && typeof vals[0] === 'string' ? (vals[0] as string) : '-';
+    }
+    return String(val);
+}
+
 export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
     title,
     subtitle,
@@ -388,9 +400,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                                     key={col.key}
                                                     className="px-4 py-3 font-medium text-[var(--text-primary)]"
                                                 >
-                                                    {typeof val === 'object' && val !== null
-                                                        ? val.ar || val.en || JSON.stringify(val)
-                                                        : val ?? '-'}
+                                                    {formatLocaleString(val)}
                                                 </td>
                                             );
                                         })}

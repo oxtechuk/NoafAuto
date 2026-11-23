@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\BookingDocument;
 use App\Models\BookingNote;
 use App\Models\Employee;
+use App\Services\BookingAssignmentService;
 use App\Services\Bookings\BookingFilterService;
 use App\Services\Bookings\BookingWorkflowException;
 use App\Services\Bookings\BookingWorkflowService;
@@ -21,9 +22,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BookingController extends ApiBaseController
 {
-    private const LIST_RELATIONS = ['car.brand', 'employee'];
+    private const LIST_RELATIONS = ['car.brand', 'car.category', 'car.carModel', 'employee', 'financingBank', 'calculatorLead'];
 
-    private const DETAIL_RELATIONS = ['car.brand', 'employee', 'notes_list.employee', 'documents'];
+    private const DETAIL_RELATIONS = ['car.brand', 'car.category', 'car.carModel', 'employee', 'financingBank', 'calculatorLead', 'notes_list.employee', 'documents'];
 
     private const MAX_PER_PAGE = 100;
 
@@ -136,6 +137,16 @@ class BookingController extends ApiBaseController
         $message = $workflow->assign($booking, Employee::findOrFail($input['employee_id']));
 
         return $this->respondSuccess($this->bookingData($booking), $message);
+    }
+
+    public function autoAssign(Booking $booking, BookingAssignmentService $assignmentService): ApiResponse
+    {
+        Gate::authorize('supervise', $booking);
+
+        $assignmentService->autoAssign($booking);
+        $booking->refresh();
+
+        return $this->respondSuccess($this->bookingData($booking), 'تم توزيع الطلب تلقائياً على فريق المبيعات بنجاح');
     }
 
     public function addNote(Request $request, Booking $booking): ApiResponse

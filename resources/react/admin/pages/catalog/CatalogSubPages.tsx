@@ -1,5 +1,5 @@
 import React from 'react';
-import { CrudTableManager } from '../../../shared/components/crm/CrudTableManager';
+import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
 
 // 1. Brands Page
 export const BrandsPage: React.FC = () => {
@@ -16,7 +16,7 @@ export const BrandsPage: React.FC = () => {
                     title: 'نوع الماركة',
                     render: (val, row) => (
                         <span className="text-slate-600">
-                            {row.brand_type?.name || '-'}
+                            {formatLocaleString(row.brand_type?.name)}
                         </span>
                     ),
                 },
@@ -62,7 +62,7 @@ export const CarModelsPage: React.FC = () => {
                                 />
                             )}
                             <span className="font-medium text-slate-700">
-                                {row.brand?.name || '-'}
+                                {formatLocaleString(row.brand?.name)}
                             </span>
                         </div>
                     ),

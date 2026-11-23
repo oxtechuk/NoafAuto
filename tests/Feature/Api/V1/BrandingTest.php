@@ -28,7 +28,7 @@ final class BrandingTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.primary_color', '#092C29')
+            ->assertJsonPath('data.primary_color', '#002F29')
             ->assertJsonPath('data.safe_mode', false)
             ->assertJsonPath('data.child_theme.enabled', false);
     }

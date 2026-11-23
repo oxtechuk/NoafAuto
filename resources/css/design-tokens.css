@@ -4,13 +4,14 @@
 
 /* Tenant Branding — overridable per tenant via JS */
 :root {
-  --tenant-primary:       #092C29;
-  --tenant-primary-hover: #071F1D;
-  --tenant-secondary:     #D5F52B;
-  --tenant-accent:        #D5F52B;
-  --tenant-sidebar-bg:    #0D3B37;
-  --tenant-logo-url:      "";
-  --tenant-company-name:  "Tameed";
+  --tenant-primary:       #002F29;
+  --tenant-primary-hover: #001F1B;
+  --tenant-secondary:     #D5F500;
+  --tenant-accent:        #D5F500;
+  --tenant-sidebar-bg:    #002F29;
+  --tenant-logo-url:      "/images/logo.png";
+  --tenant-company-name:  "تعميد";
+  --tenant-warm-white:    #F5F4EF;
 
   /* Backward Compatibility Aliases for Public Components */
   --brand-primary-color:   var(--tenant-primary);

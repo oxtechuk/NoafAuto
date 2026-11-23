@@ -62,7 +62,7 @@ final class SeoEntryResolver
     public static function normalize(string $path): string
     {
         $path = rawurldecode(parse_url($path, PHP_URL_PATH) ?: '/');
-        $path = '/' . trim($path, '/');
+        $path = '/'.trim($path, '/');
 
         return $path;
     }

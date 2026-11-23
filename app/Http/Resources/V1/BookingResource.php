@@ -51,7 +51,16 @@ class BookingResource extends JsonResource
                 'id' => $this->car->id,
                 'name' => $this->car->name,
                 'brand' => $this->car->relationLoaded('brand') ? $this->car->brand?->name : null,
+                'model' => $this->car->model ?: ($this->car->relationLoaded('carModel') ? $this->car->carModel?->name : null),
+                'year' => $this->car->year,
+                'type' => $this->car->type ?: ($this->car->relationLoaded('category') ? $this->car->category?->name : null),
+                'cash_price' => $this->car->cash_price ?: ($this->car->current_price ?: $this->total_price),
             ] : null),
+            'bank_name' => $this->whenLoaded('financingBank', fn () => $this->financingBank?->name)
+                ?? ($this->whenLoaded('calculatorBank', fn () => $this->calculatorBank?->name)),
+            'calculator_details' => $this->whenLoaded('calculatorLead', fn () => $this->calculatorLead?->details),
+            'marketing_channel' => $this->marketing_channel,
+            'utm_source' => $this->utm_source,
             'assigned_to' => $this->whenLoaded('employee', fn () => $this->employee ? [
                 'id' => $this->employee->id,
                 'name' => $this->employee->name,

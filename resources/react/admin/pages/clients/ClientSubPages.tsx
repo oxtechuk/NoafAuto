@@ -1,5 +1,5 @@
 import React from 'react';
-import { CrudTableManager } from '../../../shared/components/crm/CrudTableManager';
+import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
 
 // 1. Calculator Leads Page
 export const CalculatorLeadsPage: React.FC = () => {
@@ -28,7 +28,7 @@ export const CalculatorLeadsPage: React.FC = () => {
                     title: 'السيارة المهتم بها',
                     render: (val) => (
                         <span className="font-semibold text-slate-800">
-                            {val?.name || '-'}
+                            {formatLocaleString(val?.name)}
                         </span>
                     ),
                 },

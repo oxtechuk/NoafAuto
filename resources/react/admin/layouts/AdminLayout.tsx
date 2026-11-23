@@ -222,29 +222,24 @@ const AdminLayoutInner: React.FC = () => {
 
             {/* Sidebar */}
             <aside
-                className={`fixed lg:static inset-y-0 start-0 z-50 w-64 bg-[var(--tenant-sidebar-bg)] text-slate-300 flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 ${
-                    sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
-                }`}
+                className={`fixed lg:static inset-y-0 start-0 z-50 w-64 bg-[var(--tenant-sidebar-bg)] text-slate-300 flex flex-col transition-transform duration-200 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'
+                    }`}
             >
                 {/* Brand Logo Header */}
-                <div className="h-16 flex items-center justify-between px-5 border-b border-white/10 shrink-0">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <TenantLogo size="md" />
-                        <div className="min-w-0">
-                            <span className="font-bold text-white text-sm tracking-wide truncate block">
-                                {branding.company_name}
-                            </span>
-                            <span className="block text-[10px] text-[var(--tenant-secondary)] font-medium">
-                                Tameed CRM Enterprise
-                            </span>
-                        </div>
-                    </div>
+                <div className="py-5 px-4 flex flex-col items-center justify-center relative border-b border-white/10 shrink-0 bg-black/10">
                     <button
                         onClick={() => setSidebarOpen(false)}
-                        className="lg:hidden p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10"
+                        className="lg:hidden absolute top-3 end-3 p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/10"
                     >
                         <X className="h-5 w-5" />
                     </button>
+
+                    <div className="flex flex-col items-center justify-center text-center w-full">
+                        <TenantLogo size="2xl" variant="dark" className="drop-shadow-sm hover:scale-105 transition-transform" />
+                        <span className="text-[11px] font-bold text-[var(--tenant-secondary)] mt-2 tracking-wider">
+                            إدارة السيارات والتمويل
+                        </span>
+                    </div>
                 </div>
 
                 {/* Sidebar Quick Search */}
@@ -269,10 +264,9 @@ const AdminLayoutInner: React.FC = () => {
                         end
                         onClick={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
-                            `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                isActive
-                                    ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                            `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${isActive
+                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
+                                : 'text-slate-300 hover:text-white hover:bg-white/10'
                             }`
                         }
                     >
@@ -293,20 +287,16 @@ const AdminLayoutInner: React.FC = () => {
                                 {/* Group Toggle Button */}
                                 <button
                                     onClick={() => toggleGroup(group.id)}
-                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                                        hasActiveChild
-                                            ? 'text-white bg-white/5'
-                                            : 'text-slate-400 hover:text-white hover:bg-white/5'
-                                    }`}
+                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-colors ${hasActiveChild
+                                        ? 'text-white bg-white/5'
+                                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                        }`}
                                 >
                                     <div className="flex items-center gap-2.5 min-w-0">
                                         <GroupIcon className="h-4 w-4 shrink-0" />
                                         <span className="truncate">{group.label}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-slate-300">
-                                            {group.items.length}
-                                        </span>
+                                    <div className="flex items-center">
                                         {isOpen ? (
                                             <ChevronUp className="h-3.5 w-3.5" />
                                         ) : (
@@ -326,10 +316,9 @@ const AdminLayoutInner: React.FC = () => {
                                                         to={item.path}
                                                         onClick={() => setSidebarOpen(false)}
                                                         className={({ isActive }) =>
-                                                            `flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                                                isActive
-                                                                    ? 'bg-[var(--tenant-primary)] text-white shadow-xs font-semibold'
-                                                                    : 'text-slate-300/80 hover:text-white hover:bg-white/10'
+                                                            `flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${isActive
+                                                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs font-semibold'
+                                                                : 'text-slate-300/80 hover:text-white hover:bg-white/10'
                                                             }`
                                                         }
                                                     >
@@ -358,10 +347,9 @@ const AdminLayoutInner: React.FC = () => {
                             to="/admin/modules"
                             onClick={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
-                                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                                    isActive
-                                        ? 'bg-[var(--tenant-primary)] text-white shadow-xs font-semibold'
-                                        : 'text-slate-300 hover:text-white hover:bg-white/10'
+                                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${isActive
+                                    ? 'bg-[var(--tenant-primary)] text-white shadow-xs font-semibold'
+                                    : 'text-slate-300 hover:text-white hover:bg-white/10'
                                 }`
                             }
                         >
@@ -377,10 +365,9 @@ const AdminLayoutInner: React.FC = () => {
                         to="/admin/settings"
                         onClick={() => setSidebarOpen(false)}
                         className={({ isActive }) =>
-                            `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                isActive
-                                    ? 'bg-white/15 text-white font-semibold'
-                                    : 'text-slate-300/80 hover:text-white hover:bg-white/10'
+                            `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${isActive
+                                ? 'bg-white/15 text-white font-semibold'
+                                : 'text-slate-300/80 hover:text-white hover:bg-white/10'
                             }`
                         }
                     >
@@ -418,14 +405,7 @@ const AdminLayoutInner: React.FC = () => {
                         >
                             <Menu className="h-5 w-5" />
                         </button>
-                        <div>
-                            <h2 className="text-sm font-bold text-[var(--text-primary)]">
-                                نظام إدارة تعميد المتكامل (Tameed Core ERP)
-                            </h2>
-                            <p className="text-[11px] text-[var(--text-muted)] hidden sm:block">
-                                لوحة التحكم الموحدة لكتالوج السيارات، العملاء، والمبيعات
-                            </p>
-                        </div>
+
                     </div>
 
                     <div className="flex items-center gap-3">

@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<html lang="<?php echo e(App::getLocale()); ?>" dir="<?php echo e(App::getLocale() == 'ar' ? 'rtl' : 'ltr'); ?>">
+<?php
+    $locale = App::getLocale();
+    $rawSiteName = $globalSettings['site_name'] ?? ($globalSettings->get('site_name') ?? null);
+    $siteName = is_array($rawSiteName)
+        ? ($rawSiteName[$locale] ?? $rawSiteName['ar'] ?? reset($rawSiteName))
+        : ($rawSiteName ?: 'تعميد');
+
+    $faviconPath = $globalSettings['site_favicon'] ?? ($globalSettings->get('site_favicon') ?? null);
+    $faviconUrl = $faviconPath
+        ? (str_starts_with($faviconPath, 'http://') || str_starts_with($faviconPath, 'https://') ? $faviconPath : asset('storage/' . ltrim($faviconPath, '/')))
+        : asset('favicon.svg');
+    $contactEmail = $contactEmail ?? ($globalSettings['contact_email'] ?? ($globalSettings->get('contact_email') ?? null));
+?>
+<html lang="<?php echo e($locale); ?>" dir="<?php echo e($locale == 'ar' ? 'rtl' : 'ltr'); ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo e(__('ممنوع الدخول')); ?> — Zad Capital</title>
+    <title><?php echo e(__('ممنوع الدخول')); ?> — <?php echo e($siteName); ?></title>
+    <link rel="icon" href="<?php echo e($faviconUrl); ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">

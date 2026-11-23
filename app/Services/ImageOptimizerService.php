@@ -11,14 +11,12 @@ use Illuminate\Support\Str;
 class ImageOptimizerService
 {
     public const MAX_WIDTH = 1600;
+
     public const QUALITY = 80;
 
     /**
      * Store and optimize an uploaded image as WebP.
      *
-     * @param UploadedFile $file
-     * @param string $directory
-     * @param string $disk
      * @return string Path relative to disk
      */
     public function storeAsWebp(UploadedFile $file, string $directory = 'uploads', string $disk = 'public'): string
@@ -29,11 +27,7 @@ class ImageOptimizerService
     /**
      * Store and optimize an uploaded image with custom options.
      *
-     * @param UploadedFile $file
-     * @param string $directory
-     * @param array{maxWidth?: int, quality?: int} $options
-     * @param string $disk
-     * @return string
+     * @param  array{maxWidth?: int, quality?: int}  $options
      */
     public function storeAndOptimize(UploadedFile $file, string $directory = 'uploads', array $options = [], string $disk = 'public'): string
     {
@@ -41,8 +35,8 @@ class ImageOptimizerService
         $quality = $options['quality'] ?? self::QUALITY;
 
         $extension = strtolower($file->getClientOriginalExtension());
-        $filename = Str::random(40) . '.webp';
-        $targetPath = trim($directory, '/') . '/' . $filename;
+        $filename = Str::random(40).'.webp';
+        $targetPath = trim($directory, '/').'/'.$filename;
 
         // If GD extension is not available or SVG, fallback to standard store
         if (! function_exists('imagecreatefromstring') || $extension === 'svg') {
