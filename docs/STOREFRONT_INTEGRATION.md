@@ -25,15 +25,21 @@
 
 **تصحيح للخطة:** أغلب "الفجوات" في §5.1 مش موجودة. العروض فيها `tag` وفلتر بيه. صفحة المقال بترجّع `related_posts`. الطلب المخصص بيروح كرسالة تواصل `car_import` بكل التفاصيل. والحاسبة بتستقبل `car_ids`. **يعني ربط noauf ما احتاجش أي endpoint جديد.**
 
-### التشغيل
-```bash
-# محلياً: dev على الـ mock، أو على الباك إند الحقيقي
-cd resources/noauf && npm run dev                      # VITE_USE_MOCK=true
-VITE_USE_MOCK=false npm run dev                          # proxy → SITEKIT_BACKEND_URL
+### أوامر الـ build (من جذر المشروع)
+| الأمر | بيعمل إيه |
+|---|---|
+| `npm run build:store` | بيبني المتجر (الفرونت اللي في `SITEKIT_STOREFRONT_PATH`) وبينشره في `public/storefront` |
+| `npm run build:dashboard` | بيبني لوحة التحكم (ومعاها متجر Tameed المدمج الاحتياطي) في `public/build` |
+| `npm run build:all` | الاتنين مع بعض |
 
-# نشره من Laravel
-php artisan sitekit:storefront:build --path=resources/noauf
-# .env:  SITEKIT_STOREFRONT_ENABLED=true
+- **الإعداد مرة واحدة في `.env`:** `SITEKIT_STOREFRONT_PATH=resources/noauf` و`SITEKIT_STOREFRONT_ENABLED=true`.
+- **`npm install` للمتجر:** بيحصل أوتوماتيك أول مرة بس. ولو عايز تعيده: `php artisan sitekit:storefront:build --fresh`.
+- **النشر شغّال والسيرفر شغّال:** بيتنسخ اللي اتغيّر بس، فمفيش "Permission denied" على Windows.
+
+### التطوير
+```bash
+cd resources/noauf && npm run dev                      # VITE_USE_MOCK=true (بيانات تجريبية)
+VITE_USE_MOCK=false npm run dev                          # الـ API الحقيقي عبر proxy → SITEKIT_BACKEND_URL
 ```
 
 ### متبقي (مش مانع للتشغيل)

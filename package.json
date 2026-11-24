@@ -5,6 +5,9 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
+        "build:dashboard": "vite build",
+        "build:store": "php artisan sitekit:storefront:build",
+        "build:all": "npm run build:dashboard && npm run build:store",
         "preview": "vite preview"
     },
     "devDependencies": {
