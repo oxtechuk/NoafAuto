@@ -507,7 +507,7 @@ class BookingWorkflowTest extends TestCase
         $showResponse = $this->actingAs($this->sales, 'employee')
             ->get(route('crm.bookings.show', $booking));
 
-        $showResponse->assertRedirect('/admin/bookings');
+        $showResponse->assertRedirect("/admin/bookings?booking_id={$booking->id}");
     }
 
     /** @test */

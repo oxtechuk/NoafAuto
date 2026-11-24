@@ -1,0 +1,168 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Sitekit — install a core update (runs in each CLIENT repository)
+#
+# Started by the client's admin dashboard ("System updates" → Install), which calls
+# the GitHub API workflow_dispatch with: version, update_id, callback_url.
+#
+#  1. merges the upstream release tag into this repo
+#     - conflict → opens a Pull Request and reports "needs_review" (nothing deployed)
+#  2. runs the test suite on the merged code (fails → nothing pushed / deployed)
+#  3. pushes the merge, builds the frontend assets
+#  4. deploys to the VPS over SSH (.github/sitekit/deploy.sh: backup → migrate → health → rollback on error)
+#  5. reports every step back to the dashboard (HMAC signed)
+#
+# Repo settings (client repo):
+#   Variables: SITEKIT_UPSTREAM_REPO = owner/sitekit      (base repo)
+#   Secrets:   SITEKIT_DEPLOY_SECRET  (same as the VPS .env)
+#              SITEKIT_UPSTREAM_TOKEN (read access to the base repo; only if it is private)
+#              VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_APP_PATH, VPS_PORT (optional, default 22)
+# ─────────────────────────────────────────────────────────────────────────────
+name: Sitekit Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Upstream release tag to install (e.g. v1.1.0)'
+        required: true
+        type: string
+      update_id:
+        description: 'Update id from the dashboard (for progress callbacks)'
+        required: false
+        type: string
+        default: ''
+      callback_url:
+        description: 'Dashboard callback URL'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sitekit-update
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  UPDATE_ID: ${{ inputs.update_id }}
+  CALLBACK_URL: ${{ inputs.callback_url }}
+  SITEKIT_DEPLOY_SECRET: ${{ secrets.SITEKIT_DEPLOY_SECRET }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+jobs:
+  update:
+    name: Merge, test & deploy ${{ inputs.version }}
+    if: vars.SITEKIT_ROLE != 'upstream'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Start
+        run: bash .github/sitekit/report.sh running merge "Merging upstream $VERSION"
+
+      - name: Merge upstream release
+        id: merge
+        env:
+          UPSTREAM_REPO: ${{ vars.SITEKIT_UPSTREAM_REPO }}
+          UPSTREAM_TOKEN: ${{ secrets.SITEKIT_UPSTREAM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          BASE_BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -z "$UPSTREAM_REPO" ]; then echo "::error::Repository variable SITEKIT_UPSTREAM_REPO is not set"; exit 1; fi
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then echo "::error::Invalid tag $VERSION"; exit 1; fi
+
+          git config user.name "sitekit-bot"
+          git config user.email "sitekit-bot@users.noreply.github.com"
+
+          if [ -n "$UPSTREAM_TOKEN" ]; then
+            git remote add upstream "https://x-access-token:${UPSTREAM_TOKEN}@github.com/${UPSTREAM_REPO}.git"
+          else
+            git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          fi
+          git fetch --no-tags upstream "refs/tags/${VERSION}:refs/tags/${VERSION}"
+
+          if git merge --no-edit -m "chore(sitekit): update core to ${VERSION}" "${VERSION}"; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git merge --abort
+          BRANCH="sitekit/update-${VERSION}"
+          git push --force origin "refs/tags/${VERSION}^{commit}:refs/heads/${BRANCH}"
+          PR_URL="$(gh pr list --head "$BRANCH" --json url -q '.[0].url')"
+          if [ -z "$PR_URL" ]; then
+            PR_URL="$(gh pr create --base "$BASE_BRANCH" --head "$BRANCH" \
+              --title "Sitekit update ${VERSION} (needs conflict resolution)" \
+              --body "The automatic update to **${VERSION}** has conflicts with this project's changes. Resolve them, merge this PR, then run the update again from the dashboard.")"
+          fi
+          echo "conflict=true" >> "$GITHUB_OUTPUT"
+          bash .github/sitekit/report.sh needs_review merge "Conflicts with project changes — a developer must resolve: ${PR_URL}"
+
+      - name: Setup PHP
+        if: steps.merge.outputs.conflict == 'false'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_sqlite, gd, sodium
+          coverage: none
+
+      - name: Run tests on merged code
+        if: steps.merge.outputs.conflict == 'false'
+        run: |
+          bash .github/sitekit/report.sh running test "Running test suite"
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env
+          php artisan key:generate
+          php -d memory_limit=512M artisan test --compact
+
+      - name: Push merged code
+        if: steps.merge.outputs.conflict == 'false'
+        run: git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Setup Node
+        if: steps.merge.outputs.conflict == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build frontend assets
+        if: steps.merge.outputs.conflict == 'false'
+        run: |
+          bash .github/sitekit/report.sh running build "Building frontend assets"
+          npm ci
+          npm run build
+          tar -czf sitekit-assets.tgz -C public build
+
+      - name: Deploy to VPS
+        if: steps.merge.outputs.conflict == 'false'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_APP_PATH: ${{ secrets.VPS_APP_PATH }}
+        run: |
+          bash .github/sitekit/report.sh running deploy "Deploying to server"
+          PORT="${VPS_PORT:-22}"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/sitekit_deploy && chmod 600 ~/.ssh/sitekit_deploy
+          ssh-keyscan -p "$PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          SSH=(ssh -i ~/.ssh/sitekit_deploy -p "$PORT" -o BatchMode=yes "$VPS_USER@$VPS_HOST")
+          REMOTE_ASSETS="/tmp/sitekit-assets-${GITHUB_RUN_ID}.tgz"
+          scp -i ~/.ssh/sitekit_deploy -P "$PORT" -o BatchMode=yes sitekit-assets.tgz "$VPS_USER@$VPS_HOST:$REMOTE_ASSETS"
+          "${SSH[@]}" "cd '$VPS_APP_PATH' && git fetch origin '$GITHUB_REF_NAME' && git checkout -q 'origin/$GITHUB_REF_NAME' -- .github/sitekit/deploy.sh && SITEKIT_BRANCH='$GITHUB_REF_NAME' bash .github/sitekit/deploy.sh '$VERSION' '$REMOTE_ASSETS'"
+
+      - name: Done
+        if: steps.merge.outputs.conflict == 'false'
+        run: bash .github/sitekit/report.sh success done "Updated to $VERSION"
+
+      - name: Report failure
+        if: failure()
+        run: bash .github/sitekit/report.sh failed error "Update failed — see the GitHub Actions log: $RUN_URL"

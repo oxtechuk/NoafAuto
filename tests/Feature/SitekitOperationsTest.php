@@ -39,16 +39,19 @@ class SitekitOperationsTest extends TestCase
             ->assertSuccessful();
     }
 
-    public function test_sitekit_updates_check_with_default_manifest(): void
+    public function test_sitekit_updates_check_without_update_source_reports_no_update(): void
     {
+        config(['sitekit.github.upstream_repo' => null, 'sitekit.manifest_url' => null]);
+
         $checker = app(UpdateCheckerService::class);
         $result = $checker->checkForUpdates();
 
-        $this->assertTrue($result['has_update']);
-        $this->assertEquals('1.0.0', $result['latest_version']);
+        $this->assertFalse($result['has_update']);
+        $this->assertSame('none', $result['source']);
+        $this->assertSame($result['current_version'], $result['latest_version']);
 
         $this->artisan('sitekit:updates:check')
-            ->expectsOutputToContain('A new version (1.0.0) is available!')
+            ->expectsOutputToContain('Your Sitekit installation is up to date.')
             ->assertSuccessful();
     }
 

@@ -29,7 +29,7 @@ class SitekitUpdatesCheckCommand extends Command
     public function handle(UpdateCheckerService $checker): int
     {
         $this->info('Checking for Sitekit updates...');
-        $result = $checker->checkForUpdates();
+        $result = $checker->refresh();
 
         if ($result['error'] !== null) {
             $this->error("Failed to check for updates: {$result['error']}");

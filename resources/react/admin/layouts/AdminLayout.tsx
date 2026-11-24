@@ -46,7 +46,10 @@ import {
     Hourglass,
     CheckCircle2,
     FolderX,
+    RefreshCw,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from '../components/ui/Badge';
 import { BrandingProvider, useBranding, useThemeShield } from '../context/BrandingContext';
@@ -70,7 +73,18 @@ interface NavGroup {
 }
 
 const AdminLayoutInner: React.FC = () => {
-    const { user, logout, can } = useAuth();
+    const { user, logout, can, hasRole } = useAuth();
+    const isAdmin = user?.role === 'admin' || hasRole('admin');
+
+    // Same query key as UpdatesPage, so both share one cached result.
+    const { data: updateStatus } = useQuery({
+        queryKey: ['admin', 'system', 'updates'],
+        queryFn: async (): Promise<{ has_update: boolean; latest_version: string; active_run: unknown | null }> =>
+            (await apiClient.get('/system/updates')).data.data,
+        enabled: isAdmin,
+        staleTime: 1000 * 60 * 30,
+        retry: false,
+    });
     const { branding } = useBranding();
     const { safeMode, setSafeMode } = useThemeShield();
     const location = useLocation();
@@ -374,6 +388,29 @@ const AdminLayoutInner: React.FC = () => {
                         <Settings className="h-3.5 w-3.5 shrink-0" />
                         <span>إعدادات النظام</span>
                     </NavLink>
+
+                    {isAdmin && (
+                        <NavLink
+                            to="/admin/updates"
+                            onClick={() => setSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${isActive
+                                    ? 'bg-white/15 text-white font-semibold'
+                                    : 'text-slate-300/80 hover:text-white hover:bg-white/10'
+                                }`
+                            }
+                        >
+                            <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+                            <span className="flex-1">تحديثات النظام</span>
+                            {updateStatus?.active_run ? (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">جاري</span>
+                            ) : updateStatus?.has_update ? (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500 text-white">
+                                    v{updateStatus.latest_version}
+                                </span>
+                            ) : null}
+                        </NavLink>
+                    )}
 
                     <div className="flex items-center gap-2.5 px-2.5 py-2 mt-2 rounded-lg bg-black/30 border border-white/5">
                         <div className="h-8 w-8 rounded-full bg-[var(--tenant-primary)] flex items-center justify-center font-bold text-white text-xs shrink-0">

@@ -35,8 +35,9 @@ class SettingsCacheTest extends TestCase
         $this->withoutVite();
         Setting::create(['key' => 'site_name', 'value' => ['ar' => 'اسم الموقع', 'en' => 'Test Site']]);
 
-        $response = $this->get(route('crm.login'));
+        // The legacy CRM login now forwards to the React admin login, which renders the cached site name.
+        $this->get(route('crm.login'))->assertRedirect('/admin/login');
 
-        $response->assertOk()->assertSee('اسم الموقع');
+        $this->get('/admin/login')->assertOk()->assertSee('اسم الموقع');
     }
 }

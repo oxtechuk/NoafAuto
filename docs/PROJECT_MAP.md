@@ -147,7 +147,8 @@ Admin API responses: `{ success, message, data, meta? }`; paginated `meta.{curre
 5. Keep SQL portable (tests run on SQLite). `CRM\DashboardController` uses `FIELD()`, so it is untestable on SQLite.
 6. Dashboard stats (CRM + API) use one conditional-aggregation query per table. Keep it that way, don't go back to `clone()->count()` chains.
 7. No `.vue` files are in the active build, but Vue/webpack/laravel-mix are still in `package.json` (removal pending approval).
-8. Arabic UI strings are inline in TSX/Blade. Translations: `lang/{ar,en}/{permissions,store-api}.php` + i18next resources for the store.
+8. Core version = `VERSION` file (not hard-coded). Releases are cut only from the upstream repo (`SITEKIT_ROLE=upstream` variable); client repos install them via `sitekit-update.yml`. Never edit core files inside a client repo: every edit becomes a merge conflict on the next update. Migrations must be additive (deploy.sh doesn't roll back the DB).
+9. Arabic UI strings are inline in TSX/Blade. Translations: `lang/{ar,en}/{permissions,store-api}.php` + i18next resources for the store.
 
 ## 10. Don't read unless asked (large / irrelevant)
 
@@ -166,3 +167,4 @@ Admin API responses: `{ success, message, data, meta? }`; paginated `meta.{curre
 | API envelope / errors | `app/Http/Api/**`, `bootstrap/app.php` |
 | Admin page data fetching | `resources/react/admin/pages/<X>Page.tsx` (React Query, keys `['admin', '<resource>', {...}]`) |
 | Store API calls | `resources/react/services/api/<domain>.service.ts` |
+| Core updates (version, GitHub releases, install) | `VERSION`, `config/sitekit.php`, `Services/Updates/*`, `Api/V1/SystemUpdateController`, `admin/pages/UpdatesPage.tsx`, `.github/workflows/sitekit-{release,update}.yml`, `.github/sitekit/{deploy,report}.sh`, setup: `docs/SITEKIT_UPDATES_SETUP.md` |

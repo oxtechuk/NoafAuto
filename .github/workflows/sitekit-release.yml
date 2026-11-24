@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Sitekit — publish a core release (runs ONLY in the base/upstream repository)
+#
+#   Actions → "Sitekit Release" → Run workflow → version = 1.1.0
+#
+# 1. runs the test suite
+# 2. bumps VERSION, commits, tags v1.1.0
+# 3. creates the GitHub Release (notes = your text + auto-generated changelog)
+# 4. pings every registered client instance so its dashboard shows "update available"
+#    (nothing is installed automatically — the owner clicks "install")
+#
+# Repo settings (upstream repo only):
+#   Variables: SITEKIT_ROLE = upstream
+#   Secrets:   SITEKIT_DEPLOY_SECRET  (same value as each instance's .env)
+#              SITEKIT_INSTANCE_URLS  (optional, comma separated: https://client1.com,https://client2.com)
+# ─────────────────────────────────────────────────────────────────────────────
+name: Sitekit Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New version (e.g. 1.1.0 or 1.2.0-beta.1)'
+        required: true
+        type: string
+      notes:
+        description: 'Release notes shown to clients (Arabic or English, optional)'
+        required: false
+        type: string
+      prerelease:
+        description: 'Beta release (only instances on the "beta" channel will see it)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sitekit-release
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    name: Tests
+    if: vars.SITEKIT_ROLE == 'upstream'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, pdo_sqlite, gd, sodium
+          coverage: none
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - run: php -d memory_limit=512M artisan test --compact
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+  release:
+    name: Tag & publish release
+    needs: tests
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${INPUT_VERSION#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Invalid semantic version: $INPUT_VERSION"; exit 1
+          fi
+          CURRENT="$(tr -d '[:space:]' < VERSION)"
+          HIGHEST="$(printf '%s\n%s\n' "$CURRENT" "$VERSION" | sort -V | tail -n1)"
+          if [ "$VERSION" = "$CURRENT" ] || [ "$HIGHEST" != "$VERSION" ]; then
+            echo "::error::Version $VERSION must be greater than the current $CURRENT"; exit 1
+          fi
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Bump VERSION, commit and tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "sitekit-bot"
+          git config user.email "sitekit-bot@users.noreply.github.com"
+          echo "$VERSION" > VERSION
+          git add VERSION
+          git commit -m "release: $TAG"
+          git tag -a "$TAG" -m "Sitekit $TAG"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NOTES: ${{ inputs.notes }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          ARGS=(--title "Sitekit $TAG" --generate-notes)
+          if [ -n "$NOTES" ]; then ARGS+=(--notes "$NOTES"); fi
+          if [ "$PRERELEASE" = "true" ]; then ARGS+=(--prerelease); fi
+          gh release create "$TAG" "${ARGS[@]}"
+
+  notify:
+    name: Notify client instances
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping instances (signed)
+        env:
+          SECRET: ${{ secrets.SITEKIT_DEPLOY_SECRET }}
+          INSTANCE_URLS: ${{ secrets.SITEKIT_INSTANCE_URLS }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          if [ -z "$INSTANCE_URLS" ] || [ -z "$SECRET" ]; then
+            echo "SITEKIT_INSTANCE_URLS / SITEKIT_DEPLOY_SECRET not set — instances will see the update on their daily check."
+            exit 0
+          fi
+          BODY="$(jq -cn --arg version "$TAG" '{version: $version}')"
+          SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+          IFS=',' read -ra URLS <<< "$INSTANCE_URLS"
+          for url in "${URLS[@]}"; do
+            url="$(echo "$url" | xargs)"; [ -z "$url" ] && continue
+            status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST "$url/api/v1/system/updates/notify" \
+              -H 'Content-Type: application/json' -H 'Accept: application/json' \
+              -H "X-Sitekit-Signature: $SIG" -d "$BODY" || echo 000)"
+            echo "$url → HTTP $status"
+          done

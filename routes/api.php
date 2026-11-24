@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\ReportController as V1ReportController;
 use App\Http\Controllers\Api\V1\RoleController as V1RoleController;
 use App\Http\Controllers\Api\V1\SettingController as V1SettingController;
 use App\Http\Controllers\Api\V1\SystemController;
+use App\Http\Controllers\Api\V1\SystemUpdateController;
 use App\Http\Controllers\Api\V1\TaskController as V1TaskController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +26,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('/system/info', [SystemController::class, 'info'])->name('system.info');
     Route::get('/version', [SystemController::class, 'version'])->name('version');
     Route::post('/system/deploy-webhook', [DeployWebhookController::class, 'handle'])->name('system.deploy-webhook');
+
+    // Signed (HMAC) webhooks from GitHub Actions: release notifications and deploy progress.
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('/system/updates/notify', [SystemUpdateController::class, 'notify'])->name('system.updates.notify');
+        Route::post('/system/updates/callback', [SystemUpdateController::class, 'callback'])->name('system.updates.callback');
+    });
 
     // Cookie-based SPA authentication for employees (call /sanctum/csrf-cookie first).
     Route::prefix('auth')->name('auth.')->middleware('web')->group(function () {
@@ -179,6 +186,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('settings/{key}', [V1SettingController::class, 'show'])->name('settings.show');
         Route::put('settings', [V1SettingController::class, 'update'])->name('settings.update');
         Route::post('settings', [V1SettingController::class, 'update'])->name('settings.store');
+
+        Route::get('system/updates', [SystemUpdateController::class, 'index'])->name('system.updates.index');
+        Route::post('system/updates/check', [SystemUpdateController::class, 'check'])->name('system.updates.check');
+        Route::post('system/updates/install', [SystemUpdateController::class, 'install'])->name('system.updates.install');
 
         Route::get('modules', [V1ModuleController::class, 'index'])->name('modules.index');
         Route::post('modules/{key}/enable', [V1ModuleController::class, 'enable'])->name('modules.enable');
