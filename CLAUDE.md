@@ -1,3 +1,8 @@
+# Project map
+
+Project structure, domain, and gotchas. Read it before exploring the repo:
+@docs/PROJECT_MAP.md
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

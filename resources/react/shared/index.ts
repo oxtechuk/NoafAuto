@@ -7,3 +7,4 @@ export * from './components/ui/EmptyState';
 export * from './components/ui/Skeleton';
 export * from './components/ui/StatCard';
 export * from './components/ui/Pagination';
+export * from './hooks/useDebouncedValue';

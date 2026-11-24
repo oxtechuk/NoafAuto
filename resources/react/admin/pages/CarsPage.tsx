@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useId } from 'react';
+import React, { useState, useId } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import {
     Car as CarIcon,
@@ -21,6 +22,7 @@ import { Button } from '../../shared/components/ui/Button';
 import { Pagination } from '../../shared/components/ui/Pagination';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue';
 
 interface Brand {
     id: number;
@@ -76,36 +78,43 @@ export const CarsPage: React.FC = () => {
     const categorySelectId = useId();
     const statusSelectId = useId();
 
-    const [cars, setCars] = useState<CarItem[]>([]);
-    const [brands, setBrands] = useState<Brand[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const [selectedBrand, setSelectedBrand] = useState<string>('all');
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [selectedStatus, setSelectedStatus] = useState<string>('all');
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [page, setPage] = useState(1);
-    const [lastPage, setLastPage] = useState(1);
-    const [total, setTotal] = useState(0);
+    const debouncedSearch = useDebouncedValue(search, 300);
 
-    const fetchMeta = async () => {
-        try {
+    const { data: metaOptions } = useQuery({
+        queryKey: ['admin', 'cars', 'meta-options'],
+        queryFn: async () => {
             const res = await apiClient.get('/cars/meta-options');
-            if (res.data?.data) {
-                setBrands(res.data.data.brands || []);
-                setCategories(res.data.data.categories || []);
-            }
-        } catch (err) {
-            console.error('Failed to load meta options', err);
-        }
-    };
+            return {
+                brands: (res.data?.data?.brands || []) as Brand[],
+                categories: (res.data?.data?.categories || []) as Category[],
+            };
+        },
+        staleTime: 1000 * 60 * 30,
+    });
+    const brands = metaOptions?.brands ?? [];
+    const categories = metaOptions?.categories ?? [];
 
-    const fetchCars = async (pageNumber = 1) => {
-        setLoading(true);
-        try {
-            const params: Record<string, any> = { page: pageNumber, per_page: 12 };
-            if (search) params.search = search;
+    type CarsPayload = { items: CarItem[]; lastPage: number; total: number };
+
+    const carsQueryKey = [
+        'admin',
+        'cars',
+        'list',
+        { search: debouncedSearch, brand: selectedBrand, category: selectedCategory, status: selectedStatus, page },
+    ];
+
+    const { data: carsData, isLoading: loading } = useQuery({
+        queryKey: carsQueryKey,
+        queryFn: async (): Promise<CarsPayload> => {
+            const params: Record<string, any> = { page, per_page: 12 };
+            if (debouncedSearch) params.search = debouncedSearch;
             if (selectedBrand !== 'all') params.brand_id = selectedBrand;
             if (selectedCategory !== 'all') params.category_id = selectedCategory;
             if (selectedStatus !== 'all') params.is_active = selectedStatus === 'active';
@@ -118,42 +127,36 @@ export const CarsPage: React.FC = () => {
                 : Array.isArray(payload)
                 ? payload
                 : [];
-
-            setCars(items);
             const meta = payload?.meta;
-            if (meta) {
-                setPage(meta.current_page || 1);
-                setLastPage(meta.last_page || 1);
-                setTotal(meta.total ?? items.length);
-            } else {
-                setPage(1);
-                setLastPage(1);
-                setTotal(items.length);
-            }
-        } catch (err) {
-            console.error('Failed to load cars', err);
-        } finally {
-            setLoading(false);
-        }
+
+            return {
+                items,
+                lastPage: meta?.last_page || 1,
+                total: meta?.total ?? items.length,
+            };
+        },
+        placeholderData: keepPreviousData,
+        // Show cached cars instantly, but always revalidate on mount (e.g. after returning from CarFormPage).
+        staleTime: 0,
+    });
+
+    const cars = carsData?.items ?? [];
+    const lastPage = carsData?.lastPage ?? 1;
+    const total = carsData?.total ?? 0;
+
+    /** Apply an optimistic change to the cached page, then refresh car lists in the background. */
+    const updateCachedCars = (updater: (items: CarItem[]) => CarItem[], totalDelta = 0) => {
+        queryClient.setQueryData<CarsPayload>(carsQueryKey, (prev) =>
+            prev ? { ...prev, items: updater(prev.items), total: Math.max(0, prev.total + totalDelta) } : prev
+        );
+        queryClient.invalidateQueries({ queryKey: ['admin', 'cars', 'list'] });
     };
-
-    useEffect(() => {
-        fetchMeta();
-    }, []);
-
-    useEffect(() => {
-        const timeout = setTimeout(() => {
-            fetchCars(1);
-        }, 300);
-        return () => clearTimeout(timeout);
-    }, [search, selectedBrand, selectedCategory, selectedStatus]);
 
     const handleDeleteCar = async (id: number) => {
         if (!window.confirm('هل أنت متأكد من حذف هذه السيارة نهائياً؟')) return;
         try {
             await apiClient.delete(`/cars/${id}`);
-            setCars((prev) => prev.filter((c) => c.id !== id));
-            setTotal((prev) => Math.max(0, prev - 1));
+            updateCachedCars((prev) => prev.filter((c) => c.id !== id), -1);
         } catch (err: any) {
             alert(err.message || 'فشل حذف السيارة');
         }
@@ -165,7 +168,7 @@ export const CarsPage: React.FC = () => {
             await apiClient.put(`/cars/${car.id}`, {
                 is_active: nextActive,
             });
-            setCars((prev) =>
+            updateCachedCars((prev) =>
                 prev.map((c) => (c.id === car.id ? { ...c, is_active: nextActive } : c))
             );
         } catch (err: any) {
@@ -179,7 +182,7 @@ export const CarsPage: React.FC = () => {
             await apiClient.put(`/cars/${car.id}`, {
                 is_featured: nextFeatured,
             });
-            setCars((prev) =>
+            updateCachedCars((prev) =>
                 prev.map((c) => (c.id === car.id ? { ...c, is_featured: nextFeatured } : c))
             );
         } catch (err: any) {
@@ -220,7 +223,10 @@ export const CarsPage: React.FC = () => {
                         <input
                             type="text"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1);
+                            }}
                             placeholder="بحث باسم السيارة أو الموديل..."
                             className="w-full ps-9 pe-3 py-1.5 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         />
@@ -231,7 +237,10 @@ export const CarsPage: React.FC = () => {
                         <select
                             id={brandSelectId}
                             value={selectedBrand}
-                            onChange={(e) => setSelectedBrand(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedBrand(e.target.value);
+                                setPage(1);
+                            }}
                             className="w-full py-1.5 px-3 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         >
                             <option value="all">كل الماركات</option>
@@ -248,7 +257,10 @@ export const CarsPage: React.FC = () => {
                         <select
                             id={categorySelectId}
                             value={selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedCategory(e.target.value);
+                                setPage(1);
+                            }}
                             className="w-full py-1.5 px-3 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         >
                             <option value="all">كل التصنيفات</option>
@@ -265,7 +277,10 @@ export const CarsPage: React.FC = () => {
                         <select
                             id={statusSelectId}
                             value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedStatus(e.target.value);
+                                setPage(1);
+                            }}
                             className="w-full py-1.5 px-3 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         >
                             <option value="all">جميع الحالات</option>
@@ -311,6 +326,7 @@ export const CarsPage: React.FC = () => {
                                 setSelectedBrand('all');
                                 setSelectedCategory('all');
                                 setSelectedStatus('all');
+                                setPage(1);
                             }}
                             title="إعادة تعيين الفلاتر"
                         >
@@ -561,7 +577,7 @@ export const CarsPage: React.FC = () => {
                     <Pagination
                         currentPage={page}
                         lastPage={lastPage}
-                        onPageChange={(p) => fetchCars(p)}
+                        onPageChange={setPage}
                     />
                 </div>
             )}

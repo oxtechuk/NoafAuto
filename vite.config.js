@@ -36,20 +36,15 @@ export default defineConfig({
         outDir: 'public/build',
         emptyOutDir: true,
         target: 'es2020',
-        rollupOptions: {
+        rolldownOptions: {
             output: {
-                manualChunks(id) {
-                    if (id.includes('node_modules')) {
-                        if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-                            return 'vendor-react';
-                        }
-                        if (id.includes('@tanstack/react-query') || id.includes('axios')) {
-                            return 'vendor-query';
-                        }
-                        if (id.includes('lucide-react')) {
-                            return 'vendor-icons';
-                        }
-                    }
+                // Vite 8 bundles with Rolldown: use codeSplitting groups (object-form manualChunks is unsupported).
+                // Patterns match exact package folders so e.g. react-icons / react-query don't land in vendor-react.
+                codeSplitting: {
+                    groups: [
+                        { name: 'vendor-react', test: /node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/, priority: 20 },
+                        { name: 'vendor-query', test: /node_modules[\\/](@tanstack[\\/]|axios[\\/])/, priority: 10 },
+                    ],
                 },
             },
         },

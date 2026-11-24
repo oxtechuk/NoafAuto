@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Modal, useConfirm } from '../../shared/components/ui';
@@ -269,15 +270,18 @@ export const BookingsPage: React.FC<BookingsPageProps> = ({ group: propGroup }) 
     );
 
     // Fetch Bookings
+    const debouncedSearch = useDebouncedValue(search, 300);
+
     const { data: bookingsResponse, isLoading } = useQuery({
-        queryKey: ['admin', 'bookings', { group: effectiveGroup, status: statusFilter, search, page, perPage }],
+        queryKey: ['admin', 'bookings', { group: effectiveGroup, status: statusFilter, search: debouncedSearch, page, perPage }],
         queryFn: async () => {
             const params: any = { page, per_page: perPage, group: effectiveGroup };
             if (statusFilter) params.status = statusFilter;
-            if (search) params.search = search;
+            if (debouncedSearch) params.search = debouncedSearch;
             const res = await apiClient.get('/api/v1/bookings', { params });
             return res.data;
         },
+        placeholderData: keepPreviousData,
     });
 
     // Fetch Employees list for assignment dropdown (Admin only)

@@ -1,3 +1,7 @@
+# Project map
+
+Before exploring the repo, read `docs/PROJECT_MAP.md`. It covers the structure, routing, domain model, caching, frontend layout, and known gotchas.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

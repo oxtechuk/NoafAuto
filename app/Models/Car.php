@@ -28,7 +28,7 @@ class Car extends Model
     protected $fillable = [
         'brand_id', 'category_id', 'car_model_id', 'name', 'slug', 'model', 'year', 'type',
         'color', 'colors', 'cash_price', 'min_down_payment', 'min_installment',
-        'description', 'features', 'specs', 'thumbnail', 'badge_color', 'is_featured', 'is_active', 'is_highlighted', 'views',
+        'description', 'features', 'specs', 'horsepower', 'thumbnail', 'badge_color', 'is_featured', 'is_active', 'is_highlighted', 'views',
         'availability_status',
     ];
 
@@ -39,6 +39,7 @@ class Car extends Model
         'specs' => 'array',
         'is_featured' => 'boolean',
         'is_active' => 'boolean',
+        'horsepower' => 'integer',
         'thumbnail' => AsImageUrl::class,
     ];
 
@@ -70,15 +71,23 @@ class Car extends Model
 
     public function getHorsepowerAttribute(): ?int
     {
-        $hp = $this->specs['hp'] ?? null;
+        return self::parseHorsepower($this->specs['hp'] ?? null);
+    }
 
+    /**
+     * Extract the numeric horsepower from a free-form specs value (e.g. "250 HP").
+     */
+    public static function parseHorsepower(mixed $hp): ?int
+    {
         if ($hp === null || $hp === '') {
             return null;
         }
 
-        $numeric = preg_replace('/[^0-9]/', '', (string) $hp);
+        if (! preg_match('/\d+/', str_replace(',', '', (string) $hp), $matches)) {
+            return null;
+        }
 
-        return $numeric === '' ? null : (int) $numeric;
+        return min((int) $matches[0], 65535);
     }
 
     public function specifications()
@@ -107,6 +116,8 @@ class Car extends Model
                         ?? $carModel->name;
                 }
             }
+
+            $car->setAttribute('horsepower', self::parseHorsepower($car->specs['hp'] ?? null));
         });
     }
 

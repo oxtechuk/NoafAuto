@@ -1,12 +1,12 @@
 <!doctype html>
 @php
     $locale = app()->getLocale();
-    $rawSiteName = $globalSettings['site_name'] ?? ($globalSettings->get('site_name') ?? null);
+    $rawSiteName = data_get($globalSettings ?? [], 'site_name');
     $siteName = is_array($rawSiteName)
         ? ($rawSiteName[$locale] ?? $rawSiteName['ar'] ?? reset($rawSiteName))
         : ($rawSiteName ?: 'تعميد CRM');
 
-    $faviconPath = $globalSettings['site_favicon'] ?? ($globalSettings->get('site_favicon') ?? null);
+    $faviconPath = data_get($globalSettings ?? [], 'site_favicon');
     $faviconUrl = $faviconPath
         ? (str_starts_with($faviconPath, 'http://') || str_starts_with($faviconPath, 'https://')
             ? $faviconPath

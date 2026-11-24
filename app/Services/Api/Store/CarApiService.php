@@ -226,15 +226,9 @@ final class CarApiService
             $minHp = ! empty($filters['min_hp']) ? (int) $filters['min_hp'] : null;
             $maxHp = ! empty($filters['max_hp']) ? (int) $filters['max_hp'] : null;
 
-            $matchingIds = Car::where('is_active', true)
-                ->get(['id', 'specs'])
-                ->pluck('horsepower', 'id')
-                ->filter(fn (?int $hp): bool => $hp !== null
-                    && ($minHp === null || $hp >= $minHp)
-                    && ($maxHp === null || $hp <= $maxHp))
-                ->keys();
-
-            $query->whereIn('id', $matchingIds);
+            $query->whereNotNull('horsepower')
+                ->when($minHp !== null, fn (Builder $q) => $q->where('horsepower', '>=', $minHp))
+                ->when($maxHp !== null, fn (Builder $q) => $q->where('horsepower', '<=', $maxHp));
         }
 
         $search = $filters['search'] ?? $filters['q'] ?? null;

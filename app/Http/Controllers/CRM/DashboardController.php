@@ -36,16 +36,7 @@ class DashboardController extends Controller
                 });
             });
 
-        $stats = [
-            'total' => (clone $baseBookings)->count(),
-            'open' => (clone $baseBookings)->whereIn('status', $activeStatuses)->count(),
-            'pending' => (clone $baseBookings)->where('status', 'pending')->count(),
-            'closed' => (clone $baseBookings)->where(function (Builder $q) {
-                $q->where('status', 'like', 'lost_%')->orWhere('status', 'rejected');
-            })->count(),
-            'completed' => (clone $baseBookings)->whereIn('status', ['received', 'sold', 'done'])->count(),
-            'total_commission' => (clone $baseBookings)->whereIn('status', ['received', 'sold', 'done'])->sum('net_commission'),
-        ];
+        $stats = $this->bookingStats($baseBookings, $activeStatuses, ['received', 'sold', 'done']);
 
         $requestsQuery = clone $baseBookings;
         if ($sort === 'priority') {
@@ -100,6 +91,38 @@ class DashboardController extends Controller
             'stats', 'requests', 'tasksToday', 'tasksOverdue', 'tasksUpcoming',
             'alerts', 'range', 'from', 'to', 'search', 'sort', 'isAdmin', 'employees'
         ));
+    }
+
+    /**
+     * Aggregate all booking counters in a single query using conditional aggregation.
+     *
+     * @param  array<int, string>  $activeStatuses
+     * @param  array<int, string>  $completedStatuses
+     * @return array{total: int, open: int, pending: int, closed: int, completed: int, total_commission: float}
+     */
+    private function bookingStats(Builder $baseBookings, array $activeStatuses, array $completedStatuses): array
+    {
+        $activePlaceholders = implode(',', array_fill(0, count($activeStatuses), '?'));
+        $completedPlaceholders = implode(',', array_fill(0, count($completedStatuses), '?'));
+
+        $row = (clone $baseBookings)->toBase()->selectRaw(
+            "COUNT(*) as total,
+            SUM(CASE WHEN status IN ({$activePlaceholders}) THEN 1 ELSE 0 END) as open_count,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status LIKE 'lost_%' OR status = 'rejected' THEN 1 ELSE 0 END) as closed,
+            SUM(CASE WHEN status IN ({$completedPlaceholders}) THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN status IN ({$completedPlaceholders}) THEN net_commission ELSE 0 END) as total_commission",
+            [...$activeStatuses, ...$completedStatuses, ...$completedStatuses],
+        )->first();
+
+        return [
+            'total' => (int) ($row->total ?? 0),
+            'open' => (int) ($row->open_count ?? 0),
+            'pending' => (int) ($row->pending ?? 0),
+            'closed' => (int) ($row->closed ?? 0),
+            'completed' => (int) ($row->completed ?? 0),
+            'total_commission' => (float) ($row->total_commission ?? 0),
+        ];
     }
 
     /**

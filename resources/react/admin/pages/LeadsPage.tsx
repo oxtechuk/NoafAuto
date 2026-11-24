@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { Pagination } from '../../shared/components/ui/Pagination';
+import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue';
 import { Card } from '../../shared/components/ui/Card';
 import { StatusBadge } from '../../shared/components/ui/StatusBadge';
 import { Badge } from '../../shared/components/ui/Badge';
@@ -9,18 +11,21 @@ import { Search, Phone, Mail, User, Calendar } from 'lucide-react';
 export const LeadsPage: React.FC = () => {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
+    const debouncedSearch = useDebouncedValue(search, 300);
 
     const { data: leadsResponse, isLoading } = useQuery({
-        queryKey: ['admin', 'leads', { page, search }],
+        queryKey: ['admin', 'leads', { page, search: debouncedSearch }],
         queryFn: async () => {
             const res = await apiClient.get('/leads', {
-                params: { page, search },
+                params: { page, search: debouncedSearch || undefined },
             });
             return res.data;
         },
+        placeholderData: keepPreviousData,
     });
 
     const leads = leadsResponse?.data || [];
+    const meta = leadsResponse?.meta;
 
     return (
         <div className="space-y-6">
@@ -110,6 +115,14 @@ export const LeadsPage: React.FC = () => {
                     </div>
                 )}
             </Card>
+
+            {(meta?.last_page ?? 1) > 1 && (
+                <Pagination
+                    currentPage={meta?.current_page ?? page}
+                    lastPage={meta?.last_page ?? 1}
+                    onPageChange={setPage}
+                />
+            )}
         </div>
     );
 };
