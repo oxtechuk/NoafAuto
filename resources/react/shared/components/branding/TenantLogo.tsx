@@ -27,10 +27,16 @@ export const TenantLogo: React.FC<TenantLogoProps> = ({
     };
 
     // Determine correct logo based on background variant:
+    // - Custom Admin Sidebar logo if configured in settings
     // - Dark backgrounds (like sidebar): use white wordmark /images/logo.png
     // - Light backgrounds: use dark green wordmark /images/vertcal logo.png
-    let logoSrc = branding.logo_url || '/images/logo.png';
-    if (variant === 'light' || (!branding.logo_url && variant === 'light')) {
+    const adminSidebarLogo =
+        typeof window !== 'undefined'
+            ? (window as any).__ADMIN_SETTINGS__?.sidebar_logo || null
+            : null;
+
+    let logoSrc = adminSidebarLogo || branding.logo_url || '/images/logo.png';
+    if (!adminSidebarLogo && (variant === 'light' || (!branding.logo_url && variant === 'light'))) {
         logoSrc = '/images/vertcal logo.png';
     }
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { useDebouncedValue } from '../../shared/hooks/useDebouncedValue';
 import { Card } from '../../shared/components/ui/Card';
 import { Button } from '../../shared/components/ui/Button';
 import { StatusBadge } from '../../shared/components/ui/StatusBadge';
@@ -16,15 +17,17 @@ export const TasksPage: React.FC = () => {
     const [newPriority, setNewPriority] = useState('medium');
     const [newDueDate, setNewDueDate] = useState('');
 
+    const debouncedSearch = useDebouncedValue(search.trim());
     const { data: tasksData, isLoading } = useQuery({
-        queryKey: ['admin', 'tasks', { status: statusFilter, search }],
+        queryKey: ['admin', 'tasks', { status: statusFilter, search: debouncedSearch }],
         queryFn: async () => {
             const params: any = {};
             if (statusFilter) params.status = statusFilter;
-            if (search) params.search = search;
+            if (debouncedSearch) params.search = debouncedSearch;
             const res = await apiClient.get('/tasks', { params });
             return res.data?.data;
         },
+        placeholderData: keepPreviousData,
     });
 
     const toggleMutation = useMutation({

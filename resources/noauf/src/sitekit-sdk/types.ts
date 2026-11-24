@@ -152,6 +152,10 @@ export interface SkFaq {
 
 export interface SkFooter {
   logo: string | null
+  header_logo?: string | null
+  footer_logo?: string | null
+  favicon?: string | null
+  request_car_icon?: string | null
   site_name: string
   footer_text: string | null
   contact: { email: string; phone: string; whatsapp: string; address: string }

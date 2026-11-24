@@ -20,6 +20,9 @@ use Illuminate\Http\Request;
 
 final class CarController extends ApiBaseController
 {
+    /** Upper bound for ?per_page, so one request can't load the whole catalog with relations. */
+    private const MAX_PER_PAGE = 100;
+
     public function __construct(
         private readonly CarApiService $carService,
         private readonly CompareApiService $compareService,
@@ -61,8 +64,9 @@ final class CarController extends ApiBaseController
 
     public function index(Request $request)
     {
-        $filters = $request->only(['brands', 'model_id', 'type', 'year', 'min_price', 'max_price', 'search', 'q', 'offer_id', 'sort', 'category_id', 'brand_type_id', 'fuel', 'min_hp', 'max_hp', 'highlight']);
-        $paginator = $this->carService->list($filters, (int) $request->get('per_page', 12));
+        $filters = $request->only(['ids', 'brands', 'model_id', 'type', 'year', 'min_price', 'max_price', 'search', 'q', 'offer_id', 'sort', 'category_id', 'brand_type_id', 'fuel', 'min_hp', 'max_hp', 'highlight']);
+        $perPage = min(max((int) $request->get('per_page', 12), 1), self::MAX_PER_PAGE);
+        $paginator = $this->carService->list($filters, $perPage);
 
         $paginator->setCollection(collect(
             CarMiniResource::collection($paginator->items())->resolve()

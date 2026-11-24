@@ -1,13 +1,16 @@
 <?php
 
 use App\Http\Api\Exceptions\Handlers\GlobalExceptionHandler;
+use App\Http\Controllers\ImageThumbnailController;
 use App\Http\Middleware\ApiLocalizationMiddleware;
 use App\Http\Middleware\AssignRequestId;
+use App\Http\Middleware\CachePublicApiResponse;
 use App\Http\Middleware\EnsureEmployeeIsActive;
 use App\Http\Middleware\LocalizationMiddleware;
 use App\Http\Middleware\MarkDeprecatedApi;
 use App\Http\Middleware\SecurityHeadersMiddleware;
 use App\Http\Middleware\SetEmployeeGuard;
+use App\Services\ImageThumbnailService;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
@@ -32,6 +35,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->name('v1.')
                 ->group(base_path('routes/store-api.php'));
 
+            // On-demand image thumbnails. Outside the web group: no session or cookies on image responses.
+            // Hit only on the first request; afterwards the file exists and the web server serves it.
+            Route::get('/thumbs/{width}/{path}', ImageThumbnailController::class)
+                ->whereIn('width', array_map('strval', ImageThumbnailService::WIDTHS))
+                ->where('path', '.+\.webp')
+                ->name('image.thumbnail');
+
             // Legacy unversioned store API, kept for clients still on an old build.
             Route::middleware(['api', MarkDeprecatedApi::class])
                 ->prefix('api')
@@ -54,6 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'guard.employee' => SetEmployeeGuard::class,
             'employee.active' => EnsureEmployeeIsActive::class,
+            'cache.public' => CachePublicApiResponse::class,
         ]);
 
         $middleware->redirectTo(

@@ -13,6 +13,11 @@ import ContactPageSkeleton from "../components/skeletons/ContactPageSkeleton";
 import OffersPageSkeleton from "../components/skeletons/OffersPageSkeleton";
 import CarRequestPageSkeleton from "../components/skeletons/CarRequestPageSkeleton";
 import CarDetailsSkeleton from "../components/skeletons/CarDetailsSkeleton";
+import ComparePageSkeleton from "../components/skeletons/ComparePageSkeleton";
+import FinanceCalculatorPageSkeleton from "../components/skeletons/FinanceCalculatorPageSkeleton";
+import BrandsPageSkeleton from "../components/skeletons/BrandsPageSkeleton";
+import BrandLandingPageSkeleton from "../components/skeletons/BrandLandingPageSkeleton";
+import LegalPageSkeleton from "../components/skeletons/LegalPageSkeleton";
 
 const HomePage = lazy(() => import("../pages/HomePage"));
 const AllCarsPage = lazy(() => import("../pages/AllCarsPage"));
@@ -88,7 +93,7 @@ export const router = createBrowserRouter([
       {
         path: "/compare",
         element: (
-          <Suspense fallback={<HomePageSkeleton />}>
+          <Suspense fallback={<ComparePageSkeleton />}>
             <ComparePage />
           </Suspense>
         ),
@@ -136,7 +141,7 @@ export const router = createBrowserRouter([
       {
         path: "/finance-calculator",
         element: (
-          <Suspense fallback={<HomePageSkeleton />}>
+          <Suspense fallback={<FinanceCalculatorPageSkeleton />}>
             <FinanceCalculatorPage />
           </Suspense>
         ),
@@ -152,7 +157,7 @@ export const router = createBrowserRouter([
       {
         path: "/brands",
         element: (
-          <Suspense fallback={<HomePageSkeleton />}>
+          <Suspense fallback={<BrandsPageSkeleton />}>
             <BrandsPage />
           </Suspense>
         ),
@@ -160,7 +165,7 @@ export const router = createBrowserRouter([
       {
         path: "/brands/:brandSlug",
         element: (
-          <Suspense fallback={<AllCarsPageSkeleton />}>
+          <Suspense fallback={<BrandLandingPageSkeleton />}>
             <BrandLandingPage />
           </Suspense>
         ),
@@ -168,7 +173,7 @@ export const router = createBrowserRouter([
       {
         path: "/terms",
         element: (
-          <Suspense fallback={<AboutPageSkeleton />}>
+          <Suspense fallback={<LegalPageSkeleton />}>
             <TermsPage />
           </Suspense>
         ),
@@ -176,7 +181,7 @@ export const router = createBrowserRouter([
       {
         path: "/privacy",
         element: (
-          <Suspense fallback={<AboutPageSkeleton />}>
+          <Suspense fallback={<LegalPageSkeleton />}>
             <PrivacyPage />
           </Suspense>
         ),

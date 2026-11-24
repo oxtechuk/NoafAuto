@@ -37,6 +37,7 @@ import {
     RefreshCw,
     Lock,
     Eye,
+    Server,
 } from 'lucide-react';
 import { useThemeShield } from '../context/BrandingContext';
 import { apiClient } from '../api/client';
@@ -62,7 +63,11 @@ type TabKey =
     | 'booking_steps'
     | 'booking_sections'
     | 'financial'
-    | 'integrations';
+    | 'integrations'
+    | 'infrastructure';
+
+// Admin-only server settings (Redis / Cloudflare / CDN), loaded only when opened.
+const InfrastructurePanel = React.lazy(() => import('./settings/InfrastructurePanel'));
 
 interface SocialItem {
     icon: string;
@@ -96,8 +101,9 @@ interface BookingStepItem {
 }
 
 export const SettingsPage: React.FC = () => {
-    const { can } = useAuth();
+    const { can, hasRole } = useAuth();
     const canManage = can('manage-settings');
+    const isAdmin = hasRole('admin');
     const { safeMode, setSafeMode, resetToFactoryDefaults } = useThemeShield();
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -386,6 +392,14 @@ export const SettingsPage: React.FC = () => {
                 { id: 'integrations', label: 'الربط والـ SEO', icon: Cpu },
             ],
         },
+        ...(isAdmin
+            ? [
+                  {
+                      group: 'السيرفر',
+                      items: [{ id: 'infrastructure', label: 'Redis و Cloudflare و CDN', icon: Server }],
+                  },
+              ]
+            : []),
     ];
 
     // Find current active label
@@ -467,7 +481,15 @@ export const SettingsPage: React.FC = () => {
                 {/* ========================================================== */}
                 <div className="flex-1 w-full min-w-0">
                     <div className="bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-2xl shadow-xs overflow-hidden">
-                        {loading ? (
+                        {activeTab === 'infrastructure' ? (
+                            isAdmin ? (
+                                <React.Suspense fallback={<div className="py-20 text-center text-slate-400 text-xs">جاري التحميل...</div>}>
+                                    <InfrastructurePanel />
+                                </React.Suspense>
+                            ) : (
+                                <div className="py-20 text-center text-slate-400 text-xs">هذا القسم متاح لمدير النظام فقط.</div>
+                            )
+                        ) : loading ? (
                             <div className="py-20 text-center text-slate-400 text-xs">
                                 جاري تحميل الإعدادات...
                             </div>
@@ -613,24 +635,34 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
 
-                                            {/* Favicon */}
+                                            {/* Favicon / Mobile Home Icon */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                <span className="block text-xs font-semibold text-slate-700">أيقونة (Favicon)</span>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="block text-xs font-semibold text-slate-700">أيقونة الموقع وزر الرئيسية بالموبايل (Favicon)</span>
+                                                    <span className="text-[10px] text-amber-600 font-medium">زر الرئيسية بالجوال</span>
+                                                </div>
                                                 <div className="h-16 rounded-lg bg-white border border-slate-200 flex items-center justify-center p-2">
                                                     {fileUploads.site_favicon ? (
                                                         <span className="text-xs text-emerald-600 font-semibold truncate">{fileUploads.site_favicon.name}</span>
                                                     ) : settings.site_favicon ? (
-                                                        <img src={`/storage/${settings.site_favicon}`} alt="Favicon" className="h-8 w-8 object-contain" />
+                                                        <img
+                                                            src={settings.site_favicon.startsWith('http') ? settings.site_favicon : `/storage/${settings.site_favicon.replace(/^\/?storage\//, '')}`}
+                                                            alt="Favicon"
+                                                            className="h-8 w-8 object-contain"
+                                                        />
                                                     ) : (
-                                                        <span className="text-xs text-slate-400">32x32</span>
+                                                        <span className="text-xs text-slate-400">32x32 / PNG</span>
                                                     )}
                                                 </div>
                                                 <input
                                                     type="file"
-                                                    accept="image/*,.ico"
+                                                    accept="image/png,image/x-icon,image/svg+xml,image/webp,image/*,.ico,.png"
                                                     onChange={(e) => handleFileChange('site_favicon', e.target.files?.[0] || null)}
                                                     className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                 />
+                                                <p className="text-[10px] text-slate-400 leading-tight">
+                                                    يدعم PNG (يفضل بخلفية شفافة)، WebP، SVG، ICO. ستظهر الأيقونة كأيقونة للموقع وزر الرئيسية في شريط التنقل السفلي للهواتف.
+                                                </p>
                                             </div>
 
                                             {/* Breadcrumb Background */}
@@ -691,6 +723,142 @@ export const SettingsPage: React.FC = () => {
                                                     onChange={(e) => handleFileChange('request_car_icon', e.target.files?.[0] || null)}
                                                     className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                 />
+                                            </div>
+                                        </div>
+
+                                        {/* Admin Login & Sidebar Branding */}
+                                        <div className="pt-6 border-t border-slate-200/80 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h5 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                                                        <Lock className="w-4 h-4 text-[var(--tenant-primary)]" />
+                                                        تخصيص صفحة تسجيل الدخول والقائمة الجانبية (Admin Login & Sidebar)
+                                                    </h5>
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        خصص صورة الخلفية والشعار والنصوص لصفحة الدخول وشعار القائمة الجانبية للوحة التحكم
+                                                    </p>
+                                                </div>
+                                                <a
+                                                    href="/admin/login"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                                                >
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                    معاينة صفحة الدخول
+                                                </a>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {/* Login Background Image */}
+                                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
+                                                    <span className="block text-xs font-semibold text-slate-700">خلفية صفحة تسجيل الدخول</span>
+                                                    <div className="h-20 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
+                                                        {fileUploads.admin_login_bg ? (
+                                                            <span className="text-xs text-emerald-400 font-semibold truncate px-2">{fileUploads.admin_login_bg.name}</span>
+                                                        ) : settings.admin_login_bg ? (
+                                                            <img
+                                                                src={settings.admin_login_bg.startsWith('http') ? settings.admin_login_bg : `/storage/${settings.admin_login_bg.replace(/^\/?storage\//, '')}`}
+                                                                alt="Login Background"
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xs text-slate-500">الافتراضية: لون سادة</span>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleFileChange('admin_login_bg', e.target.files?.[0] || null)}
+                                                        className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
+                                                    />
+                                                    <p className="text-[10px] text-slate-400">مقاس موصى به: 1920x1080 (JPG, WebP, PNG)</p>
+                                                </div>
+
+                                                {/* Login Page Logo */}
+                                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
+                                                    <span className="block text-xs font-semibold text-slate-700">شعار كارت تسجيل الدخول</span>
+                                                    <div className="h-20 rounded-lg bg-[var(--tenant-primary)] border border-slate-200 flex items-center justify-center p-2">
+                                                        {fileUploads.admin_login_logo ? (
+                                                            <span className="text-xs text-emerald-300 font-semibold truncate px-2">{fileUploads.admin_login_logo.name}</span>
+                                                        ) : settings.admin_login_logo ? (
+                                                            <img
+                                                                src={settings.admin_login_logo.startsWith('http') ? settings.admin_login_logo : `/storage/${settings.admin_login_logo.replace(/^\/?storage\//, '')}`}
+                                                                alt="Login Logo"
+                                                                className="max-h-full object-contain"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xs text-white/70">الافتراضي: شعار تعميد (/images/logo.png)</span>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleFileChange('admin_login_logo', e.target.files?.[0] || null)}
+                                                        className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
+                                                    />
+                                                    <p className="text-[10px] text-slate-400">يظهر في رأس كارت تسجيل الدخول (/admin/login)</p>
+                                                </div>
+
+                                                {/* Admin Sidebar Logo */}
+                                                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
+                                                    <span className="block text-xs font-semibold text-slate-700">شعار القائمة الجانبية (Sidebar)</span>
+                                                    <div className="h-20 rounded-lg bg-[var(--tenant-sidebar-bg)] border border-slate-800 flex items-center justify-center p-2">
+                                                        {fileUploads.admin_sidebar_logo ? (
+                                                            <span className="text-xs text-emerald-300 font-semibold truncate px-2">{fileUploads.admin_sidebar_logo.name}</span>
+                                                        ) : settings.admin_sidebar_logo ? (
+                                                            <img
+                                                                src={settings.admin_sidebar_logo.startsWith('http') ? settings.admin_sidebar_logo : `/storage/${settings.admin_sidebar_logo.replace(/^\/?storage\//, '')}`}
+                                                                alt="Sidebar Logo"
+                                                                className="max-h-full object-contain"
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xs text-white/70">الافتراضي: شعار الهيدر / تعميد</span>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleFileChange('admin_sidebar_logo', e.target.files?.[0] || null)}
+                                                        className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
+                                                    />
+                                                    <p className="text-[10px] text-slate-400">يظهر أعلى القائمة الجانبية في لوحة التحكم</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Login Title & Subtitle Texts */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-xs font-semibold text-slate-700">
+                                                        عنوان كارت صفحة الدخول (Title)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.admin_login_title ?? ''}
+                                                        onChange={(e) => handleChange('admin_login_title', e.target.value)}
+                                                        placeholder="مثال: نظام إدارة تعميد CRM (اتركه فارغاً للاكتفاء بالشعار فقط)"
+                                                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary)]/30 focus:border-[var(--tenant-primary)]"
+                                                    />
+                                                    <p className="text-[10px] text-amber-700 leading-tight">
+                                                        💡 إذا تركت هذا الحقل فارغاً، لن تظهر أي نصوص وسيتم الاكتفاء بالشعار/الصورة بالحجم الكامل.
+                                                    </p>
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <label className="block text-xs font-semibold text-slate-700">
+                                                        الوصف الترحيبي أسفل العنوان (Subtitle)
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.admin_login_subtitle ?? ''}
+                                                        onChange={(e) => handleChange('admin_login_subtitle', e.target.value)}
+                                                        placeholder="مثال: سجل الدخول للمتابعة وإدارة العمليات اليومية"
+                                                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary)]/30 focus:border-[var(--tenant-primary)]"
+                                                    />
+                                                    <p className="text-[10px] text-slate-400 leading-tight">
+                                                        يظهر تحت العنوان بخط أصغر (اختياري).
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -2622,7 +2790,7 @@ export const SettingsPage: React.FC = () => {
                 {/* ========================================================== */}
                 {/* 3. LEFT STICKY SAVE CARD (Matching the image)             */}
                 {/* ========================================================== */}
-                <div className="w-full lg:w-64 shrink-0">
+                <div className={`w-full lg:w-64 shrink-0 ${activeTab === 'infrastructure' ? 'hidden' : ''}`}>
                     <div className="bg-[#0a0a0a] text-white rounded-2xl shadow-xl p-5 sticky top-20 relative overflow-hidden">
                         {/* Background Watermark Decorative Icon */}
                         <Save className="absolute -bottom-5 -right-3 h-28 w-28 text-white/5 pointer-events-none" />

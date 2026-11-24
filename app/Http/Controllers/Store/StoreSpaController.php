@@ -540,6 +540,11 @@ class StoreSpaController extends Controller
             $seo['seoContent']['intro'] = [$seo['metaDescription']];
         }
 
+        $seo['bootSettings'] = [
+            'locale' => app()->getLocale(),
+            'data' => app(SettingApiService::class)->footer(),
+        ];
+
         return response()->view('app', $seo, $status);
     }
 

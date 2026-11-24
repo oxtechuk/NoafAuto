@@ -2,8 +2,9 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowUpRight, Users } from "lucide-react";
 import type { ICarCardProps } from "../interfaces/ICarCardProps";
-import { APP_IMAGES } from "../constants/app-images";
+import { APP_IMAGES, getThumbSrcSet, getThumbUrl } from "../constants/app-images";
 import LazyImg from "./LazyImg";
+import { prefetchCarDetailsChunk, prefetchCarDetailsData } from "../lib/prefetch";
 
 export type { ICarCardProps as CarCardProps };
 
@@ -67,6 +68,11 @@ export default function CarCard({
                 to={carUrl}
                 className="block cursor-pointer text-inherit no-underline"
                 aria-label={`${brand} ${name} ${year}`}
+                onMouseEnter={prefetchCarDetailsChunk}
+                onFocus={prefetchCarDetailsChunk}
+                onPointerDown={() => {
+                    if (slug && !detailsTo) prefetchCarDetailsData(slug);
+                }}
             >
                 {/* Newly Arrived Badge */}
                 <div
@@ -82,11 +88,13 @@ export default function CarCard({
                 {/* Image Area */}
                 <div className="relative h-[280px] overflow-hidden bg-[#F8FAFC] flex items-center justify-center">
                     <LazyImg
-                        src={image}
+                        src={getThumbUrl(image, 480)}
+                        srcSet={getThumbSrcSet(image)}
+                        sizes="(max-width: 420px) calc(100vw - 32px), 355px"
                         alt={`${brand} ${name}`}
                         loading={loading}
                         containerClassName="h-full w-full flex items-center justify-center"
-                        fallbackSrc={APP_IMAGES.CAR_PLACEHOLDER}
+                        fallbackSrc={[image, APP_IMAGES.CAR_PLACEHOLDER]}
                         className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
                     />
 

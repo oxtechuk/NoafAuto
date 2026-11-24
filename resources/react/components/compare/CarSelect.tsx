@@ -8,6 +8,7 @@ import type { CarItem } from "../../types/home.types";
 import type { ApiResponse } from "../../types/home.types";
 import type { ICarSelectProps } from "../../interfaces/ICarSelectProps";
 import LazyImg from "../LazyImg";
+import CarListItemSkeleton from "../skeletons/CarListItemSkeleton";
 
 export default function CarSelect({
   selectedSlug,
@@ -118,9 +119,7 @@ export default function CarSelect({
             </div>
 
             {isLoadingCars ? (
-              <div className="flex items-center justify-center px-4 py-8">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-[#35aee8]" />
-              </div>
+              <CarListItemSkeleton count={4} />
             ) : carList.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-gray-400">
                 {t("comparePage.noResults")}

@@ -1,10 +1,10 @@
-@import 'tailwindcss';
+/* Loaded only by the admin SPA (resources/views/admin.blade.php), so scan only its sources. */
+@import 'tailwindcss' source(none);
 @import './design-tokens.css';
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
+@source '../react/admin';
+@source '../react/shared';
+@source '../views/admin.blade.php';
 
 @theme {
     --font-sans:   'Montserrat', 'Inter', ui-sans-serif, system-ui, sans-serif;

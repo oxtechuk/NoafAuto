@@ -178,6 +178,14 @@ final class CarApiService
 
     private function applyFilters(Builder $query, array $filters): void
     {
+        if (! empty($filters['ids'])) {
+            $ids = array_values(array_filter(array_map('intval', (array) $filters['ids'])));
+
+            if ($ids !== []) {
+                $query->whereIn('id', $ids);
+            }
+        }
+
         if (! empty($filters['brands'])) {
             $brands = is_array($filters['brands']) ? $filters['brands'] : [$filters['brands']];
             $query->where(function (Builder $bq) use ($brands) {

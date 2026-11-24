@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import BlogCard from "./BlogCard";
-import LoadingSpinner from "../LoadingSpinner";
+import BlogCardSkeleton from "../skeletons/BlogCardSkeleton";
 import type { IBlogGridProps } from "../../interfaces/IBlogGridProps";
 
 export default function BlogGrid({ articles, isLoading }: IBlogGridProps) {
@@ -8,8 +8,10 @@ export default function BlogGrid({ articles, isLoading }: IBlogGridProps) {
 
   if (isLoading) {
     return (
-      <div className="py-24 flex justify-center">
-        <LoadingSpinner />
+      <div aria-busy="true" className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <BlogCardSkeleton key={index} />
+        ))}
       </div>
     );
   }

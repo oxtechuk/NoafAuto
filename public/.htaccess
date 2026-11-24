@@ -23,3 +23,11 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Static assets (Vite build, fonts, images, thumbnails) are public and may be loaded from a CDN domain.
+# Module scripts loaded cross-origin need this header, or the browser refuses to run them.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|mjs|css|woff2?|ttf|svg|png|jpe?g|webp|avif|gif|ico)$">
+        Header set Access-Control-Allow-Origin "*"
+    </FilesMatch>
+</IfModule>

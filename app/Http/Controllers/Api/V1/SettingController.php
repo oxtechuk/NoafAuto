@@ -57,6 +57,7 @@ class SettingController extends ApiBaseController
         if (! is_array($settings)) {
             $settings = $request->except([
                 '_method', '_token', 'site_logo', 'footer_logo', 'site_favicon',
+                'admin_login_bg', 'admin_login_logo', 'admin_sidebar_logo',
                 'breadcrumb_bg', 'popup_image', 'page_loader_image',
                 'default_car_image', 'request_car_icon',
                 'hero_ad_1_image', 'hero_ad_2_image', 'cars_hero_image',
@@ -77,6 +78,9 @@ class SettingController extends ApiBaseController
             'site_logo' => ['folder' => 'settings', 'maxWidth' => 1600, 'quality' => 85],
             'footer_logo' => ['folder' => 'settings', 'maxWidth' => 1600, 'quality' => 85],
             'site_favicon' => ['folder' => 'settings', 'maxWidth' => 512, 'quality' => 90],
+            'admin_login_bg' => ['folder' => 'settings', 'maxWidth' => 1920, 'quality' => 85],
+            'admin_login_logo' => ['folder' => 'settings', 'maxWidth' => 1600, 'quality' => 85],
+            'admin_sidebar_logo' => ['folder' => 'settings', 'maxWidth' => 1600, 'quality' => 85],
             'breadcrumb_bg' => ['folder' => 'settings', 'maxWidth' => 1920, 'quality' => 85],
             'page_loader_image' => ['folder' => 'settings', 'maxWidth' => 800, 'quality' => 90],
             'default_car_image' => ['folder' => 'settings', 'maxWidth' => 1600, 'quality' => 85],

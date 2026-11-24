@@ -40,7 +40,7 @@ export default function FinanceCalculatorPage() {
     if (paramCarId && !selectedCarId) {
       const parsedId = parseInt(paramCarId, 10);
       if (parsedId > 0) {
-        getCars()
+        getCars({ ids: [parsedId], per_page: 1 })
           .then((res) => {
             const found = res.data?.find((c) => c.id === parsedId);
             if (found) {

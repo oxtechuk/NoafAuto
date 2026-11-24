@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { Skeleton } from '../ui/Skeleton';
 import {
     Plus,
     Search,
@@ -81,14 +83,17 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
     const [formError, setFormError] = useState<string | null>(null);
 
     // Fetch list query
+    const debouncedSearch = useDebouncedValue(search.trim());
     const { data, isLoading, refetch, isFetching } = useQuery({
-        queryKey: [endpoint, page, search],
+        queryKey: [endpoint, page, debouncedSearch],
         queryFn: async () => {
             const params: Record<string, any> = { page, per_page: 15 };
-            if (search.trim()) params.search = search.trim();
+            if (debouncedSearch) params.search = debouncedSearch;
             const res = await apiClient.get(endpoint, { params });
             return res.data;
         },
+        // Keep the current rows on screen while the next page / search loads.
+        placeholderData: keepPreviousData,
     });
 
     const rawItems = Array.isArray(data?.data)
@@ -317,15 +322,15 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                         </thead>
                         <tbody className="divide-y divide-[var(--border-default)]">
                             {isLoading ? (
-                                <tr>
-                                    <td
-                                        colSpan={columns.length + 1}
-                                        className="py-12 text-center text-slate-400"
-                                    >
-                                        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-[var(--tenant-primary)]" />
-                                        <span>جاري تحميل البيانات...</span>
-                                    </td>
-                                </tr>
+                                Array.from({ length: 6 }).map((_, rowIndex) => (
+                                    <tr key={rowIndex} aria-busy="true">
+                                        {Array.from({ length: columns.length + 1 }).map((_, colIndex) => (
+                                            <td key={colIndex} className="px-4 py-3.5">
+                                                <Skeleton className={`h-4 ${colIndex === 0 ? 'w-32' : 'w-full max-w-[140px]'}`} />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))
                             ) : items.length === 0 ? (
                                 <tr>
                                     <td

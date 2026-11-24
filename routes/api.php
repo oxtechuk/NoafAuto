@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\CmsSubModuleController as V1CmsController;
 use App\Http\Controllers\Api\V1\DashboardController as V1DashboardController;
 use App\Http\Controllers\Api\V1\DeployWebhookController;
 use App\Http\Controllers\Api\V1\EmployeeController as V1EmployeeController;
+use App\Http\Controllers\Api\V1\InfrastructureController;
 use App\Http\Controllers\Api\V1\LeadController as V1LeadController;
 use App\Http\Controllers\Api\V1\ModuleController as V1ModuleController;
 use App\Http\Controllers\Api\V1\ReportController as V1ReportController;
@@ -186,6 +187,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('settings/{key}', [V1SettingController::class, 'show'])->name('settings.show');
         Route::put('settings', [V1SettingController::class, 'update'])->name('settings.update');
         Route::post('settings', [V1SettingController::class, 'update'])->name('settings.store');
+
+        // Server connections (admin only): Redis, Cloudflare, asset CDN
+        Route::get('system/infrastructure', [InfrastructureController::class, 'show'])->name('system.infrastructure.show');
+        Route::put('system/infrastructure/redis', [InfrastructureController::class, 'updateRedis'])->name('system.infrastructure.redis.update');
+        Route::post('system/infrastructure/redis/test', [InfrastructureController::class, 'testRedis'])->name('system.infrastructure.redis.test');
+        Route::put('system/infrastructure/cloudflare', [InfrastructureController::class, 'updateCloudflare'])->name('system.infrastructure.cloudflare.update');
+        Route::post('system/infrastructure/cloudflare/purge', [InfrastructureController::class, 'purgeCloudflare'])->name('system.infrastructure.cloudflare.purge');
+        Route::put('system/infrastructure/cdn', [InfrastructureController::class, 'updateCdn'])->name('system.infrastructure.cdn.update');
+        Route::post('system/infrastructure/cdn/test', [InfrastructureController::class, 'testCdn'])->name('system.infrastructure.cdn.test');
 
         Route::get('system/updates', [SystemUpdateController::class, 'index'])->name('system.updates.index');
         Route::post('system/updates/check', [SystemUpdateController::class, 'check'])->name('system.updates.check');

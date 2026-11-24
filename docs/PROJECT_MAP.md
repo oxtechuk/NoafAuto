@@ -1,7 +1,7 @@
 # Tameed — Project Map (AI context file)
 
 > Read this first. It replaces exploring the repo from scratch. Keep it updated when structure changes.
-> Last updated: 2026-11-24.
+> Last updated: 2026-11-24 (performance pass).
 
 ## 1. What this is
 
@@ -148,7 +148,8 @@ Admin API responses: `{ success, message, data, meta? }`; paginated `meta.{curre
 6. Dashboard stats (CRM + API) use one conditional-aggregation query per table. Keep it that way, don't go back to `clone()->count()` chains.
 7. No `.vue` files are in the active build, but Vue/webpack/laravel-mix are still in `package.json` (removal pending approval).
 8. Core version = `VERSION` file (not hard-coded). Releases are cut only from the upstream repo (`SITEKIT_ROLE=upstream` variable); client repos install them via `sitekit-update.yml`. Never edit core files inside a client repo: every edit becomes a merge conflict on the next update. Migrations must be additive (deploy.sh doesn't roll back the DB).
-9. Arabic UI strings are inline in TSX/Blade. Translations: `lang/{ar,en}/{permissions,store-api}.php` + i18next resources for the store.
+9. **Performance plumbing:** public store GETs send `Cache-Control: public` via the `cache.public:{seconds}` middleware (`CachePublicApiResponse`, Vary: Accept-Language). `cars.show` is deliberately excluded because it counts views. The store shell inlines `window.__BOOT_SETTINGS__` (= `settings/footer`) and the admin shell (`AdminSpaController`) inlines `window.__BOOT_USER__` (= `auth/me`), both used as initial data. Upload thumbnails: `/thumbs/{320|480|768}/{public-disk path}.webp`, generated on first hit by `ImageThumbnailService` into `public/thumbs` (disk `thumbs`, gitignored, safe to delete), then served statically; frontend `getThumbUrl` / `getThumbSrcSet` in `constants/app-images.ts`. Store Tailwind scans only store sources (`style.css` `source(none)`), admin only `admin/` + `shared/`. English translations are a lazy chunk (`ensureLanguageLoaded` in `i18n.ts`).
+10. Arabic UI strings are inline in TSX/Blade. Translations: `lang/{ar,en}/{permissions,store-api}.php` + i18next resources for the store.
 
 ## 10. Don't read unless asked (large / irrelevant)
 
@@ -170,4 +171,5 @@ Admin API responses: `{ success, message, data, meta? }`; paginated `meta.{curre
 | AI assistant module (Gemini, per-showroom key) | `app/Modules/AiAssistant/**` (module.json, tools in `Tools/`, `Services/AssistantRunner`, `PromptBuilder`, `OutputGuard`), admin `admin/pages/AiAssistantPage.tsx`, storefront `sitekit-sdk/{assistant,useAssistant}.ts` + `components/assistant/*`, plan: `docs/AI_ASSISTANT_PLAN.md` |
 | WhatsApp module (Meta Cloud API or Twilio) | `app/Modules/WhatsApp/**`: `Drivers/{MetaCloudDriver,TwilioDriver}`, `Services/{WhatsAppManager,InboundProcessor,WhatsAppSettings}`, webhooks `/api/v1/webhooks/whatsapp/{meta,twilio}`, AI auto-reply `Jobs/ReplyWithAssistant`. Core contract `app/Contracts/WhatsAppGateway`: `TwilioWhatsAppService::sendWhatsApp($to, $text, $event, $vars)` delegates to it when connected, else legacy Twilio settings. Admin `admin/pages/WhatsAppPage.tsx` |
 | External project storefront (e.g. noauf) | `config('sitekit.storefront')`, `Services/Storefront/StorefrontManager` (injects built `public/storefront/index.html` assets into `app.blade.php`), `sitekit:storefront:build`, frontend SDK in `<storefront>/src/sitekit-sdk/` (only `mappers.ts` is project-specific), guide: `docs/STOREFRONT_INTEGRATION.md` |
+| Server connections: Redis / Cloudflare / CDN (admin only) | `Services/Infrastructure/*`: settings in `storage/app/private/sitekit/infrastructure.json` (secrets encrypted, not the settings table), applied per request by `InfrastructureServiceProvider` (first provider, register phase): Redis drivers only when a client exists and a TCP probe answers (else falls back to .env drivers), CDN = `app.asset_url`, Cloudflare = `TrustProxies::at(edge IPs)`. API `Api/V1/InfrastructureController` (`/api/v1/system/infrastructure/*`), UI `admin/pages/settings/InfrastructurePanel.tsx` (Settings tab "السيرفر") |
 | Core updates (version, GitHub releases, install) | `VERSION`, `config/sitekit.php`, `Services/Updates/*`, `Api/V1/SystemUpdateController`, `admin/pages/UpdatesPage.tsx`, `.github/workflows/sitekit-{release,update}.yml`, `.github/sitekit/{deploy,report}.sh`, setup: `docs/SITEKIT_UPDATES_SETUP.md` |

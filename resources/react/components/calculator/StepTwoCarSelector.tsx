@@ -10,6 +10,7 @@ import type { IStepTwoCarSelectorProps } from "../../interfaces/IStepTwoCarSelec
 import LazyImg from "../LazyImg";
 import ColorPicker from "./ColorPicker";
 import CarPriceBanner from "./CarPriceBanner";
+import CarListItemSkeleton from "../skeletons/CarListItemSkeleton";
 
 export default function StepTwoCarSelector({
   selectedCarId,
@@ -23,8 +24,7 @@ export default function StepTwoCarSelector({
 }: IStepTwoCarSelectorProps) {
   const { t, i18n } = useTranslation();
   const [showSearch, setShowSearch] = useState(false);
-  const { searchQuery, setSearchQuery, searchResults, setSearchResults, searching } =
-    useCarSearch(showSearch);
+  const { searchQuery, setSearchQuery, searchResults, searching } = useCarSearch(showSearch);
 
   const fallbackColorOptions = useMemo(
     () => [
@@ -93,7 +93,6 @@ export default function StepTwoCarSelector({
                 onClick={() => {
                   setShowSearch(false);
                   setSearchQuery("");
-                  setSearchResults([]);
                 }}
                 className="absolute end-4 top-1/2 -translate-y-1/2 text-[#8A8F99] hover:text-[#5F6672] cursor-pointer"
               >
@@ -111,7 +110,6 @@ export default function StepTwoCarSelector({
                         onCarSelect(car);
                         setShowSearch(false);
                         setSearchQuery("");
-                        setSearchResults([]);
                       }}
                       className="flex w-full items-center gap-4 px-5 py-4 text-start transition hover:bg-[#F8FAFC] border-b border-[#EEF2F6] last:border-0 cursor-pointer"
                     >
@@ -133,6 +131,11 @@ export default function StepTwoCarSelector({
                       </strong>
                     </button>
                   ))}
+                </div>
+              )}
+              {searching && searchResults.length === 0 && (
+                <div className="absolute inset-x-0 z-30 mt-2 overflow-hidden rounded-2xl border border-[#E5E9F0] bg-white shadow-xl">
+                  <CarListItemSkeleton count={3} />
                 </div>
               )}
               {!searching && searchResults.length === 0 && (

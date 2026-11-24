@@ -21,12 +21,15 @@ export default defineConfig({
     server: {
         port: 5159,
         host: '0.0.0.0',
+        cors: true,
         hmr: {
             host: 'localhost',
         },
         watch: {
             ignored: [
-                '**/storage/framework/views/**',
+                '**/storage/**',
+                '**/vendor/**',
+                '**/.git/**',
                 '**/resources/reference/**',
                 '**/resources/refrence/**',
             ],

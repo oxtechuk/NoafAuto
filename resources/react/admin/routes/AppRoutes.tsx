@@ -3,13 +3,22 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../pages/LoginPage';
 import { RequireAuth } from '../context/AuthContext';
+import { Skeleton, TableSkeleton } from '../../shared/components/ui/Skeleton';
 
-// Skeleton / Spinner fallback for lazy loaded routes
+// Generic page skeleton (title, stat cards, table) for lazy loaded routes
 const PageFallback: React.FC = () => (
-    <div className="flex items-center justify-center min-h-[50vh] p-8">
-        <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-3 border-[#0066FF] border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-medium text-slate-400">جاري التحميل...</span>
+    <div aria-busy="true" className="space-y-6 p-2">
+        <div className="space-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-72" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-24 w-full" />
+            ))}
+        </div>
+        <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary,#fff)]">
+            <TableSkeleton rows={6} cols={5} />
         </div>
     </div>
 );

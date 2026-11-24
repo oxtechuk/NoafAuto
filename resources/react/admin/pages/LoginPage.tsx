@@ -29,20 +29,65 @@ export const LoginPage: React.FC = () => {
         }
     };
 
+    // Dynamic Admin Branding Settings from backend window injection
+    const adminSettings =
+        typeof window !== 'undefined'
+            ? (window as any).__ADMIN_SETTINGS__ || {}
+            : {};
+
+    const bgImage = adminSettings.login_bg || null;
+    const logoSrc = adminSettings.login_logo || adminSettings.site_logo || '/images/logo.png';
+
+    // Title and Subtitle handling:
+    // If user saved custom settings:
+    //   - If they wrote title/subtitle: show them.
+    //   - If they left them blank: show NO text (logo only).
+    // If never configured (initial default state): show default text.
+    const hasCustomSetting = adminSettings.has_title_setting;
+    const title = hasCustomSetting
+        ? (adminSettings.login_title?.trim() || null)
+        : 'نظام إدارة تعميد CRM';
+    const subtitle = hasCustomSetting
+        ? (adminSettings.login_subtitle?.trim() || null)
+        : 'سجل الدخول للمتابعة وإدارة العمليات اليومية';
+    const hasText = Boolean(title || subtitle);
+
     return (
-        <div className="min-h-screen bg-[var(--tenant-sidebar-bg)] flex items-center justify-center p-4" dir="rtl">
-            <div className="w-full max-w-md bg-[var(--surface-primary)] rounded-[var(--radius-xl)] shadow-xl overflow-hidden border border-[var(--border-default)]">
-                <div className="p-8 text-center bg-[var(--tenant-primary)] text-white">
+        <div
+            className="min-h-screen relative flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat transition-all duration-300"
+            style={{
+                backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+                backgroundColor: !bgImage ? 'var(--tenant-sidebar-bg)' : undefined,
+            }}
+            dir="rtl"
+        >
+            {/* Dark blur overlay when custom background image is applied */}
+            {bgImage && (
+                <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" />
+            )}
+
+            <div className="relative z-10 w-full max-w-md bg-[var(--surface-primary)] rounded-[var(--radius-xl)] shadow-2xl overflow-hidden border border-white/10 backdrop-blur-md">
+                <div className="p-8 text-center bg-[var(--tenant-primary)] text-white transition-all">
                     <img
-                        src="/images/logo.png"
-                        alt="تعميد"
-                        className="h-20 max-h-20 w-auto mx-auto mb-4 object-contain"
+                        src={logoSrc}
+                        alt="شعار لوحة التحكم"
+                        className={`${hasText ? 'h-20 max-h-20' : 'h-28 max-h-28'} w-auto mx-auto ${hasText ? 'mb-4' : 'mb-2'} object-contain drop-shadow-md transition-all`}
+                        onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.includes('/images/logo.png')) {
+                                target.src = '/images/logo.png';
+                            }
+                        }}
                     />
-                    <h1 className="text-xl font-bold tracking-tight">نظام إدارة تعميد CRM</h1>
-                    <p className="text-xs text-white/70 mt-1">سجل الدخول للمتابعة وإدارة العمليات اليومية</p>
+                    {title && (
+                        <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+                    )}
+                    {subtitle && (
+                        <p className="text-xs text-white/80 mt-1">{subtitle}</p>
+                    )}
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-5">
+                <form onSubmit={handleSubmit} className="p-8 space-y-5 bg-white">
                     {error && (
                         <div className="p-3.5 rounded-[var(--radius-md)] bg-[var(--status-danger-bg)] border border-[var(--status-danger)]/20 text-xs text-[var(--status-danger)] font-medium">
                             {error}

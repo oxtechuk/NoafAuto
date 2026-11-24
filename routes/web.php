@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminSpaController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\Store\SitemapController;
 // =============================================
@@ -37,14 +38,12 @@ Route::get('/compare', [StoreSpaController::class, 'compare'])->name('store.comp
 Route::get('/terms', [StoreSpaController::class, 'terms'])->name('store.terms');
 Route::get('/privacy', [StoreSpaController::class, 'privacy'])->name('store.privacy');
 
-Route::get('/admin/{any?}', function () {
-    return view('admin');
-})->where('any', '.*')->name('admin.spa');
+Route::get('/admin/{any?}', AdminSpaController::class)->where('any', '.*')->name('admin.spa');
 
 Route::redirect('/login', '/admin/login')->name('login');
 
 Route::get('/{any}', [StoreSpaController::class, 'fallback'])
-    ->where('any', '^(?!crm|admin|login|docs|manager-login|api|store-api|storage).*$');
+    ->where('any', '^(?!crm|admin|login|docs|manager-login|api|store-api|storage|thumbs/).*$');
 
 // =============================================
 //  CRM (Admin Dashboard)

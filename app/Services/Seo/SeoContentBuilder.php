@@ -12,6 +12,7 @@ use App\Services\Api\Store\SettingApiService;
 use DOMDocument;
 use DOMElement;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Builds the plain HTML version of each storefront page that is rendered inside
@@ -44,9 +45,17 @@ final class SeoContentBuilder
 
     public function home(string $intro): array
     {
-        $cars = $this->activeCars()
-            ->sortByDesc(fn (Car $car) => [(int) $car->is_featured, (int) $car->views])
-            ->take(12);
+        $cars = Car::with(['brand', 'activeOffers'])
+            ->where('is_active', true)
+            ->orderByDesc('is_featured')
+            ->orderByDesc('views')
+            ->limit(12)
+            ->get();
+
+        $posts = BlogPost::published()
+            ->orderByDesc('published_at')
+            ->limit(6)
+            ->get();
 
         return $this->page('تمويل سيارات بالتقسيط في السعودية', [$intro], sections: [
             $this->carSection('أبرز السيارات المتاحة بالتقسيط', $cars),
@@ -59,7 +68,7 @@ final class SeoContentBuilder
                     ['text' => 'ماركات السيارات', 'url' => $this->url('/brands')],
                 ],
             ],
-            $this->postSection('أحدث المقالات', $this->publishedPosts()->take(6)),
+            $this->postSection('أحدث المقالات', $posts),
         ]);
     }
 
@@ -353,13 +362,17 @@ final class SeoContentBuilder
     /** @return Collection<int, Car> */
     private function activeCars(): Collection
     {
-        return $this->cars ??= Car::with(['brand', 'activeOffers'])->where('is_active', true)->get();
+        return $this->cars ??= Cache::remember('seo_builder_active_cars', 600, function () {
+            return Car::with(['brand', 'activeOffers'])->where('is_active', true)->get();
+        });
     }
 
     /** @return Collection<int, BlogPost> */
     private function publishedPosts(): Collection
     {
-        return $this->posts ??= BlogPost::published()->orderByDesc('published_at')->get();
+        return $this->posts ??= Cache::remember('seo_builder_published_posts', 600, function () {
+            return BlogPost::published()->orderByDesc('published_at')->get();
+        });
     }
 
     private function postsLinkingTo(string $path): Collection

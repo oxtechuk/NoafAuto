@@ -12,7 +12,7 @@ export default function Footer() {
   const link = 'hover:text-white transition-colors w-fit'
 
   return (
-    <footer className="bg-ink">
+    <footer className="hidden md:block bg-ink">
       <div className="container-x pt-16 pb-10">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[340px_1fr_1fr_1fr] lg:gap-6">
           <div>

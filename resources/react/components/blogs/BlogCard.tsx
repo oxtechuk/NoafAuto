@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { APP_IMAGES, getImageUrl } from "../../constants/app-images";
+import { APP_IMAGES, getImageUrl, getThumbSrcSet, getThumbUrl } from "../../constants/app-images";
 import type { IBlogCardProps } from "../../interfaces/IBlogCardProps";
 import LazyImg from "../LazyImg";
 
@@ -29,7 +29,10 @@ export default function BlogCard({
       {/* Blog Image */}
       <div className="h-[192px] w-[353px] overflow-hidden bg-[#0B1736]">
         <LazyImg
-          src={cardImage}
+          src={getThumbUrl(cardImage, 480)}
+          srcSet={getThumbSrcSet(cardImage)}
+          sizes="(max-width: 420px) calc(100vw - 32px), 355px"
+          fallbackSrc={cardImage}
           alt={title ?? t("blogPage.details.postAlt")}
           loading={loading}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

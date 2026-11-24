@@ -15,11 +15,14 @@ export interface ILazyImgProps extends ImgHTMLAttributes<HTMLImageElement> {
   skeletonClassName?: string;
   containerClassName?: string;
   rootMargin?: string;
-  fallbackSrc?: string;
+  /** Tried in order when the image fails (e.g. thumbnail → original → placeholder). */
+  fallbackSrc?: string | string[];
 }
 
 export default function LazyImg({
   src,
+  srcSet,
+  sizes,
   className = "",
   containerClassName = "",
   style,
@@ -31,6 +34,7 @@ export default function LazyImg({
   fallbackSrc,
   ...rest
 }: ILazyImgProps) {
+  const fallbacks = fallbackSrc === undefined ? [] : Array.isArray(fallbackSrc) ? fallbackSrc : [fallbackSrc];
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -101,8 +105,10 @@ export default function LazyImg({
   };
 
   const handleError = (event: SyntheticEvent<HTMLImageElement>) => {
-    if (fallbackSrc && currentSrc !== fallbackSrc) {
-      setCurrentSrc(fallbackSrc);
+    const nextIndex = currentSrc === src ? 0 : fallbacks.indexOf(currentSrc ?? "") + 1;
+    const next = fallbacks.slice(nextIndex).find((candidate) => candidate && candidate !== currentSrc);
+    if (next) {
+      setCurrentSrc(next);
       return;
     }
     setStatus("revealed");
@@ -121,6 +127,9 @@ export default function LazyImg({
           {...rest}
           ref={imgRef}
           src={currentSrc}
+          // srcSet only applies to the primary image; once we fall back it must go, or the browser keeps using it.
+          srcSet={currentSrc === src ? srcSet : undefined}
+          sizes={currentSrc === src ? sizes : undefined}
           loading={loading}
           decoding="async"
           onLoad={handleLoad}

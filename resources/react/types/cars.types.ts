@@ -10,6 +10,8 @@ export type CarType = ICarType;
 export interface ICarsQueryParams {
   page?: number;
   per_page?: number;
+  /** Fetch specific cars by id (e.g. preselecting ?car_id= in the calculator). */
+  ids?: number[];
   brands?: number[];
   model_id?: number;
   type?: number;

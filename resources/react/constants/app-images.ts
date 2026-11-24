@@ -29,6 +29,30 @@ export function getImageUrl(path: string | null): string {
   return `${getAssetBase()}storage/${cleanPath}`;
 }
 
+/** Widths the server can generate (App\Services\ImageThumbnailService::WIDTHS). */
+export type ThumbWidth = 320 | 480 | 768;
+
+/**
+ * Resized WebP version of an uploaded image (served from /thumbs/{width}/..., generated on first use).
+ * URLs that aren't uploads on this site (static /images, external, SVG) are returned unchanged.
+ */
+export function getThumbUrl(url: string, width: ThumbWidth): string {
+  const base = getAssetBase();
+  const storagePrefix = `${base}storage/`;
+  if (!url || !url.startsWith(storagePrefix)) return url;
+
+  const relativePath = url.slice(storagePrefix.length).split(/[?#]/)[0];
+  if (!/\.(jpe?g|png|webp)$/i.test(relativePath)) return url;
+
+  return `${base}thumbs/${width}/${relativePath}.webp`;
+}
+
+/** srcSet for an uploaded image, or undefined when no thumbnails apply. */
+export function getThumbSrcSet(url: string, widths: ThumbWidth[] = [320, 480, 768]): string | undefined {
+  if (getThumbUrl(url, widths[0]) === url) return undefined;
+  return widths.map((width) => `${getThumbUrl(url, width)} ${width}w`).join(", ");
+}
+
 export const APP_IMAGES = {
   get LOGO() { return `${getAssetBase()}images/logo_without_bg.webp`; },
   get Logo_COLORED() { return `${getAssetBase()}images/logo-colored.webp`; },

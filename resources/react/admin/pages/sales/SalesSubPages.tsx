@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Layers,
@@ -10,116 +10,392 @@ import {
     Phone,
     User,
     DollarSign,
+    Car,
+    GripVertical,
+    Search,
+    MessageCircle,
+    ArrowRightLeft,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { Card } from '../../../shared/components/ui/Card';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 
-// 1. Kanban Tracking Page
+interface KanbanItem {
+    id: number;
+    client_name: string;
+    client_phone: string;
+    car_name?: string;
+    total_price?: string | number;
+    assigned_to?: string;
+    created_at?: string;
+}
+
+interface KanbanStage {
+    title: string;
+    items: KanbanItem[];
+}
+
+const STAGE_CONFIG: Record<string, { title: string; color: string; badge: string; border: string }> = {
+    new: {
+        title: 'طلبات جديدة',
+        color: 'bg-blue-500',
+        badge: 'bg-blue-50 text-blue-700 border-blue-200',
+        border: 'border-t-blue-500',
+    },
+    contacted: {
+        title: 'تم التواصل',
+        color: 'bg-amber-500',
+        badge: 'bg-amber-50 text-amber-700 border-amber-200',
+        border: 'border-t-amber-500',
+    },
+    credit_check: {
+        title: 'فحص ائتماني',
+        color: 'bg-purple-500',
+        badge: 'bg-purple-50 text-purple-700 border-purple-200',
+        border: 'border-t-purple-500',
+    },
+    bank_approval: {
+        title: 'موافقة البنك',
+        color: 'bg-indigo-500',
+        badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        border: 'border-t-indigo-500',
+    },
+    shipping: {
+        title: 'تجهيز وشحن',
+        color: 'bg-cyan-500',
+        badge: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+        border: 'border-t-cyan-500',
+    },
+    delivered: {
+        title: 'تم التسليم',
+        color: 'bg-emerald-500',
+        badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        border: 'border-t-emerald-500',
+    },
+};
+
+// 1. Kanban Tracking Page with full Drag & Drop
 export const KanbanTrackingPage: React.FC = () => {
     const queryClient = useQueryClient();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [draggedItem, setDraggedItem] = useState<{ id: number; sourceStage: string } | null>(null);
+    const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+    const [movingId, setMovingId] = useState<number | null>(null);
 
     const { data, isLoading, refetch, isFetching } = useQuery({
-        queryKey: ['/api/v1/sales/tracking'],
+        queryKey: ['/sales/tracking'],
         queryFn: async () => {
-            const res = await apiClient.get('/api/v1/sales/tracking');
-            return res.data?.data || {};
+            const res = await apiClient.get('/sales/tracking');
+            return (res.data?.data || {}) as Record<string, KanbanStage>;
         },
     });
 
     const updateStageMutation = useMutation({
         mutationFn: async ({ id, stage }: { id: number; stage: string }) => {
-            return await apiClient.patch(`/api/v1/sales/tracking/${id}/stage`, { stage });
+            setMovingId(id);
+            return await apiClient.patch(`/sales/tracking/${id}/stage`, { stage });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['/api/v1/sales/tracking'] });
+            queryClient.invalidateQueries({ queryKey: ['/sales/tracking'] });
+        },
+        onError: () => {
+            // Revert on error
+            refetch();
+        },
+        onSettled: () => {
+            setMovingId(null);
         },
     });
 
-    const stages: Record<string, { title: string; items: any[] }> = data || {};
+    const stages: Record<string, KanbanStage> = useMemo(() => {
+        return data || {};
+    }, [data]);
+
+    const handleMoveStage = (id: number, targetStage: string, sourceStage: string) => {
+        if (targetStage === sourceStage) return;
+
+        // Optimistic UI update
+        queryClient.setQueryData(['/sales/tracking'], (oldData: Record<string, KanbanStage> | undefined) => {
+            if (!oldData) return oldData;
+            const updated = JSON.parse(JSON.stringify(oldData)) as Record<string, KanbanStage>;
+
+            const sourceItems = updated[sourceStage]?.items || [];
+            const index = sourceItems.findIndex((it) => it.id === id);
+            if (index === -1) return oldData;
+
+            const [item] = sourceItems.splice(index, 1);
+            if (updated[targetStage]) {
+                if (!updated[targetStage].items) updated[targetStage].items = [];
+                updated[targetStage].items.unshift(item);
+            }
+            return updated;
+        });
+
+        updateStageMutation.mutate({ id, stage: targetStage });
+    };
+
+    const totalCount = useMemo(() => {
+        return Object.values(stages).reduce((sum, col) => sum + (col.items?.length || 0), 0);
+    }, [stages]);
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-xl font-bold text-[var(--text-primary)]">
-                        تتبع حالات الطلبات (Kanban Pipeline)
+                    <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <Layers className="h-6 w-6 text-indigo-600" />
+                        <span>تتبع مسار الطلبات (Kanban Pipeline)</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                            {totalCount} طلب
+                        </span>
                     </h1>
-                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                        مسار تقدم طلبات الشراء والتمويل عبر المراحل المختلفة
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        اسحب الكرت بالموس وأفلته في المرحلة التالية لنقله مباشرة، أو استخدم القائمة السريعة
                     </p>
                 </div>
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => refetch()}
-                    disabled={isFetching}
-                    className="gap-1.5 text-xs"
-                >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-                    <span>تحديث اللوحة</span>
-                </Button>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="بحث بالعميل أو السيارة..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pr-8 pl-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => refetch()}
+                        disabled={isFetching}
+                        className="gap-1.5 text-xs shrink-0"
+                    >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                        <span>تحديث</span>
+                    </Button>
+                </div>
             </div>
 
+            {/* Kanban Columns */}
             {isLoading ? (
-                <div className="py-20 text-center text-slate-400">
-                    <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-[var(--tenant-primary)]" />
-                    <span>جاري تحميل مسار الطلبات...</span>
+                <div className="py-24 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-indigo-600" />
+                    <span className="text-sm font-medium">جاري تحميل مسار الطلبات...</span>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 overflow-x-auto pb-4">
-                    {Object.entries(stages).map(([stageKey, col]) => (
-                        <div
-                            key={stageKey}
-                            className="bg-[var(--surface-secondary)]/60 rounded-xl p-3 border border-[var(--border-default)] flex flex-col min-w-[220px]"
-                        >
-                            {/* Column Header */}
-                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--border-default)]">
-                                <span className="font-bold text-xs text-[var(--text-primary)]">
-                                    {col.title}
-                                </span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--tenant-primary)] text-white">
-                                    {col.items?.length || 0}
-                                </span>
-                            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 overflow-x-auto pb-4 items-start">
+                    {Object.entries(stages).map(([stageKey, col]) => {
+                        const config = STAGE_CONFIG[stageKey] || {
+                            title: col.title,
+                            color: 'bg-slate-500',
+                            badge: 'bg-slate-100 text-slate-700 border-slate-200',
+                            border: 'border-t-slate-400',
+                        };
 
-                            {/* Cards Container */}
-                            <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[65vh]">
-                                {col.items?.map((item: any) => (
-                                    <Card
-                                        key={item.id}
-                                        className="p-3 shadow-2xs hover:shadow-md transition-shadow bg-white text-xs space-y-1.5"
+                        const isOver = dragOverStage === stageKey;
+
+                        const filteredItems = (col.items || []).filter((item) => {
+                            if (!searchQuery.trim()) return true;
+                            const q = searchQuery.toLowerCase();
+                            return (
+                                item.client_name?.toLowerCase().includes(q) ||
+                                item.client_phone?.includes(q) ||
+                                item.car_name?.toLowerCase().includes(q) ||
+                                String(item.id).includes(q)
+                            );
+                        });
+
+                        return (
+                            <div
+                                key={stageKey}
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'move';
+                                    if (dragOverStage !== stageKey) {
+                                        setDragOverStage(stageKey);
+                                    }
+                                }}
+                                onDragLeave={(e) => {
+                                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                        setDragOverStage((curr) => (curr === stageKey ? null : curr));
+                                    }
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setDragOverStage(null);
+                                    try {
+                                        const raw = e.dataTransfer.getData('text/plain');
+                                        if (raw) {
+                                            const parsed = JSON.parse(raw);
+                                            if (parsed?.id && parsed.sourceStage) {
+                                                handleMoveStage(parsed.id, stageKey, parsed.sourceStage);
+                                            }
+                                        }
+                                    } catch (err) {
+                                        console.error('Drop parse error', err);
+                                    }
+                                    setDraggedItem(null);
+                                }}
+                                className={`rounded-xl p-2.5 border-t-4 ${config.border} border border-slate-200 transition-all flex flex-col min-w-[210px] ${
+                                    isOver
+                                        ? 'bg-indigo-50/70 border-indigo-400 ring-2 ring-indigo-500/40 shadow-md'
+                                        : 'bg-slate-100/70'
+                                }`}
+                            >
+                                {/* Column Header */}
+                                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={`w-2 h-2 rounded-full ${config.color}`} />
+                                        <span className="font-bold text-xs text-slate-800">
+                                            {config.title}
+                                        </span>
+                                    </div>
+                                    <span
+                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${config.badge}`}
                                     >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-bold text-slate-800">
-                                                #{item.id} {item.client_name}
+                                        {filteredItems.length}
+                                    </span>
+                                </div>
+
+                                {/* Cards List */}
+                                <div className="space-y-2 flex-1 min-h-[120px] max-h-[70vh] overflow-y-auto pr-0.5">
+                                    {filteredItems.map((item) => {
+                                        const isBeingDragged = draggedItem?.id === item.id;
+                                        const isUpdating = movingId === item.id;
+
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                draggable={!isUpdating}
+                                                onDragStart={(e) => {
+                                                    e.dataTransfer.setData(
+                                                        'text/plain',
+                                                        JSON.stringify({ id: item.id, sourceStage: stageKey })
+                                                    );
+                                                    e.dataTransfer.effectAllowed = 'move';
+                                                    setDraggedItem({ id: item.id, sourceStage: stageKey });
+                                                }}
+                                                onDragEnd={() => {
+                                                    setDraggedItem(null);
+                                                    setDragOverStage(null);
+                                                }}
+                                                className={`p-3 rounded-lg bg-white border border-slate-200 shadow-2xs transition-all select-none cursor-grab active:cursor-grabbing hover:shadow-md hover:border-indigo-300 relative group ${
+                                                    isBeingDragged
+                                                        ? 'opacity-30 border-dashed border-indigo-500 scale-95'
+                                                        : ''
+                                                } ${isUpdating ? 'animate-pulse pointer-events-none' : ''}`}
+                                            >
+                                                {/* Card Header */}
+                                                <div className="flex items-center justify-between gap-1 mb-1.5">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-indigo-400 shrink-0" />
+                                                        <span className="font-bold text-xs text-slate-900 truncate">
+                                                            {item.client_name}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] font-semibold text-slate-400 shrink-0">
+                                                        #{item.id}
+                                                    </span>
+                                                </div>
+
+                                                {/* Car info */}
+                                                <div className="flex items-center gap-1.5 text-[11px] font-medium text-indigo-700 bg-indigo-50/60 px-2 py-1 rounded-md mb-2">
+                                                    <Car className="h-3 w-3 shrink-0" />
+                                                    <span className="truncate">{item.car_name || 'سيارة غير محددة'}</span>
+                                                </div>
+
+                                                {/* Price & Contact */}
+                                                <div className="flex items-center justify-between gap-2 text-xs mb-2">
+                                                    {item.total_price ? (
+                                                        <span className="font-extrabold text-slate-800 text-[11px]">
+                                                            {Number(item.total_price).toLocaleString()} <span className="text-[9px] font-normal text-slate-500">ر.س</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400">السعر غير محدد</span>
+                                                    )}
+
+                                                    {item.client_phone && (
+                                                        <a
+                                                            href={`https://wa.me/${item.client_phone.replace(/\D/g, '')}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title={`مراسلة واتساب: ${item.client_phone}`}
+                                                            className="flex items-center gap-1 text-[10px] text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded transition-colors"
+                                                        >
+                                                            <MessageCircle className="h-2.5 w-2.5" />
+                                                            <span>واتساب</span>
+                                                        </a>
+                                                    )}
+                                                </div>
+
+                                                {/* Footer: Date & Assignee */}
+                                                <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] text-slate-400">
+                                                    <span>{item.created_at || 'الآن'}</span>
+                                                    {item.assigned_to ? (
+                                                        <span className="text-slate-600 font-medium truncate max-w-[90px]" title={item.assigned_to}>
+                                                            👤 {item.assigned_to}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-300">غير مسند</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Quick Stage Mover Selector (Click Alternative to Drag) */}
+                                                <div className="mt-2 pt-1.5 border-t border-dashed border-slate-100 flex items-center justify-between gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                    <span className="text-[9px] text-slate-400 flex items-center gap-0.5">
+                                                        <ArrowRightLeft className="h-2.5 w-2.5" />
+                                                        <span>نقل إلى:</span>
+                                                    </span>
+                                                    <select
+                                                        value={stageKey}
+                                                        onChange={(e) => {
+                                                            const newStage = e.target.value;
+                                                            if (newStage && newStage !== stageKey) {
+                                                                handleMoveStage(item.id, newStage, stageKey);
+                                                            }
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        disabled={isUpdating}
+                                                        className="text-[10px] bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                                    >
+                                                        {Object.entries(STAGE_CONFIG).map(([key, cfg]) => (
+                                                            <option key={key} value={key}>
+                                                                {cfg.title}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Empty drop zone state */}
+                                    {filteredItems.length === 0 && (
+                                        <div
+                                            className={`h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-center p-2 transition-colors ${
+                                                isOver
+                                                    ? 'border-indigo-400 bg-indigo-50/50 text-indigo-600'
+                                                    : 'border-slate-200 text-slate-400'
+                                            }`}
+                                        >
+                                            <span className="text-[11px] font-medium">
+                                                {isOver ? 'أفلت البطاقة هنا' : 'لا توجد طلبات'}
+                                            </span>
+                                            <span className="text-[9px] text-slate-400 mt-0.5">
+                                                اسحب أي كرت وأفلته هنا
                                             </span>
                                         </div>
-
-                                        <p className="text-[11px] font-medium text-[var(--tenant-primary)] truncate">
-                                            🚗 {item.car_name || 'سيارة غير محددة'}
-                                        </p>
-
-                                        {item.total_price && (
-                                            <div className="text-[11px] font-bold text-slate-700">
-                                                {Number(item.total_price).toLocaleString()} ر.س
-                                            </div>
-                                        )}
-
-                                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
-                                            <span>{item.created_at || 'الآن'}</span>
-                                            {item.assigned_to && (
-                                                <span className="text-slate-600 font-medium">
-                                                    👤 {item.assigned_to}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </Card>
-                                ))}
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -132,9 +408,9 @@ export const CalculatorSettingsPage: React.FC = () => {
     const [savedMsg, setSavedMsg] = useState(false);
 
     const { data, isLoading } = useQuery({
-        queryKey: ['/api/v1/sales/calculator'],
+        queryKey: ['/sales/calculator'],
         queryFn: async () => {
-            const res = await apiClient.get('/api/v1/sales/calculator');
+            const res = await apiClient.get('/sales/calculator');
             return res.data?.data || {};
         },
     });
@@ -149,10 +425,10 @@ export const CalculatorSettingsPage: React.FC = () => {
 
     const saveMutation = useMutation({
         mutationFn: async () => {
-            return await apiClient.put('/api/v1/sales/calculator', formState);
+            return await apiClient.put('/sales/calculator', formState);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['/api/v1/sales/calculator'] });
+            queryClient.invalidateQueries({ queryKey: ['/sales/calculator'] });
             setSavedMsg(true);
             setTimeout(() => setSavedMsg(false), 3000);
         },

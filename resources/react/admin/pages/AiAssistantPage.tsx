@@ -274,7 +274,7 @@ export const AiAssistantPage: React.FC = () => {
                 </div>
             )}
 
-            {tab === 'playground' && <Playground ready={data.api_key.configured} />}
+            {tab === 'playground' && <Playground ready={Boolean(data?.api_key?.configured)} />}
             {tab === 'conversations' && <Conversations />}
 
             {showSave && (
@@ -340,13 +340,20 @@ const Playground: React.FC<{ ready: boolean }> = ({ ready }) => {
     const send = useMutation({
         mutationFn: async (message: string) => (await apiClient.post(`${BASE}/playground`, { message, session_id: sessionId })).data.data,
         onSuccess: (res) => {
+            if (!res) return;
             setSessionId(res.session_id);
-            setLines((l) => [...l, { role: 'assistant', text: res.reply, cards: res.cards }]);
+            setLines((l) => [...l, { role: 'assistant', text: res.reply || '', cards: Array.isArray(res.cards) ? res.cards : [] }]);
         },
         onError: (e) => setLines((l) => [...l, { role: 'assistant', text: `⚠️ ${errorText(e)}` }]),
     });
 
-    useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [lines, send.isPending]);
+    useEffect(() => {
+        try {
+            endRef.current?.scrollIntoView({ behavior: 'smooth' });
+        } catch {
+            // ignore
+        }
+    }, [lines, send.isPending]);
 
     const submit = () => {
         const message = input.trim();
@@ -354,6 +361,15 @@ const Playground: React.FC<{ ready: boolean }> = ({ ready }) => {
         setLines((l) => [...l, { role: 'user', text: message }]);
         setInput('');
         send.mutate(message);
+    };
+
+    const getCarName = (car: Dict): string => {
+        if (!car) return '';
+        if (typeof car.name === 'string') return car.name;
+        if (typeof car.name === 'object' && car.name !== null) {
+            return car.name.ar || car.name.en || Object.values(car.name)[0] || '';
+        }
+        return String(car.name ?? '');
     };
 
     return (
@@ -367,11 +383,12 @@ const Playground: React.FC<{ ready: boolean }> = ({ ready }) => {
                         {lines.map((line, i) => (
                             <div key={i} className={`flex ${line.role === 'user' ? 'justify-start' : 'justify-end'}`}>
                                 <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${line.role === 'user' ? 'bg-[var(--tenant-primary)] text-white' : 'bg-white text-[var(--text-primary)] border border-[var(--border-default)]'}`}>
-                                    {line.text}
-                                    {line.cards?.map((card, c) => (
+                                    {typeof line.text === 'string' ? line.text : JSON.stringify(line.text)}
+                                    {Array.isArray(line.cards) && line.cards.map((card, c) => (
                                         <div key={c} className="mt-2 rounded-lg bg-[var(--surface-secondary)] p-2 text-[11px] font-mono" dir="ltr">
-                                            [{card.type}] {card.type === 'cars' ? card.cars.map((x: Dict) => x.name).join(' · ') : ''}
-                                            {card.type === 'installment' ? `${card.best_option?.monthly} SAR/mo · ${card.best_option?.bank}` : ''}
+                                            [{card.type}] {card.type === 'cars' && Array.isArray(card.cars) ? card.cars.map((x: Dict) => getCarName(x)).filter(Boolean).join(' · ') : ''}
+                                            {card.type === 'installment' ? `${card.best_option?.monthly ?? ''} SAR/mo · ${card.best_option?.bank ?? ''}` : ''}
+                                            {card.type === 'comparison' && Array.isArray(card.cars) ? card.cars.map((x: Dict) => getCarName(x)).filter(Boolean).join(' vs ') : ''}
                                         </div>
                                     ))}
                                 </div>
@@ -455,11 +472,11 @@ const Conversations: React.FC = () => {
                 <Card className="lg:col-span-3" title={selected ? `المحادثة #${selected}` : 'اختر محادثة'}>
                     {detail ? (
                         <div className="space-y-2 max-h-[520px] overflow-y-auto">
-                            {(detail.messages as Dict[]).map((m) => (
+                            {Array.isArray(detail.messages) && (detail.messages as Dict[]).map((m) => (
                                 <div key={m.id} className={`rounded-lg px-3 py-2 text-xs ${m.role === 'user' ? 'bg-[var(--tenant-primary)]/10' : m.role === 'tool' ? 'bg-slate-100 text-slate-500 font-mono' : 'bg-[var(--surface-secondary)]'}`}>
                                     <span className="font-bold">{m.role === 'user' ? 'العميل' : m.role === 'tool' ? 'نتيجة أداة' : 'المساعد'}: </span>
-                                    {m.content ?? (m.tool_calls ? `استدعاء: ${(m.tool_calls as Dict[]).map((t) => t.name).join('، ')}` : '…')}
-                                    {m.guard_flags && <span className="block text-amber-700 mt-1">⚠️ {(m.guard_flags as string[]).join('، ')}</span>}
+                                    {typeof m.content === 'string' ? m.content : (Array.isArray(m.tool_calls) ? `استدعاء: ${(m.tool_calls as Dict[]).map((t) => t.name).join('، ')}` : (m.content ? JSON.stringify(m.content) : '…'))}
+                                    {Array.isArray(m.guard_flags) && m.guard_flags.length > 0 && <span className="block text-amber-700 mt-1">⚠️ {(m.guard_flags as string[]).join('، ')}</span>}
                                 </div>
                             ))}
                         </div>

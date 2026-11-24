@@ -1,4 +1,9 @@
-@import "tailwindcss";
+/* Scan only the store sources. Auto-detection scanned the whole repo (admin, Blade, old resources/js),
+   shipping admin-only utilities to every customer. */
+@import "tailwindcss" source(none);
+@source "./";
+@source not "./admin";
+@source not "./shared";
 
 @utility no-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */
@@ -199,11 +204,25 @@ select {
   animation: lazy-img-shimmer 1.2s ease-in-out infinite;
 }
 
-/* Generic content skeleton shimmer */
+/* Generic content skeleton shimmer.
+   Darker than the page greys (#F3F4F6 / #F0F2F5) so blocks stay visible on them. */
 .skeleton {
-  background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%);
+  background: linear-gradient(90deg, #e4e8ee 25%, #f1f4f8 50%, #e4e8ee 75%);
   background-size: 200% 100%;
-  animation: lazy-img-shimmer 1.2s ease-in-out infinite;
+  animation: lazy-img-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Skeleton on dark navy banners */
+.skeleton-dark {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 25%, rgba(255, 255, 255, 0.16) 50%, rgba(255, 255, 255, 0.08) 75%);
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .lazy-img-skeleton {
+    animation: none;
+  }
 }
 
 @keyframes lazy-img-shimmer {

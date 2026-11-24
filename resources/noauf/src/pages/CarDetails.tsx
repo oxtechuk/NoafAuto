@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
@@ -22,9 +22,57 @@ export default function CarDetails() {
   const { data: similar } = useApi(() => getSimilarCars(id), [id])
   const [months, setMonths] = useState(60)
   const [active, setActive] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [touchEndX, setTouchEndX] = useState<number | null>(null)
+
+  const slides = (car?.gallery && car.gallery.length > 0) ? car.gallery : (car?.image ? [car.image] : [])
+
+  // Reset active slide when switching cars
+  useEffect(() => {
+    setActive(0)
+  }, [id])
+
+  // Auto-play car gallery with smooth transition every 3.5s
+  useEffect(() => {
+    if (slides.length <= 1 || isPaused) return
+    const timer = setInterval(() => {
+      setActive((prev) => (prev + 1) % slides.length)
+    }, 3500)
+    return () => clearInterval(timer)
+  }, [slides.length, isPaused])
 
   if (loading && !car) return <div className="min-h-[60vh] bg-ink" />
   if (!car) return <p className="container-x py-32 text-center text-muted">{t('car.notFound')}</p>
+
+  const nextSlide = () => {
+    if (slides.length <= 1) return
+    setActive((prev) => (prev + 1) % slides.length)
+  }
+
+  const prevSlide = () => {
+    if (slides.length <= 1) return
+    setActive((prev) => (prev - 1 + slides.length) % slides.length)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEndX(null)
+    setTouchStartX(e.targetTouches[0].clientX)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX)
+  }
+
+  const handleTouchEnd = () => {
+    if (touchStartX === null || touchEndX === null) return
+    const diff = touchStartX - touchEndX
+    if (diff > 40) {
+      nextSlide()
+    } else if (diff < -40) {
+      prevSlide()
+    }
+  }
 
   const monthly = Math.round(monthlyPayment(car.cashPrice * (1 - DOWN_PAYMENT_SHARE), months))
   const fullName = `${car.brand} ${car.model}`
@@ -71,21 +119,94 @@ export default function CarDetails() {
         <div className="container-x">
           <div className="grid gap-10 lg:grid-cols-[368px_1fr]">
             <div>
-              <div className="relative h-[280px] overflow-hidden rounded-2xl bg-sand sm:h-[440px]" dir="ltr">
-                <p className="absolute top-[22px] left-6 text-[40px] leading-[52px] font-extrabold text-bronze sm:text-display">{car.series}</p>
-                <img src={car.gallery[active] ?? car.image} alt={fullName} className={`absolute inset-x-3 bottom-3 mx-auto ${car.gallery[active]?.endsWith('.jpg') ? 'inset-0 size-full object-cover' : 'h-[75%] object-contain'}`} />
+              <div
+                className="group relative h-[280px] w-full select-none overflow-hidden rounded-2xl bg-sand sm:h-[440px]"
+                dir="ltr"
+                onMouseEnter={() => setIsPaused(true)}
+                onMouseLeave={() => setIsPaused(false)}
+                onTouchStart={(e) => {
+                  setIsPaused(true)
+                  handleTouchStart(e)
+                }}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => {
+                  setTimeout(() => setIsPaused(false), 3500)
+                  handleTouchEnd()
+                }}
+              >
+                {/* Slides Track with smooth slide transition */}
+                <div
+                  className="flex size-full transition-transform duration-500 ease-out"
+                  style={{ transform: `translateX(-${active * 100}%)` }}
+                >
+                  {slides.map((imgUrl, i) => (
+                    <div key={i} className="relative size-full shrink-0">
+                      <img
+                        src={imgUrl}
+                        alt={`${fullName} - ${i + 1}`}
+                        className="size-full object-cover"
+                        loading={i === 0 ? 'eager' : 'lazy'}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Navigation arrows & indicators */}
+                {slides.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={prevSlide}
+                      aria-label="Previous"
+                      className="absolute start-3 top-1/2 -translate-y-1/2 z-10 flex size-9 sm:size-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xs transition-all hover:bg-black/75 hover:scale-105 active:scale-95 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      <Icon name="chevron-left" size={20} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={nextSlide}
+                      aria-label="Next"
+                      className="absolute end-3 top-1/2 -translate-y-1/2 z-10 flex size-9 sm:size-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-xs transition-all hover:bg-black/75 hover:scale-105 active:scale-95 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      <Icon name="chevron-right" size={20} />
+                    </button>
+
+                    <div className="absolute end-3 bottom-3 z-10 rounded-full bg-black/50 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-xs sm:text-xs">
+                      {active + 1} / {slides.length}
+                    </div>
+
+                    <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1.5 sm:hidden">
+                      {slides.map((_, dotIdx) => (
+                        <button
+                          key={dotIdx}
+                          type="button"
+                          onClick={() => setActive(dotIdx)}
+                          className={`h-1.5 rounded-full transition-all ${dotIdx === active ? 'w-5 bg-gold' : 'w-1.5 bg-white/60'}`}
+                          aria-label={`Slide ${dotIdx + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="mt-[26px] grid grid-cols-4 gap-3 lg:gap-[35px]">
-                {car.gallery.map((g, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActive(i)}
-                    className={`h-[60px] overflow-hidden rounded-lg sm:h-[98px] ${g.endsWith('.png') ? 'bg-sand' : ''} ${i === active ? 'border-2 border-gold' : 'border-2 border-transparent opacity-80 hover:opacity-100'}`}
-                  >
-                    <img src={g} alt="" className={`size-full ${g.endsWith('.png') ? 'object-contain' : 'object-cover'}`} />
-                  </button>
-                ))}
-              </div>
+
+              {slides.length > 1 && (
+                <div className="no-scrollbar mt-4 flex gap-3 overflow-x-auto sm:mt-[26px] sm:grid sm:grid-cols-4 sm:gap-4 lg:gap-[25px]">
+                  {slides.map((g, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActive(i)}
+                      className={`relative h-[65px] w-[80px] shrink-0 overflow-hidden rounded-lg sm:h-[98px] sm:w-auto transition-all ${
+                        i === active ? 'ring-2 ring-gold scale-[1.02]' : 'opacity-70 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={g} alt="" className="size-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <aside className="rounded-2xl bg-ink-2 p-6 lg:order-first lg:self-start">

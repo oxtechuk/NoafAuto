@@ -25,7 +25,7 @@ export default function Home() {
       <SelectedOffers />
       <BudgetCollection />
       <Steps />
-      <Assistant />
+      {/* The mascot + AI assistant now lives in Layout (AssistantWidget), on every page. */}
     </>
   )
 }
@@ -133,15 +133,34 @@ function CarFinder() {
 function Brands() {
   const { t } = useTranslation()
   const { data } = useApi(getBrands)
+  const brands = data ?? []
+  if (brands.length === 0) return null
+
+  // Duplicate for seamless infinite loop
+  const list = [...brands, ...brands]
+
   return (
-    <section className="bg-cream">
+    <section className="bg-cream overflow-hidden">
       <div className="container-x">
         <div className="flex flex-col gap-6 border-t border-line py-8 lg:h-[142px] lg:flex-row lg:items-center lg:gap-14 lg:py-0">
           <h2 className="shrink-0 text-h3 font-bold whitespace-pre-line lg:w-[168px]">{t('home.brandsTitle')}</h2>
-          <div className="no-scrollbar flex flex-1 items-center justify-between gap-6 overflow-x-auto">
-            {(data ?? []).map((b) => (
-              <img key={b.id} src={b.logo} alt={b.name} className="size-[80px] shrink-0 object-contain lg:size-[104px]" loading="lazy" />
-            ))}
+          <div className="relative flex-1 overflow-hidden" dir="ltr">
+            {/* Fade gradients on edges */}
+            <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-8 bg-gradient-to-r from-cream to-transparent sm:w-16" />
+            <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-8 bg-gradient-to-l from-cream to-transparent sm:w-16" />
+
+            <div className="flex w-max items-center gap-8 sm:gap-12 animate-marquee hover:[animation-play-state:paused]">
+              {list.map((b, idx) => (
+                <Link
+                  key={`${b.id}-${idx}`}
+                  to={`/cars?brand=${encodeURIComponent(b.name)}`}
+                  className="flex size-[80px] shrink-0 items-center justify-center transition-transform hover:scale-110 sm:size-[92px] lg:size-[104px]"
+                  title={b.name}
+                >
+                  <img src={b.logo} alt={b.name} className="max-h-full max-w-full object-contain" loading="lazy" />
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -311,28 +330,3 @@ function Steps() {
   )
 }
 
-/** Floating helper bubble with the mascot (bottom-start corner). */
-function Assistant() {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(true)
-  if (!open) return null
-  return (
-    <div className="fixed start-3 bottom-4 z-40 hidden items-end gap-1 sm:flex">
-      <img src={asset('/images/mascot.png')} alt="" className="order-first h-[116px] w-[58px] object-contain" />
-      <Link to="/request-car" className="relative mb-5 rounded-xl border border-line bg-white px-[18px] py-3 shadow-lg">
-        <p className="text-body font-bold text-ink">{t('home.assistantTitle')}</p>
-        <p className="mt-1 text-small text-muted">{t('home.assistantText')}</p>
-        <button
-          onClick={(e) => {
-            e.preventDefault()
-            setOpen(false)
-          }}
-          aria-label={t('common.close')}
-          className="absolute -end-2.5 -top-2.5 flex size-6 items-center justify-center rounded-full border border-line bg-white text-ink"
-        >
-          <Icon name="close" size={12} strokeWidth={2.5} />
-        </button>
-      </Link>
-    </div>
-  )
-}

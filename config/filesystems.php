@@ -47,6 +47,17 @@ return [
             'report' => false,
         ],
 
+        // Generated image thumbnails (App\Services\ImageThumbnailService). Lives under public/ so the
+        // web server serves existing files directly. Disposable: safe to delete, regenerated on demand.
+        'thumbs' => [
+            'driver' => 'local',
+            'root' => public_path('thumbs'),
+            'url' => env('APP_URL').'/thumbs',
+            'visibility' => 'public',
+            'throw' => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

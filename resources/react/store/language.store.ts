@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { LanguageFlags, LanguageType, TextDirection } from "../types/language.types";
-import i18n from "../i18n";
+import i18n, { ensureLanguageLoaded } from "../i18n";
 import { queryClient } from "../lib/query-client";
 
 const FALLBACK_LANGUAGE: LanguageType = "en";
@@ -19,7 +19,7 @@ const applyLanguageSettings = (language: LanguageType): void => {
   const direction: TextDirection = language === "en" ? "ltr" : "rtl";
   document.documentElement.setAttribute("lang", language);
   document.documentElement.setAttribute("dir", direction);
-  i18n.changeLanguage(language);
+  void ensureLanguageLoaded(language).then(() => i18n.changeLanguage(language));
 };
 
 const storedLanguage = getStoredLanguage();

@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { Outlet, useLocation, matchPath } from 'react-router-dom'
 import Navbar from './Navbar'
 import Footer from './Footer'
+import MobileNav from './MobileNav'
+import AssistantWidget from '@/components/assistant/AssistantWidget'
 
 /** Pages whose hero is dark use the dark navbar (as in the Figma frames). */
 const DARK_NAV = ['/', '/cars/:id', '/compare', '/blog', '/blog/:slug']
@@ -17,10 +19,12 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar variant={dark ? 'dark' : 'light'} />
-      <main className="flex-1">
+      <main className="flex-1 pb-20 md:pb-0">
         <Outlet />
       </main>
       <Footer />
+      <MobileNav />
+      <AssistantWidget />
     </div>
   )
 }

@@ -56,7 +56,7 @@ class AssistantSettings
             'enabled' => true,
             'show_on_storefront' => true,
             'provider' => 'gemini',
-            'model' => 'gemini-3.8-flash',
+            'model' => 'gemini-flash-lite-latest',
             'temperature' => 0.4,
             'max_output_tokens' => 1024,
 

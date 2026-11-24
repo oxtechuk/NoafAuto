@@ -15,11 +15,14 @@ final class SettingUpdateRequest extends ApiBaseRequest
     {
         return [
             'settings' => [
-                'required_without_all:site_logo,footer_logo,site_favicon,breadcrumb_bg,popup_image,page_loader_image,default_car_image,request_car_icon,hero_ad_1_image,hero_ad_2_image,cars_hero_image,offers_hero_image,offers_hero_image_mobile,booking_hero_image,main_gallery,delete_gallery_image',
+                'required_without_all:site_logo,footer_logo,site_favicon,admin_login_bg,admin_login_logo,admin_sidebar_logo,breadcrumb_bg,popup_image,page_loader_image,default_car_image,request_car_icon,hero_ad_1_image,hero_ad_2_image,cars_hero_image,offers_hero_image,offers_hero_image_mobile,booking_hero_image,main_gallery,delete_gallery_image',
             ],
             'site_logo' => ['nullable', 'image', 'max:5120'],
             'footer_logo' => ['nullable', 'image', 'max:5120'],
             'site_favicon' => ['nullable', 'max:2048'],
+            'admin_login_bg' => ['nullable', 'image', 'max:8192'],
+            'admin_login_logo' => ['nullable', 'image', 'max:5120'],
+            'admin_sidebar_logo' => ['nullable', 'image', 'max:5120'],
             'breadcrumb_bg' => ['nullable', 'image', 'max:8192'],
             'popup_image' => ['nullable', 'image', 'max:5120'],
             'page_loader_image' => ['nullable', 'max:5120'],

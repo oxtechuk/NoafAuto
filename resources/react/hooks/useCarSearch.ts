@@ -1,35 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getCars, searchCars } from "../services/api";
 import type { CarItem } from "../types/home.types";
 
+const SEARCH_DEBOUNCE_MS = 300;
+
+/**
+ * Car picker search. Empty query = first page of cars (cached across opens),
+ * otherwise a debounced search. `searching` is true while results are on their way.
+ */
 export function useCarSearch(showSearch: boolean) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<CarItem[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   useEffect(() => {
-    if (!showSearch) return;
-    if (!searchQuery.trim()) {
-      getCars()
-        .then((res) => setSearchResults(res.data))
-        .catch(() => setSearchResults([]));
-      return;
-    }
-    clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const results = await searchCars(searchQuery);
-        setSearchResults(results);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 300);
-    return () => clearTimeout(searchTimer.current);
-  }, [searchQuery, showSearch]);
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  return { searchQuery, setSearchQuery, searchResults, setSearchResults, searching };
+  const { data, isFetching, isError } = useQuery<CarItem[]>({
+    queryKey: ["car-search", debouncedQuery],
+    queryFn: () =>
+      debouncedQuery ? searchCars(debouncedQuery) : getCars().then((res) => res.data),
+    enabled: showSearch,
+    placeholderData: keepPreviousData,
+  });
+
+  const isDebouncing = searchQuery.trim() !== debouncedQuery;
+  const searchResults = showSearch && !isError ? (data ?? []) : [];
+
+  return {
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    searching: showSearch && (isFetching || isDebouncing),
+  };
 }

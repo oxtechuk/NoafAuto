@@ -97,4 +97,25 @@ class SettingApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['settings']);
     }
+
+    public function test_admin_can_update_admin_login_and_sidebar_branding(): void
+    {
+        $payload = [
+            'settings' => [
+                'admin_login_title' => 'نظام إدارة تعميد CRM',
+                'admin_login_subtitle' => 'سجل الدخول للمتابعة',
+            ],
+        ];
+
+        $this->actingAs($this->admin, 'employee')
+            ->putJson(route('api.v1.settings.update'), $payload)
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.admin_login_title', 'نظام إدارة تعميد CRM')
+            ->assertJsonPath('data.admin_login_subtitle', 'سجل الدخول للمتابعة');
+
+        $this->assertDatabaseHas('settings', [
+            'key' => 'admin_login_title',
+        ]);
+    }
 }

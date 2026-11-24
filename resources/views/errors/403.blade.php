@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 @php
+    // Settings may arrive as an array or a Collection; normalize so ->get() below never fails.
+    $globalSettings = collect($globalSettings ?? []);
     $locale = App::getLocale();
     $rawSiteName = $globalSettings['site_name'] ?? ($globalSettings->get('site_name') ?? null);
     $siteName = is_array($rawSiteName)

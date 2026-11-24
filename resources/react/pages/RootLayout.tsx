@@ -8,6 +8,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { useLanguageStore } from "../store/language.store";
 import { APP_IMAGES } from "../constants/app-images";
 import { getSettings } from "../services/api";
+import { getBootSettings } from "../services/api/settings.service";
 import { useSettingsStore } from "../store/settings.store";
 import { getImageUrl } from "../constants/app-images";
 import TopBar from "../components/top-bar";
@@ -29,6 +30,8 @@ export default function RootLayout() {
     queryKey: ["settings", language],
     queryFn: getSettings,
     staleTime: 5 * 60 * 1000,
+    // Server-rendered settings (app.blade.php) skip the first /settings request, when the locale matches.
+    initialData: () => getBootSettings(language),
   });
 
   useEffect(() => {

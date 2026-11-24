@@ -11,6 +11,7 @@ use App\Modules\AiAssistant\Support\LlmResult;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Google Gemini (generateContent, function calling) over REST.
@@ -34,27 +35,68 @@ class GeminiProvider implements LlmProvider
         $body = [
             'systemInstruction' => ['parts' => [['text' => $system]]],
             'contents' => $contents,
-            'generationConfig' => array_filter([
-                'temperature' => $options['temperature'] ?? null,
-                'maxOutputTokens' => $options['max_output_tokens'] ?? null,
-            ], fn ($value) => $value !== null),
         ];
+
+        $genConfig = array_filter([
+            'temperature' => $options['temperature'] ?? null,
+            'maxOutputTokens' => $options['max_output_tokens'] ?? null,
+        ], fn ($value) => $value !== null);
+
+        if ($genConfig !== []) {
+            $body['generationConfig'] = (object) $genConfig;
+        }
 
         if ($tools !== []) {
             $body['tools'] = [['functionDeclarations' => $tools]];
             $body['toolConfig'] = ['functionCallingConfig' => ['mode' => $options['tool_mode'] ?? 'AUTO']];
         }
 
-        try {
-            $response = $this->client()->post('/models/'.rawurlencode($model).':generateContent', $body);
-        } catch (ConnectionException $e) {
-            throw new AssistantException('Gemini connection failed: '.$e->getMessage(), 0, $e);
+        $modelsToTry = array_values(array_unique(array_filter([
+            $model,
+            'gemini-flash-lite-latest',
+            'gemini-3.5-flash-lite',
+        ])));
+
+        $lastException = null;
+        $response = null;
+
+        foreach ($modelsToTry as $attemptModel) {
+            for ($attempt = 1; $attempt <= 2; $attempt++) {
+                try {
+                    $response = $this->client()->post('/models/'.rawurlencode($attemptModel).':generateContent', $body);
+                } catch (ConnectionException $e) {
+                    $lastException = new AssistantException('Gemini connection failed: '.$e->getMessage(), 0, $e);
+                    usleep(500000);
+
+                    continue;
+                }
+
+                if ($response->successful()) {
+                    break 2;
+                }
+
+                $status = $response->status();
+                $message = (string) ($response->json('error.message') ?? $response->body());
+                $lastException = new AssistantException("Gemini HTTP {$status}: {$message}");
+
+                // If 503 (high demand) or 429 (rate limit), pause and retry/failover
+                if (in_array($status, [429, 503], true)) {
+                    Log::warning("Gemini model {$attemptModel} (attempt {$attempt}) failed with HTTP {$status}: {$message}. Backing off...");
+                    usleep(800000);
+
+                    continue;
+                }
+
+                if ($status === 404) {
+                    break;
+                }
+
+                throw $lastException;
+            }
         }
 
-        if (! $response->successful()) {
-            $message = (string) ($response->json('error.message') ?? $response->body());
-
-            throw new AssistantException("Gemini HTTP {$response->status()}: {$message}");
+        if (! $response || ! $response->successful()) {
+            throw $lastException ?? new AssistantException('All Gemini models failed.');
         }
 
         $candidate = (array) $response->json('candidates.0', []);
@@ -123,11 +165,14 @@ class GeminiProvider implements LlmProvider
             throw new AssistantException('Gemini API key is not configured.');
         }
 
+        $caPath = 'C:/wamp64/bin/php/php8.4.15/extras/ssl/cacert.pem';
+        $options = file_exists($caPath) ? ['verify' => $caPath] : [];
+
         return Http::baseUrl(self::BASE_URL)
             ->acceptJson()
             ->asJson()
+            ->withOptions($options)
             ->withHeaders(['x-goog-api-key' => $apiKey])
-            ->timeout(45)
-            ->retry(2, 500, fn ($exception) => $exception instanceof ConnectionException, throw: false);
+            ->timeout(30);
     }
 }

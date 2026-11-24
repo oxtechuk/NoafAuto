@@ -31,7 +31,33 @@
     <link rel="icon" type="{{ $faviconMime }}" href="{{ $faviconUrl }}" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    {{-- Non-blocking font CSS: the panel paints with the system font, then swaps. --}}
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Tajawal:wght@300;400;500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" /></noscript>
+    @isset($bootUser)
+    <script>window.__BOOT_USER__ = @json($bootUser);</script>
+    @else
+    <script>window.__BOOT_USER__ = null;</script>
+    @endisset
+    @php
+        $resolveAsset = function(?string $path): ?string {
+            if (! $path) return null;
+            if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) return $path;
+            $clean = ltrim($path, '/');
+            if (str_starts_with($clean, 'images/') || file_exists(public_path($clean))) return asset($clean);
+            return asset('storage/' . $clean);
+        };
+        $adminSettings = [
+            'login_bg' => $resolveAsset(data_get($globalSettings, 'admin_login_bg')),
+            'login_logo' => $resolveAsset(data_get($globalSettings, 'admin_login_logo')),
+            'sidebar_logo' => $resolveAsset(data_get($globalSettings, 'admin_sidebar_logo')),
+            'site_logo' => $resolveAsset(data_get($globalSettings, 'site_logo')),
+            'login_title' => data_get($globalSettings, 'admin_login_title'),
+            'login_subtitle' => data_get($globalSettings, 'admin_login_subtitle'),
+            'has_title_setting' => array_key_exists('admin_login_title', (array) $globalSettings),
+        ];
+    @endphp
+    <script>window.__ADMIN_SETTINGS__ = @json($adminSettings);</script>
     @viteReactRefresh
     @vite(['resources/react/admin/main.tsx'])
 </head>

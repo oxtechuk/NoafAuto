@@ -14,9 +14,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Employee inlined by admin.blade.php (same payload as GET /auth/me): an object when signed in, null for guests.
+ * undefined = shell without it (e.g. an old cached page), so we fall back to asking the API.
+ */
+const bootUser = (window as unknown as { __BOOT_USER__?: User | null }).__BOOT_USER__;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [user, setUser] = useState<User | null>(bootUser ?? null);
+    const [loading, setLoading] = useState<boolean>(bootUser === undefined);
 
     const fetchMe = async () => {
         try {
@@ -34,7 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     useEffect(() => {
-        fetchMe();
+        if (bootUser === undefined) {
+            fetchMe();
+        }
     }, []);
 
     const login = async (credentials: { username: string; password: string; remember?: boolean }) => {
