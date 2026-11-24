@@ -167,4 +167,5 @@ Admin API responses: `{ success, message, data, meta? }`; paginated `meta.{curre
 | API envelope / errors | `app/Http/Api/**`, `bootstrap/app.php` |
 | Admin page data fetching | `resources/react/admin/pages/<X>Page.tsx` (React Query, keys `['admin', '<resource>', {...}]`) |
 | Store API calls | `resources/react/services/api/<domain>.service.ts` |
+| External project storefront (e.g. noauf) | `config('sitekit.storefront')`, `Services/Storefront/StorefrontManager` (injects built `public/storefront/index.html` assets into `app.blade.php`), `sitekit:storefront:build`, frontend SDK in `<storefront>/src/sitekit-sdk/` (only `mappers.ts` is project-specific), guide: `docs/STOREFRONT_INTEGRATION.md` |
 | Core updates (version, GitHub releases, install) | `VERSION`, `config/sitekit.php`, `Services/Updates/*`, `Api/V1/SystemUpdateController`, `admin/pages/UpdatesPage.tsx`, `.github/workflows/sitekit-{release,update}.yml`, `.github/sitekit/{deploy,report}.sh`, setup: `docs/SITEKIT_UPDATES_SETUP.md` |

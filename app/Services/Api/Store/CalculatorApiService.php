@@ -196,6 +196,11 @@ final class CalculatorApiService
             return;
         }
 
+        // bookings.car_id is required: without a selected car, keep only the calculator lead.
+        if ($carId === null) {
+            return;
+        }
+
         $booking = Booking::create([
             'client_name' => $lead->name,
             'client_phone' => $lead->phone,

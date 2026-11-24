@@ -1,5 +1,7 @@
 <!doctype html>
 @php
+    // Settings may arrive as an array or a Collection; normalize so ->get() below never fails.
+    $globalSettings = collect($globalSettings ?? []);
     $locale = app()->getLocale();
     $isRtl = $locale !== 'en';
 
@@ -83,10 +85,12 @@
     <meta name="robots" content="{{ $metaRobots ?? 'index, follow' }}" />
     <meta name="ssr-seo-path" content="{{ rawurldecode('/' . ltrim(request()->path(), '/')) }}" />
 
+    @if (empty($storefront))
     <!-- Cairo Font (High-Performance WOFF2 Subsets with font-display: swap) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+    @endif
 
     <!-- Open Graph (Facebook, WhatsApp, LinkedIn) -->
     <meta property="og:site_name" content="{{ $siteName }}" />
@@ -193,8 +197,13 @@
         window.__ASSET_URL__ = "{{ rtrim(asset('/'), '/') }}/";
     </script>
 
+    @if (! empty($storefront))
+    <!-- Project storefront (built from config('sitekit.storefront.path')) -->
+    {!! $storefront['head'] !!}
+    @else
     @viteReactRefresh
     @vite('resources/react/main.tsx')
+    @endif
 </head>
 <body>
     @if (!empty($gtmId))
@@ -212,7 +221,11 @@
     <!-- End Meta Pixel (noscript) -->
     @endif
 
-    <div id="root">@if (! empty($seoContent))@include('partials.seo-content')@endif</div>
+    <div id="{{ $storefront['root_id'] ?? 'root' }}">@if (! empty($seoContent))@include('partials.seo-content')@endif</div>
+
+    @if (! empty($storefront['body']))
+    {!! $storefront['body'] !!}
+    @endif
 
     @if (!empty($customBody))
         {!! $customBody !!}

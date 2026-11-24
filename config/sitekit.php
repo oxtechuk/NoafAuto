@@ -78,6 +78,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Project Storefront (external static frontend)
+    |--------------------------------------------------------------------------
+    |
+    | A project-specific frontend (React/Vite, built separately) that replaces
+    | the bundled store SPA. Laravel keeps rendering resources/views/app.blade.php
+    | (SEO meta, JSON-LD, pixels, custom scripts) and injects the storefront's
+    | built assets from "public_path"/index.html instead of the bundled store.
+    |
+    | path         source folder of the frontend (has its own package.json)
+    | public_path  where "sitekit:storefront:build" publishes dist/ (served as /storefront/)
+    |
+    */
+
+    'storefront' => [
+        'enabled' => (bool) env('SITEKIT_STOREFRONT_ENABLED', false),
+        'path' => env('SITEKIT_STOREFRONT_PATH', resource_path('storefront')),
+        'public_path' => env('SITEKIT_STOREFRONT_PUBLIC_PATH', public_path('storefront')),
+        'build_command' => env('SITEKIT_STOREFRONT_BUILD_COMMAND', 'npm run build'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Deploy / Webhook Secret
     |--------------------------------------------------------------------------
     |

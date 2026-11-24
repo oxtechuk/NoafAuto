@@ -134,11 +134,22 @@ jobs:
 
       - name: Build frontend assets
         if: steps.merge.outputs.conflict == 'false'
+        env:
+          STOREFRONT_PATH: ${{ vars.SITEKIT_STOREFRONT_PATH || 'resources/storefront' }}
         run: |
           bash .github/sitekit/report.sh running build "Building frontend assets"
           npm ci
           npm run build
-          tar -czf sitekit-assets.tgz -C public build
+          DIRS=(build)
+
+          # Project storefront (own package.json) → public/storefront
+          if [ -f "$STOREFRONT_PATH/package.json" ]; then
+            (cd "$STOREFRONT_PATH" && npm ci --no-audit --no-fund && npm run build)
+            rm -rf public/storefront && cp -r "$STOREFRONT_PATH/dist" public/storefront
+            DIRS+=(storefront)
+          fi
+
+          tar -czf sitekit-assets.tgz -C public "${DIRS[@]}"
 
       - name: Deploy to VPS
         if: steps.merge.outputs.conflict == 'false'

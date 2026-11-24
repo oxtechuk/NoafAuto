@@ -38,6 +38,7 @@ main() {
   local previous_commit
   previous_commit="$(git rev-parse HEAD)"
   local assets_backup="$app_dir/storage/app/sitekit-build-previous"
+  local storefront_backup="$app_dir/storage/app/sitekit-storefront-previous"
 
   log() { echo "[sitekit-deploy $(date '+%H:%M:%S')] $*"; }
 
@@ -50,6 +51,9 @@ main() {
     "$composer" install --no-dev --no-interaction --prefer-dist --optimize-autoloader
     if [ -d "$assets_backup" ]; then
       rm -rf public/build && cp -a "$assets_backup" public/build
+    fi
+    if [ -d "$storefront_backup" ]; then
+      rm -rf public/storefront && cp -a "$storefront_backup" public/storefront
     fi
     "$php" artisan optimize:clear
     "$php" artisan optimize
@@ -75,9 +79,14 @@ main() {
 
   if [ -n "$assets" ] && [ -f "$assets" ]; then
     log "Installing prebuilt frontend assets"
-    rm -rf "$assets_backup"
+    rm -rf "$assets_backup" "$storefront_backup"
     if [ -d public/build ]; then cp -a public/build "$assets_backup"; fi
     rm -rf public/build
+    # The archive contains build/ and, for projects with their own frontend, storefront/.
+    if tar -tzf "$assets" | grep -q '^storefront/'; then
+      if [ -d public/storefront ]; then cp -a public/storefront "$storefront_backup"; fi
+      rm -rf public/storefront
+    fi
     tar -xzf "$assets" -C public
     rm -f "$assets"
   fi

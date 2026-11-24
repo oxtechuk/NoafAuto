@@ -5,6 +5,45 @@
 
 ---
 
+## ✅ اللي اتنفّذ (2026-11-24): noauf بقى شغّال ديناميك على Sitekit
+
+**النواة (بتتحدّث مع كل العملاء):**
+- **`config('sitekit.storefront')`:** فيه `enabled` و`path` و`public_path`. الإعدادات من `.env`: `SITEKIT_STOREFRONT_ENABLED` و`SITEKIT_STOREFRONT_PATH`.
+- **`StorefrontManager`:** بيقرا `public/storefront/index.html` (الناتج من build الفرونت)، وبيحقن ملفاته جوّه `resources/views/app.blade.php`. يعني **الـ SEO والـ OG والـ JSON-LD والـ Pixels والـ 404 الحقيقي** بيفضلوا من Laravel لأي فرونت.
+- **`php artisan sitekit:storefront:build [--path=] [--skip-install]`:** بيعمل `npm ci` وبعدها build، وبعدها بينسخ `dist/` لـ `public/storefront/`.
+- **`sitekit-update.yml` و`deploy.sh`:** لو الفرونت موجود، بيتعمله build في GitHub ويتنشر مع الأصول، وفيه rollback ليه هو كمان. المسار بيتغيّر من variable `SITEKIT_STOREFRONT_PATH`.
+- **إصلاح bug في `CalculatorApiService`:** طلب الحاسبة من غير سيارة كان بيرجّع 500، لأن `bookings.car_id` مطلوب. دلوقتي الـ lead بيتحفظ من غير booking.
+
+**noauf (`resources/noauf`):**
+- **`src/sitekit-sdk/`:** فيه `types.ts` و`client.ts` (**عامّين، بيتنسخوا زي ما هم لأي مشروع**)، و`mappers.ts` (**خاص بـ noauf**).
+- **`services/cars.ts` و`content.ts` و`forms.ts`:** في الإنتاج بينادوا Sitekit، والـ mock فاضل للتطوير.
+- **`vite.config.ts`:** `base: '/storefront/'` في الـ build، وproxy لـ `/api` في الـ dev.
+- **`.env.production`:** `VITE_USE_MOCK=false`. يعني الـ build ديناميك من غير أي إعداد.
+- **`lib/asset.ts`:** للصور الثابتة. وصفحة التواصل بقت بتبعت مفتاح الموضوع (`subject`).
+
+**اتجرّب فعلياً** على قاعدة بيانات فيها 500 سيارة: Laravel بيقدّم noauf بـ SEO لكل صفحة (عنوان صفحة السيارة جاي من الداتابيز)، وChrome headless بيعرض السيارات الحقيقية في الرئيسية والقائمة والتفاصيل. والفورمز (تواصل، وحاسبة، وطلب مخصص) بتتسجّل كـ Leads وBookings في الـ CRM.
+
+**تصحيح للخطة:** أغلب "الفجوات" في §5.1 مش موجودة. العروض فيها `tag` وفلتر بيه. صفحة المقال بترجّع `related_posts`. الطلب المخصص بيروح كرسالة تواصل `car_import` بكل التفاصيل. والحاسبة بتستقبل `car_ids`. **يعني ربط noauf ما احتاجش أي endpoint جديد.**
+
+### التشغيل
+```bash
+# محلياً: dev على الـ mock، أو على الباك إند الحقيقي
+cd resources/noauf && npm run dev                      # VITE_USE_MOCK=true
+VITE_USE_MOCK=false npm run dev                          # proxy → SITEKIT_BACKEND_URL
+
+# نشره من Laravel
+php artisan sitekit:storefront:build --path=resources/noauf
+# .env:  SITEKIT_STOREFRONT_ENABLED=true
+```
+
+### متبقي (مش مانع للتشغيل)
+- **حجم الـ bundle:** noauf حجمه 578 kB (172 kB gzip) في ملف واحد. محتاج `React.lazy` للصفحات زي متجر Tameed.
+- **المحتوى الثابت:** `data/content.ts` (الهيرو، من نحن، الأرقام، `SITE` في `lib/constants.ts`) لسه ثابت في الفرونت. محتاج يتنقل لـ `/store/home` و`/store/settings/footer`.
+- **`useApi`:** يتحوّل لـ TanStack Query.
+- **أنواع الـ SDK:** تتولّد أوتوماتيك من Scramble، ومحتاج موافقة على `openapi-typescript`.
+
+---
+
 ## 1. الفكرة (3 طبقات)
 
 ```

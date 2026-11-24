@@ -38,6 +38,7 @@ use App\Observers\SpecificationObserver;
 use App\Observers\TestimonialObserver;
 use App\Policies\RolePolicy;
 use App\Services\Cache\BaseCacheService;
+use App\Services\Storefront\StorefrontManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Database\Eloquent\Model;
@@ -70,6 +71,11 @@ class AppServiceProvider extends ServiceProvider
     {
         View::composer('*', function (ViewContract $view): void {
             $view->with('globalSettings', $this->globalSettings());
+        });
+
+        // Project storefront (resources/storefront) replaces the bundled store SPA when built + enabled.
+        View::composer('app', function (ViewContract $view): void {
+            $view->with('storefront', app(StorefrontManager::class)->viewData());
         });
 
         $this->configureLazyLoadingPrevention();

@@ -131,4 +131,46 @@ class CalculatorTest extends TestCase
                 ],
             ]);
     }
+
+    public function test_lead_without_car_is_saved_without_creating_booking(): void
+    {
+        Queue::fake();
+
+        $this->postJson('/api/v1/store/calculator/lead', [
+            'name' => 'عميل بدون سيارة',
+            'phone' => '0512345670',
+            'city' => 'الدمام',
+            'salary' => 9000,
+            'monthly_obligations' => 0,
+        ])->assertStatus(201);
+
+        $this->assertDatabaseCount('calculator_leads', 1);
+        $this->assertDatabaseMissing('bookings', ['client_name' => 'عميل بدون سيارة']);
+    }
+
+    public function test_submitted_lead_from_external_storefront_creates_purchase_booking(): void
+    {
+        Queue::fake();
+
+        $this->postJson('/api/v1/store/calculator/lead', [
+            'car_ids' => [$this->car->id],
+            'name' => 'عميل واجهة مستقلة',
+            'phone' => '0512345679',
+            'city' => 'جدة',
+            'salary' => 15000,
+            'monthly_obligations' => 2000,
+            'down_payment' => 20000,
+            'period_months' => 60,
+            'preferred_color' => 'black',
+            'is_submitted' => true,
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('calculator_leads', ['car_id' => $this->car->id]);
+        $this->assertDatabaseHas('bookings', [
+            'client_name' => 'عميل واجهة مستقلة',
+            'car_id' => $this->car->id,
+            'source' => 'cars',
+            'booking_type' => 'purchase',
+        ]);
+    }
 }
