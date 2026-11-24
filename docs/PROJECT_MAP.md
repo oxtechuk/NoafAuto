@@ -108,13 +108,24 @@ types/ interfaces/ constants/ utils/ helpers/ assets/
 **Admin SPA** (`resources/react/admin/`)
 ```
 main.tsx            own QueryClient (staleTime 5 min)
-routes/AppRoutes.tsx  lazy pages under AdminLayout + RequireAuth
-api/client.ts       axios, baseURL '/api/v1', withCredentials + XSRF. Call '/cars', NOT '/api/v1/cars'
-context/AuthContext.tsx  useAuth(): { user, loading, login, logout, can(permission), hasRole(role) }
-pages/              Dashboard, Leads, Bookings, Tasks, Cars, Employees, Reports, Settings, Modules, Login
-components/ui/      Button, Card, Badge, Input, Pagination (Tailwind)
-hooks/useDebouncedValue.ts
+routes/AppRoutes.tsx  lazy pages under AdminLayout + RequireAuth (+ sub-module routes)
+api/client.ts       axios, withCredentials + XSRF. A request interceptor prefixes '/api/v1' and de-duplicates it,
+                    so both '/cars' and '/api/v1/cars' work
+context/            AuthContext: useAuth() { user, loading, login, logout, can(permission), hasRole(role) }; BrandingContext (tenant branding)
+pages/              Dashboard, Leads, Bookings (grouped: active/pending/delivered/closed), Tasks, Cars, CarFormPage, Employees,
+                    Roles, Reports, Settings, Modules, Login + catalog/ clients/ content/ sales/ sub-pages
+components/ui/      legacy admin UI (new code should use shared/)
 ```
+**Shared UI** (`resources/react/shared/`), used by the admin:
+```
+components/ui/      Button, Badge, StatusBadge, Card, Input, Modal, DrawerModal, ConfirmDialog, EmptyState, Skeleton, StatCard,
+                    Pagination (props: currentPage, lastPage, onPageChange)
+components/crm/     CrudTableManager, ImageDropzone, ChecklistSelector, ColorVariantsBuilder
+components/branding/TenantLogo
+hooks/useDebouncedValue.ts   debounce search inputs (300ms) before they go into a React Query key
+index.ts            barrel exports
+```
+Backend for these: `Api/V1/{Catalog,Client,Cms}SubModuleController`, `BrandingController`, models `Company` / `CompanyBranding`.
 Admin API responses: `{ success, message, data, meta? }`; paginated `meta.{current_page,last_page,total,...}`. With axios: `res.data.data`.
 
 `resources/js` + `resources/css` = old Vue/ERP leftovers (not in the Vite build).
