@@ -1,0 +1,21 @@
+{
+    "key": "whatsapp",
+    "name": "واتساب",
+    "description": "ربط المعرض بواتساب عبر WhatsApp Business Cloud API (Meta) أو Twilio: إشعارات الحجوزات بالقوالب المعتمدة، صندوق محادثات، ورد تلقائي بالمساعد الذكي.",
+    "version": "1.0.0",
+    "enabled": true,
+    "provider": "App\\Modules\\WhatsApp\\WhatsAppServiceProvider",
+    "admin": {
+        "path": "/admin/whatsapp",
+        "label": "واتساب"
+    },
+    "permissions": [
+        "manage-whatsapp"
+    ],
+    "dependencies": [
+        "sitekit/core:^1.0"
+    ],
+    "optional_dependencies": [
+        "ai-assistant"
+    ]
+}

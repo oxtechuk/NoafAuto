@@ -28,6 +28,7 @@ const ReportsPage = React.lazy(() => import('../pages/ReportsPage').then(m => ({
 const ModulesPage = React.lazy(() => import('../pages/ModulesPage').then(m => ({ default: m.ModulesPage })));
 const UpdatesPage = React.lazy(() => import('../pages/UpdatesPage').then(m => ({ default: m.UpdatesPage })));
 const AiAssistantPage = React.lazy(() => import('../pages/AiAssistantPage').then(m => ({ default: m.AiAssistantPage })));
+const WhatsAppPage = React.lazy(() => import('../pages/WhatsAppPage').then(m => ({ default: m.WhatsAppPage })));
 
 // Lazy Loaded Catalog Sub-Module Pages
 const BrandsPage = React.lazy(() => import('../pages/catalog/CatalogSubPages').then(m => ({ default: m.BrandsPage })));
@@ -481,6 +482,14 @@ export const AppRoutes: React.FC = () => {
                     element={
                         <Suspense fallback={<PageFallback />}>
                             <AiAssistantPage />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="whatsapp"
+                    element={
+                        <Suspense fallback={<PageFallback />}>
+                            <WhatsAppPage />
                         </Suspense>
                     }
                 />

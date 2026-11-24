@@ -53,15 +53,15 @@ final class BookingApiService
 
     private function sendWelcomeWhatsApp(Booking $booking, Car $car): void
     {
-        $template = Setting::where('key', 'whatsapp_template_new_lead')->value('value');
-
-        if (! empty($template) && ! empty($booking->client_phone)) {
-            $message = str_replace(
-                ['{customer_name}', '{car_name}', '{status}'],
-                [$booking->client_name, $car->name, 'جديد'],
-                $template,
-            );
-            $this->whatsAppService->sendWhatsApp($booking->client_phone, $message);
+        if (empty($booking->client_phone)) {
+            return;
         }
+
+        $template = (string) Setting::where('key', 'whatsapp_template_new_lead')->value('value');
+        $variables = ['customer_name' => (string) $booking->client_name, 'car_name' => (string) $car->name, 'status' => 'جديد'];
+        $message = strtr($template, ['{customer_name}' => $variables['customer_name'], '{car_name}' => $variables['car_name'], '{status}' => $variables['status']]);
+
+        // The WhatsApp module (when connected) may use its own text or an approved template for this event.
+        $this->whatsAppService->sendWhatsApp($booking->client_phone, $message, 'booking_created', $variables);
     }
 }

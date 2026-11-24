@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\WhatsAppGateway;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
 use Twilio\Rest\Client;
@@ -35,9 +36,26 @@ class TwilioWhatsAppService
         }
     }
 
-    public function sendWhatsApp($to, $message)
+    /**
+     * Send a WhatsApp message to a customer.
+     *
+     * When the WhatsApp module is connected (Meta Cloud API or Twilio), it handles the message:
+     * per-event on/off switch, approved templates, delivery tracking and the inbox.
+     * Otherwise the legacy Twilio settings are used, exactly as before.
+     *
+     * @param  string|null  $event  e.g. booking_created, booking_status_updated, campaign
+     * @param  array<string, string>  $variables  template placeholders
+     */
+    public function sendWhatsApp($to, $message, ?string $event = null, array $variables = [])
     {
-        if (! $this->enabled || ! $this->twilioWhatsAppNumber) {
+        if (app()->bound(WhatsAppGateway::class)) {
+            $gateway = app(WhatsAppGateway::class);
+            if ($gateway->isConfigured()) {
+                return $gateway->send((string) $to, (string) $message, $event, $variables);
+            }
+        }
+
+        if (! $this->enabled || ! $this->twilioWhatsAppNumber || trim((string) $message) === '') {
             return false;
         }
 

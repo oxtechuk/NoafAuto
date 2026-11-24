@@ -48,6 +48,7 @@ import {
     FolderX,
     RefreshCw,
     Bot,
+    MessageCircle,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -95,9 +96,10 @@ const AdminLayoutInner: React.FC = () => {
         staleTime: 1000 * 60 * 5,
         retry: false,
     });
-    const enabledModuleLinks: { path: string; label: string }[] = (Array.isArray(modules) ? modules : [])
+    const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = { 'ai-assistant': Bot, whatsapp: MessageCircle };
+    const enabledModuleLinks: { path: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = (Array.isArray(modules) ? modules : [])
         .filter((m: any) => m.enabled && m.admin?.path)
-        .map((m: any) => ({ path: m.admin.path, label: m.admin.label ?? m.name }));
+        .map((m: any) => ({ path: m.admin.path, label: m.admin.label ?? m.name, icon: MODULE_ICONS[m.key] ?? Blocks }));
     const { branding } = useBranding();
     const { safeMode, setSafeMode } = useThemeShield();
     const location = useLocation();
@@ -397,7 +399,7 @@ const AdminLayoutInner: React.FC = () => {
                                     }`
                                 }
                             >
-                                <Bot className="h-4 w-4 shrink-0" />
+                                <link.icon className="h-4 w-4 shrink-0" />
                                 <span>{link.label}</span>
                             </NavLink>
                         ))}

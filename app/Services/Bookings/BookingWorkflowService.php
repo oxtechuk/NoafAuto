@@ -356,19 +356,20 @@ class BookingWorkflowService
 
     private function sendStatusWhatsApp(Booking $booking, string $targetStatus): void
     {
-        $template = $this->cache->rememberSetting('whatsapp_template_status_update', '');
-
-        if (empty($template) || empty($booking->client_phone)) {
+        if (empty($booking->client_phone)) {
             return;
         }
 
-        $message = str_replace(
-            ['{customer_name}', '{car_name}', '{status}'],
-            [$booking->client_name, $booking->car?->name ?? 'السيارة', $this->label($targetStatus)],
-            $template,
-        );
+        $template = (string) $this->cache->rememberSetting('whatsapp_template_status_update', '');
+        $variables = [
+            'customer_name' => (string) $booking->client_name,
+            'car_name' => (string) ($booking->car?->name ?? 'السيارة'),
+            'status' => (string) $this->label($targetStatus),
+        ];
+        $message = strtr($template, ['{customer_name}' => $variables['customer_name'], '{car_name}' => $variables['car_name'], '{status}' => $variables['status']]);
 
-        app(TwilioWhatsAppService::class)->sendWhatsApp($booking->client_phone, $message);
+        // The WhatsApp module (when connected) may use its own text or an approved template for this event.
+        app(TwilioWhatsAppService::class)->sendWhatsApp($booking->client_phone, $message, 'booking_status_updated', $variables);
     }
 
     private function recordStatusChange(Booking $booking, Employee $actor, ?string $oldStatus, string $newStatus, string $note): void
