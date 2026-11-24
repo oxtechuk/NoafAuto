@@ -1,0 +1,18 @@
+{
+    "key": "ai-assistant",
+    "name": "المساعد الذكي",
+    "description": "مساعد ذكي عربي للمتجر: يبحث في سيارات المعرض، يقارن، يحسب الأقساط، ويرد على أسئلة المعرض. يعمل بمفتاح Gemini الخاص بكل معرض.",
+    "version": "1.0.0",
+    "enabled": true,
+    "provider": "App\\Modules\\AiAssistant\\AiAssistantServiceProvider",
+    "admin": {
+        "path": "/admin/ai-assistant",
+        "label": "المساعد الذكي"
+    },
+    "permissions": [
+        "manage-ai-assistant"
+    ],
+    "dependencies": [
+        "sitekit/core:^1.0"
+    ]
+}

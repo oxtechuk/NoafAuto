@@ -47,6 +47,7 @@ import {
     CheckCircle2,
     FolderX,
     RefreshCw,
+    Bot,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -85,6 +86,18 @@ const AdminLayoutInner: React.FC = () => {
         staleTime: 1000 * 60 * 30,
         retry: false,
     });
+
+    // Same query key as ModulesPage, so enabling/disabling a module updates the sidebar.
+    const { data: modules } = useQuery({
+        queryKey: ['admin', 'modules'],
+        queryFn: async () => (await apiClient.get('/modules')).data?.data,
+        enabled: isAdmin,
+        staleTime: 1000 * 60 * 5,
+        retry: false,
+    });
+    const enabledModuleLinks: { path: string; label: string }[] = (Array.isArray(modules) ? modules : [])
+        .filter((m: any) => m.enabled && m.admin?.path)
+        .map((m: any) => ({ path: m.admin.path, label: m.admin.label ?? m.name }));
     const { branding } = useBranding();
     const { safeMode, setSafeMode } = useThemeShield();
     const location = useLocation();
@@ -370,6 +383,24 @@ const AdminLayoutInner: React.FC = () => {
                             <Blocks className="h-4 w-4 shrink-0" />
                             <span>الموديولات والأنظمة</span>
                         </NavLink>
+
+                        {/* Pages of enabled modules (each module declares admin.path / admin.label in module.json) */}
+                        {enabledModuleLinks.map((link) => (
+                            <NavLink
+                                key={link.path}
+                                to={link.path}
+                                onClick={() => setSidebarOpen(false)}
+                                className={({ isActive }) =>
+                                    `flex items-center gap-2.5 px-3 py-2 mt-1 rounded-lg text-xs font-medium transition-colors ${isActive
+                                        ? 'bg-[var(--tenant-primary)] text-white shadow-xs font-semibold'
+                                        : 'text-slate-300 hover:text-white hover:bg-white/10'
+                                    }`
+                                }
+                            >
+                                <Bot className="h-4 w-4 shrink-0" />
+                                <span>{link.label}</span>
+                            </NavLink>
+                        ))}
                     </div>
                 </nav>
 

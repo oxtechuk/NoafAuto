@@ -11,6 +11,36 @@
 
 ---
 
+## ✅ اللي اتنفّذ (2026-11-24) — النسخة الأولى: Gemini بس
+
+**قرارات صاحب المشروع:**
+- **مساعد عربي.**
+- **كل معرض بيربط مفتاح Gemini بتاعه** من لوحة التحكم، والمفتاح مشفّر ومش بيوصل للمتصفح.
+- **Claude مش مطلوب دلوقتي.**
+- **أي قرار لسه ما اتحددش** بقى إعداد بقيمة افتراضية، وصاحب المعرض يغيّره من الإعدادات.
+
+| الجزء | المكان |
+|---|---|
+| الموديول (أول موديول حقيقي) | `app/Modules/AiAssistant` (`module.json`، ServiceProvider، routes، migrations) |
+| الإعدادات (كلها بقيم افتراضية) | `Services/AssistantSettings` + جدول `ai_assistant_settings` (المفتاح `encrypted`) |
+| Gemini | `Providers/GeminiProvider`: `generateContent` + function calling + إعادة `thoughtSignature` زي ما هي. الموديل الافتراضي `gemini-3.8-flash`، وقايمة الموديلات بتيجي من "اختبار الاتصال" |
+| الأدوات | `search_cars`، `get_car`، `compare_cars`، `calculate_installment` (بنوك الحاسبة + فحص الراتب)، `list_offers`، `get_showroom_info`، `create_lead` (بموافقة صريحة، والمصدر "المساعد الذكي") |
+| القواعد | تعليمات بتتبني من الإعدادات (المسموح والممنوع والقواعد ومعلومات المعرض)، وكلمات ممنوعة ترجّع رد جاهز من غير نداء، و`OutputGuard` للأرقام اللي مش من الأدوات، وحدود الجلسة والساعة واليوم، وجولات الأدوات |
+| المحادثات | `ai_conversations` و`ai_messages`، وأمر `ai-assistant:prune` يومي حسب مدة الاحتفاظ |
+| API | `GET/POST /api/v1/store/assistant/{config,chat}` و`/api/v1/modules/ai-assistant/{settings,test-connection,playground,conversations,stats}` |
+| لوحة التحكم | `/admin/ai-assistant`، فيها تابات: الربط، والشخصية، والمسموح والممنوع، ومعلومات المعرض، والأدوات والحدود، والتجربة، والمحادثات. ورابطها في الـ sidebar بيظهر لما الموديول يتفعّل |
+| المتجر (noauf) | `sitekit-sdk/assistant.ts` و`useAssistant.ts` (عامّين) + `components/assistant/AssistantWidget.tsx` و`AssistantCards.tsx`. الماسكوت في كل الصفحات والضغط عليه بيفتح الشات. ولو المساعد مش متفعّل، بتظهر الفقاعة الأصلية |
+| الاختبارات | `tests/Feature/Modules/AiAssistantTest.php` (14 اختبار بمزوّد وهمي، ومعاهم اختبار لشكل طلب Gemini الحقيقي) |
+
+**التشغيل:** لوحة التحكم ← المساعد الذكي ← الربط: تحط مفتاح Gemini، وتضغط "اختبار الاتصال"، وبعدها "حفظ". وتملا "معلومات المعرض". **الماسكوت في المتجر بيبقى شات على طول.**
+
+**لسه:**
+- **Streaming:** الرد بيظهر كامل، مش وهو بيتكتب.
+- **التقارير:** تقارير تفصيلية لأكتر الأسئلة.
+- **مجموعة تقييم (eval):** على المفتاح الحقيقي.
+
+---
+
 ## 0. القرارات الأساسية (مقترحة)
 
 | القرار | الاختيار | السبب |

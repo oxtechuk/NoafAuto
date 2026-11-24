@@ -27,6 +27,7 @@ const SettingsPage = React.lazy(() => import('../pages/SettingsPage').then(m => 
 const ReportsPage = React.lazy(() => import('../pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
 const ModulesPage = React.lazy(() => import('../pages/ModulesPage').then(m => ({ default: m.ModulesPage })));
 const UpdatesPage = React.lazy(() => import('../pages/UpdatesPage').then(m => ({ default: m.UpdatesPage })));
+const AiAssistantPage = React.lazy(() => import('../pages/AiAssistantPage').then(m => ({ default: m.AiAssistantPage })));
 
 // Lazy Loaded Catalog Sub-Module Pages
 const BrandsPage = React.lazy(() => import('../pages/catalog/CatalogSubPages').then(m => ({ default: m.BrandsPage })));
@@ -472,6 +473,14 @@ export const AppRoutes: React.FC = () => {
                     element={
                         <Suspense fallback={<PageFallback />}>
                             <UpdatesPage />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="ai-assistant"
+                    element={
+                        <Suspense fallback={<PageFallback />}>
+                            <AiAssistantPage />
                         </Suspense>
                     }
                 />
