@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Check, ShieldCheck, CheckSquare, Square } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Search, Check, ShieldCheck, Plus, Loader2 } from 'lucide-react';
 
 export interface ChecklistItem {
     id: number;
@@ -13,6 +14,7 @@ export interface ChecklistSelectorProps {
     items: ChecklistItem[];
     selectedIds: number[];
     onChange: (ids: number[]) => void;
+    onQuickCreate?: (nameAr: string) => Promise<void>;
     icon?: React.ReactNode;
     className?: string;
 }
@@ -23,10 +25,14 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({
     items,
     selectedIds,
     onChange,
+    onQuickCreate,
     icon,
     className = '',
 }) => {
+    const { t } = useTranslation('admin');
     const [search, setSearch] = useState('');
+    const [quickName, setQuickName] = useState('');
+    const [creating, setCreating] = useState(false);
 
     const filtered = items.filter((item) =>
         item.name.toLowerCase().includes(search.toLowerCase().trim())
@@ -50,6 +56,19 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({
         onChange(selectedIds.filter((id) => !filteredIds.has(id)));
     };
 
+    const handleQuickAdd = async (nameToCreate?: string) => {
+        const val = (nameToCreate ?? quickName).trim();
+        if (!onQuickCreate || !val) return;
+        setCreating(true);
+        try {
+            await onQuickCreate(val);
+            setQuickName('');
+            setSearch('');
+        } finally {
+            setCreating(false);
+        }
+    };
+
     return (
         <div className={`space-y-3 ${className}`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -58,7 +77,7 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({
                         {icon ?? <ShieldCheck className="h-4 w-4 text-[var(--tenant-primary)]" />}
                         {title}
                         <span className="ms-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--tenant-primary)]/10 text-[var(--tenant-primary)]">
-                            {selectedIds.length} محدد
+                            {t('common.selected_count', { count: selectedIds.length })}
                         </span>
                     </h4>
                     {description && (
@@ -72,7 +91,7 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({
                         onClick={handleSelectAll}
                         className="text-[11px] text-[var(--tenant-primary)] hover:underline font-medium"
                     >
-                        تحديد الكل
+                        {t('common.select_all')}
                     </button>
                     <span className="text-[var(--border-default)]">|</span>
                     <button
@@ -80,33 +99,72 @@ export const ChecklistSelector: React.FC<ChecklistSelectorProps> = ({
                         onClick={handleClearAll}
                         className="text-[11px] text-[var(--text-muted)] hover:text-[var(--status-danger)] transition-colors"
                     >
-                        إلغاء التحديد
+                        {t('common.clear_selection')}
                     </button>
                 </div>
             </div>
 
-            {/* Quick search input */}
-            {items.length > 8 && (
-                <div className="relative">
-                    <Search className="absolute start-3 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder={`بحث في ${title}...`}
-                        className="w-full ps-8 pe-3 py-1.5 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
-                    />
-                </div>
-            )}
+            {/* Quick search & Quick create bar */}
+            <div className="flex flex-col sm:flex-row gap-2">
+                {items.length > 0 && (
+                    <div className="relative flex-1">
+                        <Search className="absolute start-3 top-2.5 h-3.5 w-3.5 text-[var(--text-muted)]" />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder={t('shared.search_in', { title })}
+                            className="w-full ps-8 pe-3 py-1.5 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
+                        />
+                    </div>
+                )}
+                {onQuickCreate && (
+                    <div className="flex items-center gap-1.5 sm:w-64">
+                        <input
+                            type="text"
+                            value={quickName}
+                            onChange={(e) => setQuickName(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleQuickAdd();
+                                }
+                            }}
+                            placeholder={t('shared.quick_add_item')}
+                            className="flex-1 px-2.5 py-1.5 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
+                        />
+                        <button
+                            type="button"
+                            disabled={creating || !quickName.trim()}
+                            onClick={() => handleQuickAdd()}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-[var(--radius-md)] bg-[var(--tenant-primary)] text-white disabled:opacity-50 shrink-0"
+                        >
+                            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                            {t('common.add')}
+                        </button>
+                    </div>
+                )}
+            </div>
 
             {/* Items Grid */}
             {items.length === 0 ? (
                 <div className="p-4 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-secondary)]/30 text-center text-xs text-[var(--text-muted)]">
-                    لا توجد عناصر مسجلة في هذا القسم.
+                    {t('shared.empty_section')}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="p-4 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-secondary)]/30 text-center text-xs text-[var(--text-muted)]">
-                    لا توجد نتائج تطابق البحث.
+                <div className="p-4 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-secondary)]/30 text-center text-xs text-[var(--text-muted)] space-y-2">
+                    <p>{t('common.no_results')}</p>
+                    {onQuickCreate && search.trim() && (
+                        <button
+                            type="button"
+                            disabled={creating}
+                            onClick={() => handleQuickAdd(search.trim())}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-[var(--radius-md)] bg-[var(--tenant-primary)]/10 text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/20"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            {t('shared.create_and_select', { name: search.trim() })}
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto p-1">

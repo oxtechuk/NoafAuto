@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { switchAdminLanguage } from '../../i18n';
 import { Button } from '../../shared/components/ui/Button';
 import { Input } from '../../shared/components/ui/Input';
 import { LogIn } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
+    const { t, i18n } = useTranslation('admin');
+    const isEn = i18n.language === 'en';
     const { login } = useAuth();
     const navigate = useNavigate();
 
@@ -23,7 +27,7 @@ export const LoginPage: React.FC = () => {
             await login({ username, password });
             navigate('/admin');
         } catch (err: any) {
-            setError(err.response?.data?.message || 'بيانات الدخول غير صحيحة، يرجى المحاولة مجدداً');
+            setError(err.response?.data?.message || t('login.error_invalid'));
         } finally {
             setLoading(false);
         }
@@ -46,10 +50,10 @@ export const LoginPage: React.FC = () => {
     const hasCustomSetting = adminSettings.has_title_setting;
     const title = hasCustomSetting
         ? (adminSettings.login_title?.trim() || null)
-        : 'نظام إدارة تعميد CRM';
+        : t('login.default_title');
     const subtitle = hasCustomSetting
         ? (adminSettings.login_subtitle?.trim() || null)
-        : 'سجل الدخول للمتابعة وإدارة العمليات اليومية';
+        : t('login.default_subtitle');
     const hasText = Boolean(title || subtitle);
 
     return (
@@ -59,8 +63,17 @@ export const LoginPage: React.FC = () => {
                 backgroundImage: bgImage ? `url(${bgImage})` : undefined,
                 backgroundColor: !bgImage ? 'var(--tenant-sidebar-bg)' : undefined,
             }}
-            dir="rtl"
+            dir={isEn ? 'ltr' : 'rtl'}
         >
+            {/* Language Switcher on Login */}
+            <button
+                type="button"
+                onClick={() => switchAdminLanguage(isEn ? 'ar' : 'en')}
+                className="fixed top-4 end-4 z-20 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 hover:bg-white text-slate-800 text-xs font-semibold shadow-md transition-all"
+            >
+                <span className="text-base leading-none">{isEn ? '🇸🇦' : '🇺🇸'}</span>
+                <span>{isEn ? 'العربية' : 'English'}</span>
+            </button>
             {/* Dark blur overlay when custom background image is applied */}
             {bgImage && (
                 <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" />
@@ -70,7 +83,7 @@ export const LoginPage: React.FC = () => {
                 <div className="p-8 text-center bg-[var(--tenant-primary)] text-white transition-all">
                     <img
                         src={logoSrc}
-                        alt="شعار لوحة التحكم"
+                        alt={t('login.logo_alt')}
                         className={`${hasText ? 'h-20 max-h-20' : 'h-28 max-h-28'} w-auto mx-auto ${hasText ? 'mb-4' : 'mb-2'} object-contain drop-shadow-md transition-all`}
                         onError={(e) => {
                             const target = e.currentTarget;
@@ -95,16 +108,16 @@ export const LoginPage: React.FC = () => {
                     )}
 
                     <Input
-                        label="اسم المستخدم أو البريد الإلكتروني"
+                        label={t('login.username_label')}
                         type="text"
-                        placeholder="ادخل اسم المستخدم"
+                        placeholder={t('login.username_placeholder')}
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         required
                     />
 
                     <Input
-                        label="كلمة المرور"
+                        label={t('login.password_label')}
                         type="password"
                         placeholder="••••••••"
                         value={password}
@@ -114,7 +127,7 @@ export const LoginPage: React.FC = () => {
 
                     <Button type="submit" variant="primary" loading={loading} className="w-full mt-2">
                         <LogIn className="h-4 w-4 me-2" />
-                        تسجيل الدخول
+                        {t('login.submit')}
                     </Button>
                 </form>
             </div>

@@ -18,8 +18,11 @@ class CarResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $rawThumb = $this->getRawOriginal('thumbnail');
         $thumbnail = $this->thumbnail;
-        if ($thumbnail && preg_match('#https?://[^/]+/(images/[^\s]+)#', $thumbnail, $m)) {
+        if (! $thumbnail || $this->isImageDeleted($rawThumb)) {
+            $thumbnail = $this->main_image;
+        } elseif (preg_match('#https?://[^/]+/(images/[^\s]+)#', $thumbnail, $m)) {
             $thumbnail = '/'.$m[1];
         }
 
@@ -46,6 +49,7 @@ class CarResource extends JsonResource
             'features_text' => $this->getTranslation('features', app()->getLocale(), false) ?: $this->features,
             'features_translations' => $this->getTranslations('features'),
             'thumbnail' => $thumbnail,
+            'main_image' => $this->main_image,
             'badge_color' => $this->badge_color,
             'is_featured' => (bool) $this->is_featured,
             'is_active' => (bool) $this->is_active,

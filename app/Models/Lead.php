@@ -81,6 +81,11 @@ class Lead extends Model
         return $this->hasMany(Booking::class, 'client_phone', 'client_phone');
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(LeadNote::class)->latest('id');
+    }
+
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'assigned_to');

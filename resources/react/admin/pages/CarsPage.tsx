@@ -1,6 +1,7 @@
 import React, { useState, useId } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
     Car as CarIcon,
     Plus,
@@ -58,6 +59,8 @@ interface CarItem {
     car_model?: { id: number; name: string };
 }
 
+const DEFAULT_CAR_FALLBACK = '/storage/settings/tjJk5THeSKGpLVocAHCqqSvhy9S055LxICF8iXEU.webp';
+
 const resolveImgSrc = (url?: string): string => {
     if (!url) return '';
     if (url.startsWith('http://localhost/') || url.startsWith('http://127.0.0.1:8000/')) {
@@ -70,6 +73,10 @@ const resolveImgSrc = (url?: string): string => {
 };
 
 export const CarsPage: React.FC = () => {
+    const { t, i18n } = useTranslation('admin');
+    const isEn = i18n.language === 'en';
+    const localizedCarName = (car: CarItem) =>
+        isEn ? (car.name_translations?.en || car.name) : (car.name_translations?.ar || car.name);
     const { can } = useAuth();
     const canManage = can('manage-cars') || true;
     const navigate = useNavigate();
@@ -86,6 +93,19 @@ export const CarsPage: React.FC = () => {
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
     const [page, setPage] = useState(1);
     const debouncedSearch = useDebouncedValue(search, 300);
+
+    const { data: settingsData } = useQuery({
+        queryKey: ['admin', 'settings'],
+        queryFn: async () => {
+            const res = await apiClient.get<any>('/settings');
+            return res.data?.data || res.data || {};
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const defaultCarImg = settingsData?.default_car_image
+        ? (settingsData.default_car_image.startsWith('/') ? settingsData.default_car_image : `/storage/${settingsData.default_car_image}`)
+        : DEFAULT_CAR_FALLBACK;
 
     const { data: metaOptions } = useQuery({
         queryKey: ['admin', 'cars', 'meta-options'],
@@ -197,10 +217,10 @@ export const CarsPage: React.FC = () => {
                 <div>
                     <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
                         <CarIcon className="h-6 w-6 text-[var(--tenant-primary)]" />
-                        كتالوج السيارات
+                        {t('cars.title')}
                     </h1>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                        إدارة أسطول ومعروضات السيارات وتحديث الأسعار والأقساط الشهرية ({total} سيارة مسجلة)
+                        {t('cars.subtitle', { count: total })}
                     </p>
                 </div>
                 {canManage && (
@@ -210,7 +230,7 @@ export const CarsPage: React.FC = () => {
                         className="flex items-center gap-2"
                     >
                         <Plus className="h-4 w-4" />
-                        إضافة سيارة جديدة
+                        {t('cars.add_car')}
                     </Button>
                 )}
             </div>
@@ -227,13 +247,13 @@ export const CarsPage: React.FC = () => {
                                 setSearch(e.target.value);
                                 setPage(1);
                             }}
-                            placeholder="بحث باسم السيارة أو الموديل..."
+                            placeholder={t('cars.search_ph')}
                             className="w-full ps-9 pe-3 py-1.5 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         />
                     </div>
 
                     <div className="sm:col-span-2">
-                        <label htmlFor={brandSelectId} className="sr-only">الماركة</label>
+                        <label htmlFor={brandSelectId} className="sr-only">{t('car_form.brand')}</label>
                         <select
                             id={brandSelectId}
                             value={selectedBrand}
@@ -243,7 +263,7 @@ export const CarsPage: React.FC = () => {
                             }}
                             className="w-full py-1.5 px-3 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         >
-                            <option value="all">كل الماركات</option>
+                            <option value="all">{t('cars.all_brands')}</option>
                             {brands.map((b) => (
                                 <option key={b.id} value={b.id}>
                                     {b.name}
@@ -253,7 +273,7 @@ export const CarsPage: React.FC = () => {
                     </div>
 
                     <div className="sm:col-span-2">
-                        <label htmlFor={categorySelectId} className="sr-only">التصنيف</label>
+                        <label htmlFor={categorySelectId} className="sr-only">{t('car_form.category')}</label>
                         <select
                             id={categorySelectId}
                             value={selectedCategory}
@@ -263,7 +283,7 @@ export const CarsPage: React.FC = () => {
                             }}
                             className="w-full py-1.5 px-3 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         >
-                            <option value="all">كل التصنيفات</option>
+                            <option value="all">{t('cars.all_categories')}</option>
                             {categories.map((c) => (
                                 <option key={c.id} value={c.id}>
                                     {c.name}
@@ -273,7 +293,7 @@ export const CarsPage: React.FC = () => {
                     </div>
 
                     <div className="sm:col-span-2">
-                        <label htmlFor={statusSelectId} className="sr-only">حالة العرض</label>
+                        <label htmlFor={statusSelectId} className="sr-only">{t('common.status')}</label>
                         <select
                             id={statusSelectId}
                             value={selectedStatus}
@@ -283,9 +303,9 @@ export const CarsPage: React.FC = () => {
                             }}
                             className="w-full py-1.5 px-3 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
                         >
-                            <option value="all">جميع الحالات</option>
-                            <option value="active">مفعلة بالموقع</option>
-                            <option value="inactive">معطلة / مخفية</option>
+                            <option value="all">{t('cars.all_statuses')}</option>
+                            <option value="active">{t('cars.active_only')}</option>
+                            <option value="inactive">{t('cars.inactive_only')}</option>
                         </select>
                     </div>
 
@@ -300,7 +320,7 @@ export const CarsPage: React.FC = () => {
                                         ? 'bg-[var(--surface-primary)] text-[var(--tenant-primary)] shadow-2xs'
                                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                 }`}
-                                title="عرض كروت"
+                                title={t('cars.grid_view')}
                             >
                                 <LayoutGrid className="h-4 w-4" />
                             </button>
@@ -312,7 +332,7 @@ export const CarsPage: React.FC = () => {
                                         ? 'bg-[var(--surface-primary)] text-[var(--tenant-primary)] shadow-2xs'
                                         : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                                 }`}
-                                title="عرض جدول"
+                                title={t('cars.table_view')}
                             >
                                 <List className="h-4 w-4" />
                             </button>
@@ -328,7 +348,7 @@ export const CarsPage: React.FC = () => {
                                 setSelectedStatus('all');
                                 setPage(1);
                             }}
-                            title="إعادة تعيين الفلاتر"
+                            title={t('cars.reset_filters')}
                         >
                             <RefreshCw className="h-4 w-4" />
                         </Button>
@@ -346,9 +366,9 @@ export const CarsPage: React.FC = () => {
             ) : cars.length === 0 ? (
                 <Card className="text-center py-16">
                     <CarIcon className="h-12 w-12 text-[var(--text-muted)] mx-auto mb-3 opacity-40" />
-                    <h3 className="text-sm font-semibold text-[var(--text-secondary)]">لا توجد سيارات مطابقة</h3>
+                    <h3 className="text-sm font-semibold text-[var(--text-secondary)]">{t('cars.no_cars')}</h3>
                     <p className="text-xs text-[var(--text-muted)] mt-1">
-                        جرب تغيير معايير البحث أو إضافة سيارة جديدة للكتالوج
+                        {t('cars.no_cars_hint')}
                     </p>
                 </Card>
             ) : viewMode === 'grid' ? (
@@ -361,36 +381,36 @@ export const CarsPage: React.FC = () => {
                         >
                             {/* Card Media Header */}
                             <div className="relative h-44 bg-[var(--surface-secondary)] flex items-center justify-center overflow-hidden group">
-                                {car.thumbnail ? (
-                                    <img
-                                        src={resolveImgSrc(car.thumbnail)}
-                                        alt={car.name}
-                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                        }}
-                                    />
-                                ) : (
-                                    <CarIcon className="h-14 w-14 text-[var(--text-muted)] opacity-30" />
-                                )}
+                                <img
+                                    src={car.thumbnail ? resolveImgSrc(car.thumbnail) : defaultCarImg}
+                                    alt={car.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    onError={(e) => {
+                                        const target = e.currentTarget;
+                                        if (target.src !== defaultCarImg && !target.dataset.fallback) {
+                                            target.dataset.fallback = 'true';
+                                            target.src = defaultCarImg;
+                                        }
+                                    }}
+                                />
 
                                 {/* Top Badges */}
                                 <div className="absolute top-2 start-2 flex items-center gap-1.5">
                                     {car.is_featured && (
                                         <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                                            <Star className="h-3 w-3 fill-current" /> مميزة
+                                            <Star className="h-3 w-3 fill-current" /> {t('cars.featured')}
                                         </span>
                                     )}
                                     {car.is_highlighted && car.is_highlighted !== 'none' && (
                                         <span className="bg-[var(--tenant-primary)] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                                            <Sparkles className="h-3 w-3" /> عرض خاص
+                                            <Sparkles className="h-3 w-3" /> {t('cars.special_offer')}
                                         </span>
                                     )}
                                 </div>
 
                                 <div className="absolute top-2 end-2">
                                     <Badge variant={car.is_active ? 'primary' : 'neutral'}>
-                                        {car.is_active ? 'معروضة' : 'مخفية'}
+                                        {car.is_active ? t('cars.shown') : t('cars.hidden')}
                                     </Badge>
                                 </div>
 
@@ -403,26 +423,26 @@ export const CarsPage: React.FC = () => {
                             <div className="p-4 flex-1 flex flex-col justify-between">
                                 <div>
                                     <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mb-1">
-                                        <span>{car.brand?.name || 'ماركة غير محددة'}</span>
+                                        <span>{car.brand?.name || t('cars.unassigned_brand')}</span>
                                         {car.category && <span>{car.category.name}</span>}
                                     </div>
                                     <h3 className="font-bold text-[var(--text-primary)] text-sm line-clamp-1 mb-2">
-                                        {car.name}
+                                        {localizedCarName(car)}
                                     </h3>
 
                                     {/* Pricing breakdown */}
                                     <div className="bg-[var(--surface-secondary)] rounded-[var(--radius-md)] p-2.5 space-y-1 mb-3">
                                         <div className="flex items-center justify-between text-xs">
-                                            <span className="text-[var(--text-secondary)]">سعر الكاش:</span>
+                                            <span className="text-[var(--text-secondary)]">{t('cars.cash_price')}:</span>
                                             <span className="font-bold text-[var(--text-primary)]">
-                                                {Number(car.cash_price).toLocaleString()} ر.س
+                                                {Number(car.cash_price).toLocaleString()} {t('common.sar')}
                                             </span>
                                         </div>
                                         {Number(car.min_installment) > 0 && (
                                             <div className="flex items-center justify-between text-xs">
-                                                <span className="text-[var(--text-secondary)]">القسط الشهري:</span>
+                                                <span className="text-[var(--text-secondary)]">{t('cars.col_installment')}:</span>
                                                 <span className="font-bold text-[var(--status-success)]">
-                                                    {Number(car.min_installment).toLocaleString()} ر.س
+                                                    {Number(car.min_installment).toLocaleString()} {t('common.sar')}
                                                 </span>
                                             </div>
                                         )}
@@ -441,7 +461,7 @@ export const CarsPage: React.FC = () => {
                                                     : 'text-[var(--status-success)] hover:underline'
                                             }`}
                                         >
-                                            {car.is_active ? 'تعطيل' : 'تفعيل'}
+                                            {car.is_active ? t('cars.disable') : t('cars.enable')}
                                         </button>
                                         <button
                                             type="button"
@@ -451,7 +471,7 @@ export const CarsPage: React.FC = () => {
                                                     ? 'text-amber-500 hover:text-slate-400'
                                                     : 'text-[var(--text-muted)] hover:text-amber-500'
                                             }`}
-                                            title="تبديل التمييز"
+                                            title={t('cars.toggle_featured')}
                                         >
                                             <Star className="h-4 w-4 fill-current" />
                                         </button>
@@ -464,7 +484,7 @@ export const CarsPage: React.FC = () => {
                                                 target="_blank"
                                                 rel="noreferrer"
                                                 className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--tenant-primary)] hover:bg-[var(--surface-secondary)]"
-                                                title="معاينة في المتجر"
+                                                title={t('cars.preview_store')}
                                             >
                                                 <ExternalLink className="h-4 w-4" />
                                             </a>
@@ -472,7 +492,7 @@ export const CarsPage: React.FC = () => {
                                         <Link
                                             to={`/admin/cars/${car.id}/edit`}
                                             className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--tenant-primary)] hover:bg-[var(--surface-secondary)]"
-                                            title="تعديل السيارة"
+                                            title={t('cars.edit_car')}
                                         >
                                             <Edit3 className="h-4 w-4" />
                                         </Link>
@@ -480,7 +500,7 @@ export const CarsPage: React.FC = () => {
                                             type="button"
                                             onClick={() => handleDeleteCar(car.id)}
                                             className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--status-danger)] hover:bg-[var(--status-danger-bg)]"
-                                            title="حذف السيارة"
+                                            title={t('cars.delete_car')}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </button>
@@ -497,13 +517,13 @@ export const CarsPage: React.FC = () => {
                         <table className="w-full text-start text-xs">
                             <thead className="bg-[var(--surface-secondary)] text-[var(--text-secondary)] font-semibold border-b border-[var(--border-default)]">
                                 <tr>
-                                    <th className="py-3 px-4 text-start">السيارة</th>
-                                    <th className="py-3 px-4 text-start">الماركة / الفئة</th>
-                                    <th className="py-3 px-4 text-start">سنة الصنع</th>
-                                    <th className="py-3 px-4 text-start">سعر الكاش</th>
-                                    <th className="py-3 px-4 text-start">القسط الشهري</th>
-                                    <th className="py-3 px-4 text-start">الحالة</th>
-                                    <th className="py-3 px-4 text-center">إجراءات</th>
+                                    <th className="py-3 px-4 text-start">{t('cars.col_car')}</th>
+                                    <th className="py-3 px-4 text-start">{t('cars.col_brand_cat')}</th>
+                                    <th className="py-3 px-4 text-start">{t('cars.col_year')}</th>
+                                    <th className="py-3 px-4 text-start">{t('cars.col_cash')}</th>
+                                    <th className="py-3 px-4 text-start">{t('cars.col_installment')}</th>
+                                    <th className="py-3 px-4 text-start">{t('common.status')}</th>
+                                    <th className="py-3 px-4 text-center">{t('common.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--border-default)] text-[var(--text-secondary)]">
@@ -512,20 +532,20 @@ export const CarsPage: React.FC = () => {
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="h-10 w-14 rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-secondary)] shrink-0 border border-[var(--border-default)]">
-                                                    {car.thumbnail ? (
-                                                        <img
-                                                            src={resolveImgSrc(car.thumbnail)}
-                                                            alt={car.name}
-                                                            className="w-full h-full object-cover"
-                                                            onError={(e) => {
-                                                                e.currentTarget.style.display = 'none';
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <CarIcon className="h-5 w-5 text-[var(--text-muted)] m-auto mt-2.5 opacity-40" />
-                                                    )}
+                                                    <img
+                                                        src={car.thumbnail ? resolveImgSrc(car.thumbnail) : defaultCarImg}
+                                                        alt={car.name}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            const target = e.currentTarget;
+                                                            if (target.src !== defaultCarImg && !target.dataset.fallback) {
+                                                                target.dataset.fallback = 'true';
+                                                                target.src = defaultCarImg;
+                                                            }
+                                                        }}
+                                                    />
                                                 </div>
-                                                <span className="font-semibold text-[var(--text-primary)]">{car.name}</span>
+                                                <span className="font-semibold text-[var(--text-primary)]">{localizedCarName(car)}</span>
                                             </div>
                                         </td>
                                         <td className="py-3 px-4">
@@ -534,14 +554,14 @@ export const CarsPage: React.FC = () => {
                                         </td>
                                         <td className="py-3 px-4 font-mono">{car.year}</td>
                                         <td className="py-3 px-4 font-semibold text-[var(--text-primary)]">
-                                            {Number(car.cash_price).toLocaleString()} ر.س
+                                            {Number(car.cash_price).toLocaleString()} {t('common.sar')}
                                         </td>
                                         <td className="py-3 px-4 font-semibold text-[var(--status-success)]">
-                                            {Number(car.min_installment) > 0 ? `${Number(car.min_installment).toLocaleString()} ر.س` : '-'}
+                                            {Number(car.min_installment) > 0 ? `${Number(car.min_installment).toLocaleString()} ${t('common.sar')}` : '-'}
                                         </td>
                                         <td className="py-3 px-4">
                                             <Badge variant={car.is_active ? 'primary' : 'neutral'}>
-                                                {car.is_active ? 'معروضة' : 'مخفية'}
+                                                {car.is_active ? t('cars.shown') : t('cars.hidden')}
                                             </Badge>
                                         </td>
                                         <td className="py-3 px-4 text-center">
@@ -549,7 +569,7 @@ export const CarsPage: React.FC = () => {
                                                 <Link
                                                     to={`/admin/cars/${car.id}/edit`}
                                                     className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--tenant-primary)] hover:bg-[var(--surface-secondary)]"
-                                                    title="تعديل"
+                                                    title={t('common.edit')}
                                                 >
                                                     <Edit3 className="h-4 w-4" />
                                                 </Link>
@@ -557,7 +577,7 @@ export const CarsPage: React.FC = () => {
                                                     type="button"
                                                     onClick={() => handleDeleteCar(car.id)}
                                                     className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--status-danger)] hover:bg-[var(--status-danger-bg)]"
-                                                    title="حذف"
+                                                    title={t('common.delete')}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>

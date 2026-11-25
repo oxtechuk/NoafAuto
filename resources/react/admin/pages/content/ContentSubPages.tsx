@@ -1,58 +1,21 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
-
-// 1. Blog Posts Page
-export const BlogPostsPage: React.FC = () => {
-    return (
-        <CrudTableManager
-            title="مقالات المدونة"
-            subtitle="إدارة مقالات وأخبار المعرض ومحتوى الـ SEO"
-            endpoint="/api/v1/content/blogs"
-            columns={[
-                { key: 'image', title: 'صورة المقال', type: 'image' },
-                { key: 'title', title: 'عنوان المقال' },
-                {
-                    key: 'category',
-                    title: 'التصنيف',
-                    render: (val, row) => (
-                        <span className="text-slate-600 font-medium">
-                            {formatLocaleString(row.category?.name)}
-                        </span>
-                    ),
-                },
-                {
-                    key: 'created_at',
-                    title: 'تاريخ النشر',
-                    render: (val) => (
-                        <span className="text-[11px] text-slate-500">
-                            {val ? new Date(val).toLocaleDateString('ar-SA') : '-'}
-                        </span>
-                    ),
-                },
-                { key: 'is_published', title: 'حالة النشر', type: 'boolean' },
-            ]}
-            formFields={[
-                { name: 'title', label: 'عنوان المقال', type: 'text', required: true, multilingual: true },
-                { name: 'content', label: 'محتوى المقال', type: 'textarea', required: true, multilingual: true },
-                { name: 'image', label: 'صورة المقال البارزة', type: 'file' },
-                { name: 'is_published', label: 'نشر المقال فوراً', type: 'switch' },
-            ]}
-        />
-    );
-};
+export { BlogPostsPage } from './BlogPostsPage';
 
 // 2. Blog Categories Page
 export const BlogCategoriesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="تصنيفات المدونة"
-            subtitle="إدارة أقسام وتصنيفات مقالات المدونة"
+            title={t('content.blog_cats_title')}
+            subtitle={t('content.blog_cats_sub')}
             endpoint="/api/v1/content/blog-categories"
             columns={[
-                { key: 'name', title: 'اسم التصنيف' },
+                { key: 'name', title: t('content.category_name') },
                 {
                     key: 'posts_count',
-                    title: 'عدد المقالات',
+                    title: t('content.posts_count'),
                     render: (val) => (
                         <span className="font-bold text-[var(--tenant-primary)]">
                             {val ?? 0}
@@ -61,7 +24,7 @@ export const BlogCategoriesPage: React.FC = () => {
                 },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم التصنيف', type: 'text', required: true, multilingual: true },
+                { name: 'name', label: t('content.category_name'), type: 'text', required: true, multilingual: true },
             ]}
         />
     );
@@ -69,17 +32,18 @@ export const BlogCategoriesPage: React.FC = () => {
 
 // 3. Partners Page
 export const PartnersPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="شركاء النجاح والتمويل"
-            subtitle="إدارة شعارات البنوك وشركات التمويل والوكلاء المعروضة بالموقع"
+            title={t('content.partners_title')}
+            subtitle={t('content.partners_sub')}
             endpoint="/api/v1/content/partners"
             columns={[
-                { key: 'image', title: 'الشعار', type: 'image' },
-                { key: 'name', title: 'اسم الشريك' },
+                { key: 'image', title: t('content.logo'), type: 'image' },
+                { key: 'name', title: t('content.partner_name') },
                 {
                     key: 'link',
-                    title: 'الرابط',
+                    title: t('content.link'),
                     render: (val) => (
                         val ? (
                             <a
@@ -97,10 +61,10 @@ export const PartnersPage: React.FC = () => {
                 },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم الشريك', type: 'text', required: true },
-                { name: 'image', label: 'شعار الشريك', type: 'file', required: true },
-                { name: 'link', label: 'رابط الموقع الرسمي', type: 'text', placeholder: 'https://...' },
-                { name: 'sort_order', label: 'الترتيب', type: 'number', placeholder: '0' },
+                { name: 'name', label: t('content.partner_name'), type: 'text', required: true },
+                { name: 'image', label: t('content.partner_logo'), type: 'file', required: true },
+                { name: 'link', label: t('content.official_url'), type: 'text', placeholder: 'https://...' },
+                { name: 'sort_order', label: t('content.sort_order'), type: 'number', placeholder: '0' },
             ]}
         />
     );
@@ -108,16 +72,17 @@ export const PartnersPage: React.FC = () => {
 
 // 4. Testimonials Page
 export const TestimonialsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="آراء وتقييمات العملاء"
-            subtitle="إدارة المراجعات وتجارب المشترين المعروضة في الصفحة الرئيسية"
+            title={t('content.testimonials_title')}
+            subtitle={t('content.testimonials_sub')}
             endpoint="/api/v1/content/testimonials"
             columns={[
-                { key: 'name', title: 'اسم العميل' },
+                { key: 'name', title: t('content.client_name') },
                 {
                     key: 'rating',
-                    title: 'التقييم',
+                    title: t('content.rating'),
                     render: (val) => (
                         <span className="text-amber-500 font-bold">
                             {'★'.repeat(val || 5)}
@@ -126,20 +91,20 @@ export const TestimonialsPage: React.FC = () => {
                 },
                 {
                     key: 'content',
-                    title: 'نص الرأي',
+                    title: t('content.review_text'),
                     render: (val) => (
                         <p className="text-xs text-slate-600 line-clamp-2 max-w-sm">
                             {val}
                         </p>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم العميل', type: 'text', required: true },
-                { name: 'rating', label: 'التقييم من 5', type: 'number', placeholder: '5' },
-                { name: 'content', label: 'نص التقييم / التجربة', type: 'textarea', required: true },
-                { name: 'is_active', label: 'معروض بالموقع', type: 'switch' },
+                { name: 'name', label: t('content.client_name'), type: 'text', required: true },
+                { name: 'rating', label: t('content.rating_of_5'), type: 'number', placeholder: '5' },
+                { name: 'content', label: t('content.review_text'), type: 'textarea', required: true },
+                { name: 'is_active', label: t('content.shown_on_site'), type: 'switch' },
             ]}
         />
     );
@@ -147,28 +112,29 @@ export const TestimonialsPage: React.FC = () => {
 
 // 5. FAQs Page
 export const FaqsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="الأسئلة الشائعة (FAQ)"
-            subtitle="إدارة بنك الأسئلة المتكررة وأجوبتها لزوار الموقع"
+            title={t('content.faqs_title')}
+            subtitle={t('content.faqs_sub')}
             endpoint="/api/v1/content/faqs"
             columns={[
-                { key: 'question', title: 'السؤال' },
+                { key: 'question', title: t('content.question') },
                 {
                     key: 'answer',
-                    title: 'الإجابة',
+                    title: t('content.answer'),
                     render: (val) => (
                         <p className="text-xs text-slate-600 line-clamp-2 max-w-sm">
                             {typeof val === 'object' ? val.ar || val.en : val}
                         </p>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'question', label: 'السؤال', type: 'text', required: true, multilingual: true },
-                { name: 'answer', label: 'الإجابة الشاملة', type: 'textarea', required: true, multilingual: true },
-                { name: 'is_active', label: 'مفعل', type: 'switch' },
+                { name: 'question', label: t('content.question'), type: 'text', required: true, multilingual: true },
+                { name: 'answer', label: t('content.answer'), type: 'textarea', required: true, multilingual: true },
+                { name: 'is_active', label: t('common.enabled'), type: 'switch' },
             ]}
         />
     );
@@ -176,23 +142,24 @@ export const FaqsPage: React.FC = () => {
 
 // 6. Hero Slides Page
 export const HeroSlidesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="شرائح وسلايدر الهيرو الرئيسي"
-            subtitle="الصور الترويجية والعناوين الرئيسية البارزة في مقدمة الموقع"
+            title={t('content.hero_slides_title')}
+            subtitle={t('content.hero_slides_sub')}
             endpoint="/api/v1/content/hero-slides"
             columns={[
-                { key: 'image', title: 'الصورة', type: 'image' },
-                { key: 'title', title: 'العنوان البارز' },
-                { key: 'subtitle', title: 'الوصف الفرعي' },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'image', title: t('content.image'), type: 'image' },
+                { key: 'title', title: t('content.main_title') },
+                { key: 'subtitle', title: t('content.subtitle') },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'title', label: 'العنوان الرئيسي', type: 'text', required: true, multilingual: true },
-                { name: 'subtitle', label: 'النص التوضيحي', type: 'text', multilingual: true },
-                { name: 'image', label: 'صورة الشريحة (HD)', type: 'file', required: true },
-                { name: 'link', label: 'رابط الزر (URL)', type: 'text', placeholder: '/cars' },
-                { name: 'is_active', label: 'مفعل', type: 'switch' },
+                { name: 'title', label: t('content.main_title'), type: 'text', required: true, multilingual: true },
+                { name: 'subtitle', label: t('content.subtitle'), type: 'text', multilingual: true },
+                { name: 'image', label: t('content.slide_image'), type: 'file', required: true },
+                { name: 'link', label: t('content.button_url'), type: 'text', placeholder: '/cars' },
+                { name: 'is_active', label: t('common.enabled'), type: 'switch' },
             ]}
         />
     );

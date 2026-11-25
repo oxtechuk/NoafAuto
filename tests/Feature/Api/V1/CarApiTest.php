@@ -135,4 +135,17 @@ class CarApiTest extends TestCase
 
         $this->assertDatabaseMissing('cars', ['id' => $car->id]);
     }
+
+    public function test_car_without_thumbnail_returns_default_car_image(): void
+    {
+        $car = Car::factory()->create(['thumbnail' => null]);
+
+        $res = $this->actingAs($this->admin, 'employee')
+            ->getJson(route('api.v1.cars.show', $car))
+            ->assertOk();
+
+        $defaultImage = Car::getDefaultCarImage();
+        $this->assertSame($defaultImage, $res->json('data.main_image'));
+        $this->assertSame($defaultImage, $res->json('data.thumbnail'));
+    }
 }

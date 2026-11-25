@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import { Card } from '../../shared/components/ui/Card';
 import { StatCard } from '../../shared/components/ui/StatCard';
@@ -16,6 +17,7 @@ import {
 import { Link } from 'react-router-dom';
 
 export const DashboardPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     const { data: statsData, isLoading: statsLoading } = useQuery({
         queryKey: ['admin', 'dashboard', 'stats'],
         queryFn: async () => {
@@ -37,32 +39,32 @@ export const DashboardPage: React.FC = () => {
 
     const kpiCards = [
         {
-            label: 'إجمالي الحجوزات',
+            label: t('dashboard.total_bookings'),
             value: bStats.total ?? 0,
             icon: <CalendarCheck className="h-6 w-6" />,
         },
         {
-            label: 'الطلبات النشطة',
+            label: t('dashboard.active_requests'),
             value: bStats.active ?? 0,
             icon: <Clock className="h-6 w-6" />,
         },
         {
-            label: 'الطلبات المكتملة',
+            label: t('dashboard.completed_requests'),
             value: bStats.completed ?? 0,
             icon: <CheckCircle2 className="h-6 w-6 text-[var(--status-success)]" />,
         },
         {
-            label: 'الطلبات الملغية / المرفوضة',
+            label: t('dashboard.closed_requests'),
             value: bStats.closed ?? 0,
             icon: <XCircle className="h-6 w-6 text-[var(--status-danger)]" />,
         },
         {
-            label: 'إجمالي العمولات المحققة',
-            value: `${(bStats.total_commission ?? 0).toLocaleString()} ر.س`,
+            label: t('dashboard.total_commission'),
+            value: `${(bStats.total_commission ?? 0).toLocaleString()} ${t('common.sar')}`,
             icon: <Coins className="h-6 w-6" />,
         },
         {
-            label: 'المهام المعلقة',
+            label: t('dashboard.pending_tasks'),
             value: tStats.today ?? 0,
             icon: <Users className="h-6 w-6" />,
         },
@@ -81,8 +83,8 @@ export const DashboardPage: React.FC = () => {
             {/* Header info */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-xl font-bold text-[var(--text-primary)]">مؤشرات الأداء الرئيسية (KPIs)</h1>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">نظرة عامة ومباشرة على العمليات اليومية والمبيعات</p>
+                    <h1 className="text-xl font-bold text-[var(--text-primary)]">{t('dashboard.title')}</h1>
+                    <p className="text-xs text-[var(--text-secondary)] mt-1">{t('dashboard.subtitle')}</p>
                 </div>
             </div>
 
@@ -102,17 +104,17 @@ export const DashboardPage: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Overdue tasks */}
                 <Card
-                    title="المهام المتأخرة التي تتطلب إجراء"
+                    title={t('dashboard.overdue_tasks')}
                     action={
                         <Link to="/admin/tasks" className="text-xs text-[var(--tenant-primary)] hover:opacity-80 font-medium inline-flex items-center gap-1">
-                            عرض كل المهام <ArrowUpRight className="h-3.5 w-3.5" />
+                            {t('dashboard.view_all_tasks')} <ArrowUpRight className="h-3.5 w-3.5" />
                         </Link>
                     }
                 >
                     {alertsData?.overdue_tasks?.length === 0 ? (
                         <div className="text-center py-8 text-[var(--text-muted)] text-xs">
                             <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-[var(--status-success)] opacity-80" />
-                            رائع! لا توجد مهام متأخرة حالياً.
+                            {t('dashboard.no_overdue_tasks')}
                         </div>
                     ) : (
                         <div className="divide-y divide-[var(--border-default)]">
@@ -121,10 +123,10 @@ export const DashboardPage: React.FC = () => {
                                     <div className="min-w-0">
                                         <p className="text-xs font-semibold text-[var(--text-primary)] truncate">{task.title}</p>
                                         <p className="text-[11px] text-[var(--status-danger)] font-medium mt-0.5">
-                                            تاريخ الاستحقاق: {task.due_date}
+                                            {t('dashboard.due_date')} {task.due_date}
                                         </p>
                                     </div>
-                                    <StatusBadge status="rejected" label="متأخرة" />
+                                    <StatusBadge status="rejected" label={t('dashboard.overdue_badge')} />
                                 </div>
                             ))}
                         </div>
@@ -133,17 +135,17 @@ export const DashboardPage: React.FC = () => {
 
                 {/* Follow ups needed */}
                 <Card
-                    title="عملاء يحتاجون متابعة"
+                    title={t('dashboard.follow_ups_needed')}
                     action={
                         <Link to="/admin/bookings" className="text-xs text-[var(--tenant-primary)] hover:opacity-80 font-medium inline-flex items-center gap-1">
-                            عرض كل الطلبات <ArrowUpRight className="h-3.5 w-3.5" />
+                            {t('dashboard.view_all_bookings')} <ArrowUpRight className="h-3.5 w-3.5" />
                         </Link>
                     }
                 >
                     {alertsData?.follow_ups_needed?.length === 0 ? (
                         <div className="text-center py-8 text-[var(--text-muted)] text-xs">
                             <CheckCircle2 className="h-8 w-8 mx-auto mb-2 text-[var(--status-success)] opacity-80" />
-                            جميع الحالات تمت متابعتها مؤخراً.
+                            {t('dashboard.all_followed_up')}
                         </div>
                     ) : (
                         <div className="divide-y divide-[var(--border-default)]">

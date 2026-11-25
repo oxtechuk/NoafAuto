@@ -81,16 +81,103 @@ class MetaCloudDriver implements WhatsAppDriver
         return ['ok' => true, 'message' => sprintf('تم الربط بالرقم %s (%s)', $response->json('display_phone_number', '?'), $response->json('verified_name', ''))];
     }
 
+    /**
+     * Webhooks are signed with the secret of the Meta app that subscribed: the showroom's own app
+     * (manual connection) or the platform app (Embedded Signup).
+     */
     public function verifySignature(Request $request): bool
     {
-        $secret = $this->settings->secret('meta', 'app_secret');
         $signature = (string) $request->header('X-Hub-Signature-256', '');
 
-        if ($secret === null || ! str_starts_with($signature, 'sha256=')) {
+        if (! str_starts_with($signature, 'sha256=')) {
             return false;
         }
 
-        return hash_equals('sha256='.hash_hmac('sha256', $request->getContent(), $secret), $signature);
+        $secrets = array_filter([
+            $this->settings->secret('meta', 'app_secret'),
+            (string) config('whatsapp.embedded_signup.app_secret', ''),
+        ]);
+
+        foreach ($secrets as $secret) {
+            if (hash_equals('sha256='.hash_hmac('sha256', $request->getContent(), $secret), $signature)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Number + account health as Meta reports it (display name review, quality, daily limit...).
+     *
+     * @return array{ok: bool, message?: string, phone?: array<string, mixed>, account?: array<string, mixed>|null}
+     */
+    public function health(): array
+    {
+        if ($this->settings->secret('meta', 'access_token') === null || $this->phoneNumberId() === '') {
+            return ['ok' => false, 'message' => 'الرقم غير مربوط بعد'];
+        }
+
+        try {
+            $phone = $this->client()->get('/'.$this->phoneNumberId(), [
+                'fields' => 'display_phone_number,verified_name,name_status,quality_rating,messaging_limit_tier,code_verification_status,platform_type,throughput,status',
+            ]);
+            $wabaId = (string) $this->settings->get('meta.business_account_id', '');
+            $account = $wabaId !== '' ? $this->client()->get('/'.$wabaId, ['fields' => 'name,account_review_status,currency']) : null;
+        } catch (ConnectionException $e) {
+            return ['ok' => false, 'message' => 'تعذّر الاتصال بـ Meta: '.$e->getMessage()];
+        }
+
+        if (! $phone->successful()) {
+            return ['ok' => false, 'message' => 'رفضت Meta الطلب: '.$this->errorMessage($phone)];
+        }
+
+        return [
+            'ok' => true,
+            'phone' => $phone->json(),
+            'account' => $account?->successful() ? $account->json() : null,
+        ];
+    }
+
+    /**
+     * Every template of the WhatsApp Business account (follows Graph API paging).
+     *
+     * @return array{ok: bool, message?: string, templates?: list<array<string, mixed>>}
+     */
+    public function fetchTemplates(int $maxPages = 10): array
+    {
+        $wabaId = (string) $this->settings->get('meta.business_account_id', '');
+        if ($this->settings->secret('meta', 'access_token') === null || $wabaId === '') {
+            return ['ok' => false, 'message' => 'أضف WhatsApp Business Account ID والتوكن أولاً'];
+        }
+
+        $templates = [];
+        $after = null;
+
+        try {
+            for ($page = 0; $page < $maxPages; $page++) {
+                $response = $this->client()->get("/{$wabaId}/message_templates", array_filter([
+                    'fields' => 'id,name,language,status,category,components,rejected_reason',
+                    'limit' => 100,
+                    'after' => $after,
+                ]));
+
+                if (! $response->successful()) {
+                    return ['ok' => false, 'message' => 'رفضت Meta الطلب: '.$this->errorMessage($response)];
+                }
+
+                array_push($templates, ...(array) $response->json('data', []));
+                $after = $response->json('paging.cursors.after');
+
+                if (! $response->json('paging.next') || ! $after) {
+                    break;
+                }
+            }
+        } catch (ConnectionException $e) {
+            return ['ok' => false, 'message' => 'تعذّر الاتصال بـ Meta: '.$e->getMessage()];
+        }
+
+        return ['ok' => true, 'templates' => $templates];
     }
 
     public function parseWebhook(Request $request): array
@@ -118,7 +205,14 @@ class MetaCloudDriver implements WhatsAppDriver
 
                 foreach ((array) ($value['statuses'] ?? []) as $status) {
                     $error = $status['errors'][0]['message'] ?? $status['errors'][0]['title'] ?? null;
-                    $statuses[] = new StatusUpdate((string) ($status['id'] ?? ''), (string) ($status['status'] ?? ''), $error);
+                    $pricing = (array) ($status['pricing'] ?? []);
+                    $statuses[] = new StatusUpdate(
+                        (string) ($status['id'] ?? ''),
+                        (string) ($status['status'] ?? ''),
+                        $error,
+                        isset($pricing['category']) ? (string) $pricing['category'] : null,
+                        isset($pricing['billable']) ? (bool) $pricing['billable'] : null,
+                    );
                 }
             }
         }

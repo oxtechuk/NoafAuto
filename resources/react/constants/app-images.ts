@@ -59,7 +59,14 @@ export const APP_IMAGES = {
   get HOME_HERO() { return `${getAssetBase()}images/home_hero.webp`; },
   get EID() { return `${getAssetBase()}images/eid.webp`; },
   get CAR1() { return `${getAssetBase()}images/car1.webp`; },
-  get CAR_PLACEHOLDER() { return `${getAssetBase()}images/car-placeholder.png`; },
+  get CAR_PLACEHOLDER() {
+    if (typeof window !== "undefined") {
+      const bootSettings = (window as any).__BOOT_SETTINGS__;
+      const def = bootSettings?.data?.default_car_image;
+      if (def) return getImageUrl(def);
+    }
+    return `${getAssetBase()}storage/settings/tjJk5THeSKGpLVocAHCqqSvhy9S055LxICF8iXEU.webp`;
+  },
   get BRAND_PLACEHOLDER() { return `${getAssetBase()}images/brand-placeholder.svg`; },
   get RIYAL() { return `${getAssetBase()}images/riyal.svg`; },
   get CAR_ICON() { return `${getAssetBase()}images/car icons/car.svg`; },

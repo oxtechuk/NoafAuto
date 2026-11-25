@@ -8,6 +8,7 @@ use App\Http\Api\Contracts\ApiResponse;
 use App\Http\Controllers\Api\ApiBaseController;
 use App\Http\Requests\Api\V1\Roles\RoleRequest;
 use App\Http\Resources\V1\RoleResource;
+use App\Services\Modules\ModuleManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Permission;
@@ -33,13 +34,42 @@ class RoleController extends ApiBaseController
         );
     }
 
-    public function permissions(): ApiResponse
+    public function permissions(ModuleManager $moduleManager): ApiResponse
     {
         Gate::authorize('viewAny', Role::class);
 
+        $modulesByKey = $moduleManager->all()->keyBy('key');
+        foreach ($modulesByKey as $key => $mod) {
+            Permission::firstOrCreate([
+                'name' => "manage-module-{$key}",
+                'guard_name' => 'employee',
+            ]);
+        }
+
         $permissions = Permission::where('guard_name', 'employee')
             ->orderBy('name')
-            ->get(['id', 'name', 'guard_name']);
+            ->get(['id', 'name', 'guard_name'])
+            ->map(function (Permission $perm) use ($modulesByKey) {
+                $item = [
+                    'id' => $perm->id,
+                    'name' => $perm->name,
+                    'guard_name' => $perm->guard_name,
+                ];
+                if (str_starts_with($perm->name, 'manage-module-')) {
+                    $key = substr($perm->name, strlen('manage-module-'));
+                    if (isset($modulesByKey[$key])) {
+                        $mod = $modulesByKey[$key];
+                        $item['module'] = [
+                            'key' => $key,
+                            'name' => $mod['name'] ?? $key,
+                            'description' => $mod['description'] ?? '',
+                        ];
+                    }
+                }
+
+                return $item;
+            })
+            ->values();
 
         return $this->respondSuccess($permissions, 'Permissions retrieved successfully');
     }

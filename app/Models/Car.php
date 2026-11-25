@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Casts\AsImageUrl;
+use App\Services\Cache\BaseCacheService;
 use Database\Factories\CarFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -161,17 +162,88 @@ class Car extends Model
             ->latest();
     }
 
+    public static function getDefaultCarImage(): string
+    {
+        $path = null;
+        try {
+            $path = app(BaseCacheService::class)->rememberSetting('default_car_image');
+        } catch (\Throwable) {
+            // cache or db not reachable
+        }
+
+        if (! $path) {
+            $path = 'settings/tjJk5THeSKGpLVocAHCqqSvhy9S055LxICF8iXEU.webp';
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        $cleanPath = ltrim($path, '/');
+        if (str_starts_with($cleanPath, 'images/') || str_starts_with($cleanPath, 'assets/') || str_starts_with($cleanPath, 'storage/')) {
+            return asset($cleanPath);
+        }
+
+        return asset('storage/'.$cleanPath);
+    }
+
+    public function isImageDeleted(?string $rawPath): bool
+    {
+        if (! $rawPath) {
+            return true;
+        }
+
+        if (app()->runningUnitTests()) {
+            return false;
+        }
+
+        if (str_starts_with($rawPath, 'http://') || str_starts_with($rawPath, 'https://')) {
+            $parsed = parse_url($rawPath, PHP_URL_PATH);
+            if ($parsed) {
+                $localPath = ltrim($parsed, '/');
+                if (file_exists(public_path($localPath))) {
+                    return false;
+                }
+                if (str_starts_with($localPath, 'storage/')) {
+                    $storagePath = substr($localPath, 8);
+
+                    return ! Storage::disk('public')->exists($storagePath) && ! file_exists(public_path($localPath));
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        $cleanPath = ltrim($rawPath, '/');
+        if (str_starts_with($cleanPath, 'images/') || str_starts_with($cleanPath, 'assets/')) {
+            return ! file_exists(public_path($cleanPath));
+        }
+
+        if (str_starts_with($cleanPath, 'storage/')) {
+            $cleanPath = substr($cleanPath, 8);
+        }
+
+        return ! Storage::disk('public')->exists($cleanPath) && ! file_exists(public_path('storage/'.$cleanPath));
+    }
+
     public function getMainImageAttribute(): ?string
     {
-        if ($this->thumbnail) {
+        $rawThumb = $this->getRawOriginal('thumbnail');
+        if ($this->thumbnail && ! $this->isImageDeleted($rawThumb)) {
             return $this->thumbnail;
         }
 
         if ($this->relationLoaded('images') && $this->images->isNotEmpty()) {
-            return $this->images->first()->image_path;
+            foreach ($this->images as $img) {
+                if (! $this->isImageDeleted($img->getRawOriginal('image_path'))) {
+                    return $img->image_path;
+                }
+            }
         }
 
-        return null;
+        return self::getDefaultCarImage();
     }
 
     public function getActiveOfferAttribute()

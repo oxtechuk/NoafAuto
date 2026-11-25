@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import { Modal, useConfirm } from '../../shared/components/ui';
 import {
@@ -21,6 +22,7 @@ import {
     FileText,
     Settings,
     CheckCircle2,
+    Blocks,
 } from 'lucide-react';
 
 interface RoleItem {
@@ -36,6 +38,11 @@ interface PermissionItem {
     id: number;
     name: string;
     guard_name: string;
+    module?: {
+        key: string;
+        name: string;
+        description?: string;
+    };
 }
 
 // Permission Arabic Human-Readable Dictionary
@@ -85,13 +92,15 @@ const PERMISSION_LABELS: Record<string, { label: string; desc: string; category:
 };
 
 const CATEGORIES = [
-    { key: 'sales', label: 'المبيعات والطلبات', icon: Briefcase },
-    { key: 'catalog', label: 'السيارات والكتالوج', icon: Car },
-    { key: 'system', label: 'النظام والإدارة', icon: Settings },
-    { key: 'marketing', label: 'المحتوى والتسويق', icon: FileText },
+    { key: 'sales', labelKey: 'roles.cat_sales', icon: Briefcase },
+    { key: 'catalog', labelKey: 'roles.cat_catalog', icon: Car },
+    { key: 'system', labelKey: 'roles.cat_system', icon: Settings },
+    { key: 'marketing', labelKey: 'roles.cat_marketing', icon: FileText },
+    { key: 'modules', labelKey: 'roles.cat_modules', icon: Blocks },
 ];
 
 export const RolesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     const queryClient = useQueryClient();
     const { confirm: showConfirm, ConfirmDialogComponent } = useConfirm();
 
@@ -134,6 +143,30 @@ export const RolesPage: React.FC = () => {
     const roles: RoleItem[] = rolesResponse || [];
     const allPermissions: PermissionItem[] = permissionsResponse || [];
 
+    const permMap = useMemo(() => {
+        const map: Record<string, PermissionItem> = {};
+        allPermissions.forEach((p) => {
+            map[p.name] = p;
+        });
+        return map;
+    }, [allPermissions]);
+
+    const getPermLabel = (permName: string): string => {
+        const permObj = permMap[permName];
+        if (permObj?.module?.name) {
+            return String(t(`roles.perms.${permName}.label`, { defaultValue: permObj.module.name }));
+        }
+        return String(t(`roles.perms.${permName}.label`, { defaultValue: PERMISSION_LABELS[permName]?.label || permName }));
+    };
+
+    const getPermDesc = (permName: string): string => {
+        const permObj = permMap[permName];
+        if (permObj?.module?.description) {
+            return String(t(`roles.perms.${permName}.desc`, { defaultValue: permObj.module.description }));
+        }
+        return String(t(`roles.perms.${permName}.desc`, { defaultValue: PERMISSION_LABELS[permName]?.desc || '' }));
+    };
+
     // Group permissions by category
     const categorizedPermissions = useMemo(() => {
         const groups: Record<string, PermissionItem[]> = {
@@ -141,11 +174,22 @@ export const RolesPage: React.FC = () => {
             catalog: [],
             system: [],
             marketing: [],
+            modules: [],
             other: [],
         };
 
         allPermissions.forEach((perm) => {
-            if (permSearch && !perm.name.toLowerCase().includes(permSearch.toLowerCase()) && !PERMISSION_LABELS[perm.name]?.label.includes(permSearch)) {
+            const translatedLabel = String(t(`roles.perms.${perm.name}.label`, { defaultValue: '' }));
+            const labelMatch =
+                translatedLabel.toLowerCase().includes(permSearch.toLowerCase()) ||
+                PERMISSION_LABELS[perm.name]?.label.includes(permSearch) ||
+                perm.module?.name?.toLowerCase().includes(permSearch.toLowerCase());
+            if (permSearch && !perm.name.toLowerCase().includes(permSearch.toLowerCase()) && !labelMatch) {
+                return;
+            }
+
+            if (perm.name.startsWith('manage-module-')) {
+                groups.modules.push(perm);
                 return;
             }
 
@@ -178,12 +222,13 @@ export const RolesPage: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+            queryClient.invalidateQueries({ queryKey: ['admin', 'modules'] });
             setIsRoleModalOpen(false);
             setEditingRole(null);
-            triggerNotice(editingRole ? 'تم تحديث الدور والصلاحيات بنجاح' : 'تم إنشاء الدور الجديد بنجاح');
+            triggerNotice(editingRole ? t('roles.notice_updated') : t('roles.notice_created'));
         },
         onError: (err: any) => {
-            alert(err.response?.data?.message || 'فشل حفظ الدور، يرجى مراجعة البيانات');
+            alert(err.response?.data?.message || t('roles.err_save'));
         },
     });
 
@@ -192,10 +237,10 @@ export const RolesPage: React.FC = () => {
         mutationFn: (id: number) => apiClient.delete(`/api/v1/roles/${id}`),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
-            triggerNotice('تم حذف الدور بنجاح');
+            triggerNotice(t('roles.notice_deleted'));
         },
         onError: (err: any) => {
-            alert(err.response?.data?.message || 'فشل حذف الدور');
+            alert(err.response?.data?.message || t('roles.err_delete'));
         },
     });
 
@@ -206,10 +251,10 @@ export const RolesPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['admin', 'permissions'] });
             setIsPermModalOpen(false);
             setNewPermName('');
-            triggerNotice('تم إضافة الصلاحية الجديدة بنجاح');
+            triggerNotice(t('roles.notice_perm_added'));
         },
         onError: (err: any) => {
-            alert(err.response?.data?.message || 'فشل إضافة الصلاحية');
+            alert(err.response?.data?.message || t('roles.err_add_perm'));
         },
     });
 
@@ -263,16 +308,16 @@ export const RolesPage: React.FC = () => {
     // Delete Role confirmation
     const handleDeleteRole = async (role: RoleItem) => {
         if (role.name === 'admin') {
-            alert('لا يمكن حذف دور المدير الرئيسي (Admin).');
+            alert(t('roles.err_delete_admin'));
             return;
         }
 
         const confirmed = await showConfirm({
-            title: `تأكيد حذف الدور "${role.name}"`,
-            message: `هل أنت متأكد من رغبتك في حذف هذا الدور؟ يوجد ${role.users_count || 0} موظف مسند إليهم هذا الدور حالياً.`,
-            detail: 'تنبيه: سيتم إلغاء ارتباط الصلاحيات المحددة بهذا الدور للموظفين المسجلين به.',
-            confirmText: 'نعم، حذف الدور',
-            cancelText: 'إلغاء الأمر',
+            title: t('roles.delete_confirm_title', { name: role.name }),
+            message: t('roles.delete_confirm_msg', { count: role.users_count || 0 }),
+            detail: t('roles.delete_confirm_detail'),
+            confirmText: t('roles.delete_confirm_btn'),
+            cancelText: t('common.cancel'),
             variant: 'danger',
             icon: Trash2,
         });
@@ -291,9 +336,9 @@ export const RolesPage: React.FC = () => {
                         <Shield className="h-5 w-5" />
                     </div>
                     <div>
-                        <h1 className="text-base font-bold text-slate-800">الأدوار والصلاحيات</h1>
+                        <h1 className="text-base font-bold text-slate-800">{t('roles.title')}</h1>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            إدارة مجموعات الأذونات ومستويات الوصول لفريق العمل بالمنصة
+                            {t('roles.subtitle')}
                         </p>
                     </div>
                 </div>
@@ -303,10 +348,10 @@ export const RolesPage: React.FC = () => {
                         type="button"
                         onClick={() => setIsPermModalOpen(true)}
                         className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="إضافة صلاحية جديدة للنظام"
+                        title={t('roles.add_perm_title')}
                     >
                         <Key className="h-3.5 w-3.5 text-slate-500" />
-                        <span>+ إضافة صلاحية مخصصة</span>
+                        <span>{t('roles.add_perm_btn')}</span>
                     </button>
                     <button
                         type="button"
@@ -314,7 +359,7 @@ export const RolesPage: React.FC = () => {
                         className="px-4 py-2 rounded-xl bg-[var(--tenant-primary,#1877F2)] hover:opacity-90 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                     >
                         <Plus className="h-4 w-4" />
-                        <span>إنشاء دور جديد</span>
+                        <span>{t('roles.create_role')}</span>
                     </button>
                 </div>
             </div>
@@ -327,7 +372,7 @@ export const RolesPage: React.FC = () => {
             ) : roles.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 text-slate-400 text-xs">
                     <Shield className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                    <span>لا توجد أدوار مسجلة حالياً. اضغط على زر إنشاء دور جديد للبدء.</span>
+                    <span>{t('roles.empty')}</span>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -357,7 +402,7 @@ export const RolesPage: React.FC = () => {
                                                     <span>{role.name}</span>
                                                     {isPrimaryAdmin && (
                                                         <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-semibold">
-                                                            مدير عام
+                                                            {t('roles.super_admin')}
                                                         </span>
                                                     )}
                                                 </h3>
@@ -366,22 +411,22 @@ export const RolesPage: React.FC = () => {
 
                                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
                                             <Users className="h-3 w-3" />
-                                            <span>{role.users_count || 0} موظف</span>
+                                            <span>{t('roles.employees_count', { count: role.users_count || 0 })}</span>
                                         </span>
                                     </div>
 
                                     {/* Permissions Summary */}
                                     <div className="pt-2 border-t border-slate-100">
                                         <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-                                            <span>الصلاحيات الممنوحة:</span>
+                                            <span>{t('roles.granted_perms')}</span>
                                             <span className="font-bold text-slate-800">
-                                                {isPrimaryAdmin ? 'كل الصلاحيات (Full Access)' : `${permCount} صلاحية`}
+                                                {isPrimaryAdmin ? t('roles.full_access') : t('roles.perms_count', { count: permCount })}
                                             </span>
                                         </div>
 
                                         {isPrimaryAdmin ? (
                                             <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/80 text-[11px] text-amber-900 font-medium leading-relaxed">
-                                                يمتلك هذا الدور وصولاً مطلقاً لكافة أجزاء المنصة، الإعدادات، طلبات السيارات، وإدارة الفريق.
+                                                {t('roles.admin_desc')}
                                             </div>
                                         ) : (
                                             <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto scrollbar-thin p-1">
@@ -390,17 +435,17 @@ export const RolesPage: React.FC = () => {
                                                         <span
                                                             key={permName}
                                                             className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium border border-slate-200/60"
-                                                            title={PERMISSION_LABELS[permName]?.desc || permName}
+                                                            title={getPermDesc(permName) || permName}
                                                         >
-                                                            {PERMISSION_LABELS[permName]?.label || permName}
+                                                            {getPermLabel(permName)}
                                                         </span>
                                                     ))
                                                 ) : (
-                                                    <span className="text-xs text-slate-400">لا توجد صلاحيات مسندة بعد.</span>
+                                                    <span className="text-xs text-slate-400">{t('roles.no_perms')}</span>
                                                 )}
                                                 {permCount > 10 && (
                                                     <span className="text-[10px] bg-sky-50 text-[var(--tenant-primary,#1877F2)] px-2 py-0.5 rounded-md font-bold">
-                                                        +{permCount - 10} المزيد
+                                                        {t('roles.more_perms', { count: permCount - 10 })}
                                                     </span>
                                                 )}
                                             </div>
@@ -419,17 +464,17 @@ export const RolesPage: React.FC = () => {
                                             type="button"
                                             onClick={() => handleOpenEditRole(role)}
                                             className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:text-[var(--tenant-primary,#1877F2)] hover:border-[var(--tenant-primary,#1877F2)] hover:bg-slate-50 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                                            title="تعديل الصلاحيات الممنوحة"
+                                            title={t('roles.edit_perms_title')}
                                         >
                                             <Edit className="h-3.5 w-3.5" />
-                                            <span>تعديل</span>
+                                            <span>{t('common.edit')}</span>
                                         </button>
                                         {!isPrimaryAdmin && (
                                             <button
                                                 type="button"
                                                 onClick={() => handleDeleteRole(role)}
                                                 className="p-1.5 rounded-lg border border-rose-200 text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
-                                                title="حذف هذا الدور"
+                                                title={t('roles.delete_role_title')}
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </button>
@@ -447,15 +492,15 @@ export const RolesPage: React.FC = () => {
                 isOpen={isRoleModalOpen}
                 onClose={() => setIsRoleModalOpen(false)}
                 size="2xl"
-                title={editingRole ? `تعديل صلاحيات الدور (${editingRole.name})` : 'إنشاء دور وصلاحيات جديدة'}
-                subtitle="حدد اسم الدور واختر الصلاحيات المسموح بها لموظفي هذا المستوى"
+                title={editingRole ? t('roles.modal_edit_title', { name: editingRole.name }) : t('roles.modal_create_title')}
+                subtitle={t('roles.modal_subtitle')}
                 icon={ShieldCheck}
                 iconVariant="primary"
                 primaryAction={{
-                    label: saveRoleMutation.isPending ? 'جاري الحفظ...' : 'حفظ الدور والصلاحيات',
+                    label: saveRoleMutation.isPending ? t('common.saving') : t('roles.save_role'),
                     onClick: () => {
                         if (!roleName.trim()) {
-                            alert('الرجاء كتابة اسم الدور.');
+                            alert(t('roles.role_name_label'));
                             return;
                         }
                         saveRoleMutation.mutate();
@@ -464,7 +509,7 @@ export const RolesPage: React.FC = () => {
                     disabled: !roleName.trim(),
                 }}
                 secondaryAction={{
-                    label: 'إلغاء الأمر',
+                    label: t('common.cancel'),
                     onClick: () => setIsRoleModalOpen(false),
                 }}
             >
@@ -472,11 +517,11 @@ export const RolesPage: React.FC = () => {
                     {/* Role Name Input */}
                     <div>
                         <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                            اسم الدور الوظيفي <span className="text-rose-500">*</span>
+                            {t('roles.role_name_label')} <span className="text-rose-500">*</span>
                         </label>
                         <input
                             type="text"
-                            placeholder="مثال: sales, supervisor, accountant, support..."
+                            placeholder={t('roles.role_name_ph')}
                             value={roleName}
                             onChange={(e) => setRoleName(e.target.value)}
                             disabled={editingRole?.name === 'admin'}
@@ -484,7 +529,7 @@ export const RolesPage: React.FC = () => {
                         />
                         {editingRole?.name === 'admin' && (
                             <p className="text-[11px] text-amber-600 mt-1">
-                                دور المدير الرئيسي ثابت ولا يمكن تعديل اسمه للحفاظ على سلامة النظام.
+                                {t('roles.admin_locked_hint')}
                             </p>
                         )}
                     </div>
@@ -493,7 +538,7 @@ export const RolesPage: React.FC = () => {
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-700">
-                                الصلاحيات المحددة: <span className="text-[var(--tenant-primary,#1877F2)]">{selectedPermissions.length}</span> من {allPermissions.length}
+                                {t('roles.selected_perms')} <span className="text-[var(--tenant-primary,#1877F2)]">{selectedPermissions.length}</span> {t('roles.of_total')} {allPermissions.length}
                             </span>
                         </div>
 
@@ -502,7 +547,7 @@ export const RolesPage: React.FC = () => {
                                 <Search className="absolute start-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
                                 <input
                                     type="text"
-                                    placeholder="بحث في الصلاحيات..."
+                                    placeholder={t('roles.search_perms')}
                                     value={permSearch}
                                     onChange={(e) => setPermSearch(e.target.value)}
                                     className="ps-8 pe-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-hidden focus:border-[var(--tenant-primary,#1877F2)] w-40 sm:w-48"
@@ -514,14 +559,14 @@ export const RolesPage: React.FC = () => {
                                 onClick={handleSelectAll}
                                 className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 transition-colors cursor-pointer"
                             >
-                                تحديد الكل
+                                {t('common.select_all')}
                             </button>
                             <button
                                 type="button"
                                 onClick={handleClearAll}
                                 className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors cursor-pointer"
                             >
-                                إلغاء التحديد
+                                {t('common.clear_selection')}
                             </button>
                         </div>
                     </div>
@@ -544,7 +589,7 @@ export const RolesPage: React.FC = () => {
                                     <div className="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200/70 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <CatIcon className="h-4 w-4 text-[var(--tenant-primary,#1877F2)]" />
-                                            <span className="font-bold text-xs text-slate-800">{cat.label}</span>
+                                            <span className="font-bold text-xs text-slate-800">{t(cat.labelKey)}</span>
                                             <span className="text-[11px] text-slate-400">({perms.length})</span>
                                         </div>
 
@@ -553,7 +598,7 @@ export const RolesPage: React.FC = () => {
                                             onClick={() => toggleCategoryPermissions(perms)}
                                             className="text-xs text-[var(--tenant-primary,#1877F2)] hover:underline font-semibold cursor-pointer"
                                         >
-                                            {isAllCatSelected ? 'إلغاء هذا القسم' : 'تحديد كل القسم'}
+                                            {isAllCatSelected ? t('roles.deselect_cat') : t('roles.select_cat')}
                                         </button>
                                     </div>
 
@@ -585,14 +630,14 @@ export const RolesPage: React.FC = () => {
 
                                                     <div className="min-w-0 space-y-0.5">
                                                         <div className="font-bold text-xs leading-tight">
-                                                            {info?.label || p.name}
+                                                            {getPermLabel(p.name)}
                                                         </div>
                                                         <div className="text-[11px] text-slate-400 font-mono">
                                                             {p.name}
                                                         </div>
-                                                        {info?.desc && (
+                                                        {getPermDesc(p.name) && (
                                                             <div className="text-[11px] text-slate-500 leading-snug">
-                                                                {info.desc}
+                                                                {getPermDesc(p.name)}
                                                             </div>
                                                         )}
                                                     </div>
@@ -612,15 +657,15 @@ export const RolesPage: React.FC = () => {
                 isOpen={isPermModalOpen}
                 onClose={() => setIsPermModalOpen(false)}
                 size="md"
-                title="إضافة صلاحية جديدة للنظام"
-                subtitle="يمكنك إضافة مفتاح صلاحية برمجية جديدة لمطابقتها في لوحة التحكم"
+                title={t('roles.add_perm_title')}
+                subtitle={t('roles.perm_modal_sub')}
                 icon={Key}
                 iconVariant="success"
                 primaryAction={{
-                    label: createPermissionMutation.isPending ? 'جاري الإضافة...' : 'حفظ الصلاحية',
+                    label: createPermissionMutation.isPending ? t('common.saving') : t('roles.save_perm'),
                     onClick: () => {
                         if (!newPermName.trim()) {
-                            alert('الرجاء كتابة اسم أو كود الصلاحية.');
+                            alert(t('roles.perm_code_label'));
                             return;
                         }
                         createPermissionMutation.mutate(newPermName.trim());
@@ -629,24 +674,24 @@ export const RolesPage: React.FC = () => {
                     disabled: !newPermName.trim(),
                 }}
                 secondaryAction={{
-                    label: 'إلغاء الأمر',
+                    label: t('common.cancel'),
                     onClick: () => setIsPermModalOpen(false),
                 }}
             >
                 <div className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                            كود / اسم الصلاحية <span className="text-rose-500">*</span>
+                            {t('roles.perm_code_label')} <span className="text-rose-500">*</span>
                         </label>
                         <input
                             type="text"
-                            placeholder="مثال: manage-discounts أو export-leads أو approve-contracts..."
+                            placeholder={t('roles.perm_code_ph')}
                             value={newPermName}
                             onChange={(e) => setNewPermName(e.target.value)}
                             className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-white text-slate-800 font-mono focus:outline-hidden focus:border-[var(--tenant-primary,#1877F2)]"
                         />
                         <p className="text-[11px] text-slate-500 mt-1">
-                            يُفضل استخدام أحرف إنجليزية صغيرة ومفصولة بشرطات (-) مثل <code>manage-sales</code> لتسهيل مطابقتها في الأكواد.
+                            {t('roles.perm_code_hint')}
                         </p>
                     </div>
                 </div>

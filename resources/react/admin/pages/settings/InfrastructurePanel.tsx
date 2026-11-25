@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
     AlertCircle,
     AlertTriangle,
@@ -60,12 +61,12 @@ const QUERY_KEY = ['admin', 'system', 'infrastructure'];
 const BASE = '/system/infrastructure';
 
 /** Pulls the API message (and CDN warnings) out of an axios error. */
-function errorFeedback(error: any): Feedback {
+function errorFeedback(error: any, fallback: string): Feedback {
     const data = error?.response?.data;
     const validation = data?.errors ? Object.values(data.errors).flat().join(' ') : '';
     return {
         type: 'error',
-        text: validation || data?.message || 'حدث خطأ غير متوقع.',
+        text: validation || data?.message || fallback,
         warnings: data?.data?.warnings,
     };
 }
@@ -135,17 +136,18 @@ const SectionCard: React.FC<{ icon: React.ReactNode; title: string; subtitle: st
     </section>
 );
 
-const StatusBadge: React.FC<{ active: boolean }> = ({ active }) => (
+const StatusBadge: React.FC<{ active: boolean; activeLabel: string; inactiveLabel: string }> = ({ active, activeLabel, inactiveLabel }) => (
     <span
         className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${
             active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
         }`}
     >
-        {active ? 'مفعّل' : 'غير مفعّل'}
+        {active ? activeLabel : inactiveLabel}
     </span>
 );
 
 export const InfrastructurePanel: React.FC = () => {
+    const { t } = useTranslation('admin');
     const queryClient = useQueryClient();
     const { confirm, ConfirmDialogComponent } = useConfirm();
 
@@ -180,7 +182,7 @@ export const InfrastructurePanel: React.FC = () => {
         mutationFn: async () => (await apiClient.post(`${BASE}/redis/test`, { ...redisPayload(), enabled: true })).data,
         onSuccess: (res) =>
             setRedisFeedback({ type: 'success', text: `${res.message}${res.data?.version ? ` (Redis ${res.data.version})` : ''}` }),
-        onError: (error) => setRedisFeedback(errorFeedback(error)),
+        onError: (error) => setRedisFeedback(errorFeedback(error, t('settings.infra.unexpected_error'))),
     });
 
     const saveRedis = useMutation({
@@ -189,7 +191,7 @@ export const InfrastructurePanel: React.FC = () => {
             setRedisFeedback({ type: 'success', text: res.message });
             onSaved(res.data);
         },
-        onError: (error) => setRedisFeedback(errorFeedback(error)),
+        onError: (error) => setRedisFeedback(errorFeedback(error, t('settings.infra.unexpected_error'))),
     });
 
     const saveCloudflare = useMutation({
@@ -198,19 +200,19 @@ export const InfrastructurePanel: React.FC = () => {
             setCloudflareFeedback({ type: 'success', text: res.message });
             onSaved(res.data);
         },
-        onError: (error) => setCloudflareFeedback(errorFeedback(error)),
+        onError: (error) => setCloudflareFeedback(errorFeedback(error, t('settings.infra.unexpected_error'))),
     });
 
     const purgeCloudflare = useMutation({
         mutationFn: async () => (await apiClient.post(`${BASE}/cloudflare/purge`)).data,
         onSuccess: (res) => setCloudflareFeedback({ type: 'success', text: res.message }),
-        onError: (error) => setCloudflareFeedback(errorFeedback(error)),
+        onError: (error) => setCloudflareFeedback(errorFeedback(error, t('settings.infra.unexpected_error'))),
     });
 
     const testCdn = useMutation({
         mutationFn: async () => (await apiClient.post(`${BASE}/cdn/test`, { ...cdn, enabled: true })).data,
         onSuccess: (res) => setCdnFeedback({ type: 'success', text: res.message }),
-        onError: (error) => setCdnFeedback(errorFeedback(error)),
+        onError: (error) => setCdnFeedback(errorFeedback(error, t('settings.infra.unexpected_error'))),
     });
 
     const saveCdn = useMutation({
@@ -219,7 +221,7 @@ export const InfrastructurePanel: React.FC = () => {
             setCdnFeedback({ type: 'success', text: res.message });
             onSaved(res.data);
         },
-        onError: (error) => setCdnFeedback(errorFeedback(error)),
+        onError: (error) => setCdnFeedback(errorFeedback(error, t('settings.infra.unexpected_error'))),
     });
 
     const handleSaveRedis = async () => {
@@ -228,10 +230,11 @@ export const InfrastructurePanel: React.FC = () => {
             (data.settings.redis.enabled && data.settings.redis.use_for_session) !== (redis.enabled && redis.use_for_session);
         if (sessionWillChange) {
             const ok = await confirm({
-                title: 'تغيير مكان حفظ الجلسات',
-                message: 'تغيير الجلسات سيُسجّل خروج كل المستخدمين المتصلين الآن، وأنت منهم.',
-                detail: 'ستحتاج لتسجيل الدخول مرة أخرى بعد الحفظ.',
-                confirmText: 'حفظ وتسجيل الخروج',
+                title: t('settings.infra.session_confirm_title'),
+                message: t('settings.infra.session_confirm_msg'),
+                detail: t('settings.infra.session_confirm_detail'),
+                confirmText: t('settings.infra.session_confirm_btn'),
+                cancelText: t('common.cancel'),
                 variant: 'warning',
             });
             if (!ok) return;
@@ -248,10 +251,11 @@ export const InfrastructurePanel: React.FC = () => {
 
     const handlePurge = async () => {
         const ok = await confirm({
-            title: 'مسح كاش Cloudflare',
-            message: 'سيتم مسح كل الملفات المخزنة في Cloudflare، وستُحمّل من السيرفر من جديد.',
-            detail: 'قد يبطؤ الموقع قليلاً لدقائق حتى يمتلئ الكاش مرة أخرى.',
-            confirmText: 'مسح الكاش',
+            title: t('settings.infra.purge_confirm_title'),
+            message: t('settings.infra.purge_confirm_msg'),
+            detail: t('settings.infra.purge_confirm_detail'),
+            confirmText: t('settings.infra.purge_confirm_btn'),
+            cancelText: t('common.cancel'),
             variant: 'danger',
         });
         if (ok) purgeCloudflare.mutate();
@@ -277,19 +281,19 @@ export const InfrastructurePanel: React.FC = () => {
             {ConfirmDialogComponent}
 
             <div className="border-b pb-3">
-                <h5 className="text-base font-bold text-[var(--text-primary)]">السيرفر والأداء</h5>
+                <h5 className="text-base font-bold text-[var(--text-primary)]">{t('settings.infra.title')}</h5>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
-                    ربط Redis و Cloudflare و CDN. كل اتصال يتم اختباره قبل تفعيله، وأي خطأ لا يوقف الموقع.
+                    {t('settings.infra.subtitle')}
                 </p>
             </div>
 
             {/* Current state */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                    { label: 'الكاش', value: environment.drivers.cache },
-                    { label: 'الجلسات', value: environment.drivers.session },
-                    { label: 'الطوابير', value: environment.drivers.queue },
-                    { label: 'Cloudflare', value: environment.behind_cloudflare ? 'الطلب يمر عبره' : 'غير مكتشف' },
+                    { label: t('settings.infra.driver_cache'), value: environment.drivers.cache },
+                    { label: t('settings.infra.driver_session'), value: environment.drivers.session },
+                    { label: t('settings.infra.driver_queue'), value: environment.drivers.queue },
+                    { label: 'Cloudflare', value: environment.behind_cloudflare ? t('settings.infra.cf_detected') : t('settings.infra.cf_not_detected') },
                 ].map((item) => (
                     <div key={item.label} className="rounded-xl bg-slate-50 px-3 py-2.5">
                         <p className="text-[10px] font-bold text-slate-400">{item.label}</p>
@@ -304,21 +308,20 @@ export const InfrastructurePanel: React.FC = () => {
             <SectionCard
                 icon={<Database className="h-4 w-4" />}
                 title="Redis"
-                subtitle="كاش في الذاكرة بدل قاعدة البيانات: قراءة الكاش أسرع بكثير وضغط أقل على MySQL. لو توقف Redis يرجع الموقع تلقائياً لقاعدة البيانات."
-                badge={<StatusBadge active={data.settings.redis.enabled} />}
+                subtitle={t('settings.infra.redis_subtitle')}
+                badge={<StatusBadge active={data.settings.redis.enabled} activeLabel={t('settings.infra.enabled')} inactiveLabel={t('settings.infra.disabled')} />}
             >
                 {redisUnavailable && (
                     <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
                         <AlertTriangle className="h-4 w-4 shrink-0" />
                         <span>
-                            PHP على هذا السيرفر لا يحتوي على عميل Redis. فعّل امتداد <b dir="ltr">ext-redis</b> (phpredis) من لوحة
-                            الاستضافة (cPanel ← Select PHP Version)، ثم أعد تحميل الصفحة.
+                            {t('settings.infra.redis_missing_ext_1')} <b dir="ltr">ext-redis</b> {t('settings.infra.redis_missing_ext_2')}
                         </span>
                     </div>
                 )}
 
                 <Toggle
-                    label="تفعيل Redis"
+                    label={t('settings.infra.redis_enable')}
                     checked={redis.enabled}
                     disabled={redisUnavailable}
                     onChange={(enabled) => setRedis({ ...redis, enabled })}
@@ -326,19 +329,19 @@ export const InfrastructurePanel: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div className="md:col-span-2">
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">العنوان (Host)</label>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('settings.infra.redis_host')}</label>
                         <input dir="ltr" className={inputClass} value={redis.host} disabled={redisUnavailable} onChange={(e) => setRedis({ ...redis, host: e.target.value })} placeholder="127.0.0.1" />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">المنفذ (Port)</label>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('settings.infra.redis_port')}</label>
                         <input dir="ltr" type="number" className={inputClass} value={redis.port} disabled={redisUnavailable} onChange={(e) => setRedis({ ...redis, port: Number(e.target.value) })} />
                     </div>
                     <div>
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">رقم قاعدة البيانات</label>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('settings.infra.redis_db')}</label>
                         <input dir="ltr" type="number" min={0} max={14} className={inputClass} value={redis.database} disabled={redisUnavailable} onChange={(e) => setRedis({ ...redis, database: Number(e.target.value) })} />
                     </div>
                     <div className="md:col-span-4">
-                        <label className="block text-[11px] font-bold text-slate-500 mb-1">كلمة المرور</label>
+                        <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('settings.infra.redis_password')}</label>
                         <input
                             dir="ltr"
                             type="password"
@@ -347,27 +350,27 @@ export const InfrastructurePanel: React.FC = () => {
                             value={redis.password}
                             disabled={redisUnavailable || redis.clear_password}
                             onChange={(e) => setRedis({ ...redis, password: e.target.value })}
-                            placeholder={redis.has_password ? '•••••••• محفوظة، اتركها فارغة للإبقاء عليها' : 'بدون كلمة مرور'}
+                            placeholder={redis.has_password ? t('settings.infra.password_saved_ph') : t('settings.infra.password_none_ph')}
                         />
                         {redis.has_password && (
                             <div className="mt-2">
-                                <Toggle label="حذف كلمة المرور المحفوظة" checked={redis.clear_password} onChange={(clear_password) => setRedis({ ...redis, clear_password, password: '' })} />
+                                <Toggle label={t('settings.infra.clear_saved_password')} checked={redis.clear_password} onChange={(clear_password) => setRedis({ ...redis, clear_password, password: '' })} />
                             </div>
                         )}
                     </div>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-3 space-y-2.5">
-                    <p className="text-[11px] font-bold text-slate-500">استخدام Redis في:</p>
-                    <Toggle label="الكاش (موصى به)" checked={redis.use_for_cache} disabled={redisUnavailable} onChange={(use_for_cache) => setRedis({ ...redis, use_for_cache })} />
+                    <p className="text-[11px] font-bold text-slate-500">{t('settings.infra.redis_use_for')}</p>
+                    <Toggle label={t('settings.infra.redis_cache_rec')} checked={redis.use_for_cache} disabled={redisUnavailable} onChange={(use_for_cache) => setRedis({ ...redis, use_for_cache })} />
                     <div>
-                        <Toggle label="الجلسات" checked={redis.use_for_session} disabled={redisUnavailable} onChange={(use_for_session) => setRedis({ ...redis, use_for_session })} />
-                        <p className="text-[11px] text-slate-400 ms-6 mt-0.5">تغييرها يسجّل خروج كل المستخدمين مرة واحدة.</p>
+                        <Toggle label={t('settings.infra.redis_sessions')} checked={redis.use_for_session} disabled={redisUnavailable} onChange={(use_for_session) => setRedis({ ...redis, use_for_session })} />
+                        <p className="text-[11px] text-slate-400 ms-6 mt-0.5">{t('settings.infra.redis_sessions_hint')}</p>
                     </div>
                     <div>
-                        <Toggle label="الطوابير (Queue)" checked={redis.use_for_queue} disabled={redisUnavailable} onChange={(use_for_queue) => setRedis({ ...redis, use_for_queue })} />
+                        <Toggle label={t('settings.infra.redis_queue')} checked={redis.use_for_queue} disabled={redisUnavailable} onChange={(use_for_queue) => setRedis({ ...redis, use_for_queue })} />
                         <p className="text-[11px] text-slate-400 ms-6 mt-0.5">
-                            يتم إعادة تشغيل الـ workers تلقائياً. المهام المعلقة في قاعدة البيانات تحتاج worker على <span dir="ltr">database</span> حتى تنتهي.
+                            {t('settings.infra.redis_queue_hint')}
                         </p>
                     </div>
                 </div>
@@ -376,10 +379,10 @@ export const InfrastructurePanel: React.FC = () => {
 
                 <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" icon={<PlugZap className="h-4 w-4" />} loading={testRedis.isPending} disabled={redisUnavailable} onClick={() => testRedis.mutate()}>
-                        اختبار الاتصال
+                        {t('settings.infra.test_connection')}
                     </Button>
                     <Button size="sm" icon={<Save className="h-4 w-4" />} loading={saveRedis.isPending} disabled={redisUnavailable && redis.enabled} onClick={handleSaveRedis}>
-                        حفظ
+                        {t('common.save')}
                     </Button>
                 </div>
             </SectionCard>
@@ -388,15 +391,15 @@ export const InfrastructurePanel: React.FC = () => {
             <SectionCard
                 icon={<Cloud className="h-4 w-4" />}
                 title="Cloudflare"
-                subtitle="مسح الكاش من هنا، ومعرفة عنوان الزائر الحقيقي خلف Cloudflare (ضروري لحماية تسجيل الدخول و OTP والنماذج من الحظر الجماعي)."
-                badge={<StatusBadge active={data.settings.cloudflare.enabled} />}
+                subtitle={t('settings.infra.cf_subtitle')}
+                badge={<StatusBadge active={data.settings.cloudflare.enabled} activeLabel={t('settings.infra.enabled')} inactiveLabel={t('settings.infra.disabled')} />}
             >
-                <Toggle label="تفعيل ربط Cloudflare" checked={cloudflare.enabled} onChange={(enabled) => setCloudflare({ ...cloudflare, enabled })} />
+                <Toggle label={t('settings.infra.cf_enable')} checked={cloudflare.enabled} onChange={(enabled) => setCloudflare({ ...cloudflare, enabled })} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label className="block text-[11px] font-bold text-slate-500 mb-1">Zone ID</label>
-                        <input dir="ltr" className={inputClass} value={cloudflare.zone_id} onChange={(e) => setCloudflare({ ...cloudflare, zone_id: e.target.value.trim() })} placeholder="32 حرف من صفحة Overview" />
+                        <input dir="ltr" className={inputClass} value={cloudflare.zone_id} onChange={(e) => setCloudflare({ ...cloudflare, zone_id: e.target.value.trim() })} placeholder={t('settings.infra.cf_zone_ph')} />
                     </div>
                     <div>
                         <label className="block text-[11px] font-bold text-slate-500 mb-1">API Token</label>
@@ -407,31 +410,30 @@ export const InfrastructurePanel: React.FC = () => {
                             className={inputClass}
                             value={cloudflare.api_token}
                             onChange={(e) => setCloudflare({ ...cloudflare, api_token: e.target.value.trim() })}
-                            placeholder={cloudflare.has_api_token ? '•••••••• محفوظ، اتركه فارغاً للإبقاء عليه' : 'Zone Read + Cache Purge'}
+                            placeholder={cloudflare.has_api_token ? t('settings.infra.token_saved_ph') : 'Zone Read + Cache Purge'}
                         />
                     </div>
                 </div>
 
                 <Toggle
-                    label="الثقة في عناوين Cloudflare لمعرفة IP الزائر الحقيقي"
+                    label={t('settings.infra.cf_trust_proxies')}
                     checked={cloudflare.trust_proxies}
                     onChange={(trust_proxies) => setCloudflare({ ...cloudflare, trust_proxies })}
                 />
 
                 {data.settings.cloudflare.enabled && data.settings.cloudflare.zone_name && (
                     <p className="text-xs text-slate-600">
-                        متصل بـ <b dir="ltr">{data.settings.cloudflare.zone_name}</b> · {data.settings.cloudflare.ips.length} نطاق IP لـ Cloudflare
+                        {t('settings.infra.cf_connected_to')} <b dir="ltr">{data.settings.cloudflare.zone_name}</b> · {data.settings.cloudflare.ips.length} {t('settings.infra.cf_ip_ranges')}
                     </p>
                 )}
 
                 <details className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-                    <summary className="font-bold cursor-pointer">طريقة إنشاء التوكن وتسريع الـ API</summary>
+                    <summary className="font-bold cursor-pointer">{t('settings.infra.cf_guide_title')}</summary>
                     <ol className="list-decimal ps-5 mt-2 space-y-1 leading-relaxed">
                         <li>Cloudflare ← My Profile ← API Tokens ← Create Token ← Custom.</li>
-                        <li>الصلاحيات: <span dir="ltr">Zone → Zone → Read</span> و <span dir="ltr">Zone → Cache Purge → Purge</span>، على الدومين ده بس.</li>
+                        <li>{t('settings.infra.cf_guide_step2')}</li>
                         <li>
-                            للاستفادة من كاش الـ API: Caching ← Cache Rules ← قاعدة لـ <span dir="ltr">/api/v1/store/*</span> بـ
-                            «Eligible for cache» و «Respect origin». الموقع يرسل مدة الكاش المناسبة لكل رابط.
+                            {t('settings.infra.cf_guide_step3')}
                         </li>
                     </ol>
                 </details>
@@ -440,7 +442,7 @@ export const InfrastructurePanel: React.FC = () => {
 
                 <div className="flex flex-wrap gap-2">
                     <Button size="sm" icon={<Save className="h-4 w-4" />} loading={saveCloudflare.isPending} onClick={() => saveCloudflare.mutate()}>
-                        حفظ والتحقق
+                        {t('settings.infra.save_and_verify')}
                     </Button>
                     <Button
                         variant="danger"
@@ -450,7 +452,7 @@ export const InfrastructurePanel: React.FC = () => {
                         disabled={!data.settings.cloudflare.enabled}
                         onClick={handlePurge}
                     >
-                        مسح كاش Cloudflare
+                        {t('settings.infra.purge_cache')}
                     </Button>
                 </div>
             </SectionCard>
@@ -458,24 +460,23 @@ export const InfrastructurePanel: React.FC = () => {
             {/* ── CDN ── */}
             <SectionCard
                 icon={<Globe className="h-4 w-4" />}
-                title="CDN للملفات والصور"
-                subtitle="تقديم ملفات الواجهة والصور من شبكة CDN (مثل BunnyCDN أو CloudFront) أقرب للزائر. الموقع نفسه يبقى على السيرفر."
-                badge={<StatusBadge active={data.settings.cdn.enabled} />}
+                title={t('settings.infra.cdn_title')}
+                subtitle={t('settings.infra.cdn_subtitle')}
+                badge={<StatusBadge active={data.settings.cdn.enabled} activeLabel={t('settings.infra.enabled')} inactiveLabel={t('settings.infra.disabled')} />}
             >
-                <Toggle label="تفعيل الـ CDN" checked={cdn.enabled} onChange={(enabled) => setCdn({ ...cdn, enabled })} />
+                <Toggle label={t('settings.infra.cdn_enable')} checked={cdn.enabled} onChange={(enabled) => setCdn({ ...cdn, enabled })} />
 
                 <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">رابط الـ CDN</label>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1">{t('settings.infra.cdn_url')}</label>
                     <input dir="ltr" className={inputClass} value={cdn.url} onChange={(e) => setCdn({ ...cdn, url: e.target.value.trim() })} placeholder="https://cdn.example.com" />
                     <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                        أنشئ Pull Zone مصدرها (Origin) <span dir="ltr">{environment.app_url}</span> وفعّل CORS. الاختبار يتأكد أن الـ CDN يقدم
-                        نفس ملفات الموقع قبل التفعيل.
+                        {t('settings.infra.cdn_hint_1')} <span dir="ltr">{environment.app_url}</span> {t('settings.infra.cdn_hint_2')}
                     </p>
                 </div>
 
                 {environment.asset_url && (
                     <p className="text-xs text-slate-600">
-                        الملفات تُقدَّم الآن من <b dir="ltr">{environment.asset_url}</b>
+                        {t('settings.infra.cdn_serving_from')} <b dir="ltr">{environment.asset_url}</b>
                     </p>
                 )}
 
@@ -483,10 +484,10 @@ export const InfrastructurePanel: React.FC = () => {
 
                 <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" icon={<RefreshCw className="h-4 w-4" />} loading={testCdn.isPending} disabled={!cdn.url} onClick={() => testCdn.mutate()}>
-                        اختبار
+                        {t('settings.infra.test_btn')}
                     </Button>
                     <Button size="sm" icon={<Save className="h-4 w-4" />} loading={saveCdn.isPending} onClick={() => saveCdn.mutate()}>
-                        حفظ
+                        {t('common.save')}
                     </Button>
                 </div>
             </SectionCard>

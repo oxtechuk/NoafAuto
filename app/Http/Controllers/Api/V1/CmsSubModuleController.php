@@ -36,12 +36,16 @@ class CmsSubModuleController extends ApiBaseController
     // ==========================================
     public function blogsIndex(Request $request): ApiResponse
     {
-        $query = BlogPost::query()->with('category');
+        $query = BlogPost::query()->with('categories');
         if ($request->filled('search')) {
             $s = trim((string) $request->input('search'));
-            $query->where('title', 'like', "%{$s}%");
+            $query->where(function ($q) use ($s) {
+                $q->where('title', 'like', "%{$s}%")
+                    ->orWhere('meta_keywords', 'like', "%{$s}%");
+            });
         }
         $posts = $query->latest()->paginate(20);
+        $posts->getCollection()->transform(fn (BlogPost $post) => $this->formatBlogPost($post));
 
         return $this->respondPaginated($posts, 'Blog posts retrieved');
     }
@@ -50,49 +54,105 @@ class CmsSubModuleController extends ApiBaseController
     {
         $data = $request->validate([
             'title' => 'required',
+            'excerpt' => 'nullable',
             'content' => 'required',
-            'category_id' => 'nullable|exists:blog_categories,id',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:blog_categories,id',
             'is_published' => 'boolean',
+            'is_featured' => 'boolean',
+            'tag' => 'nullable|string|max:100',
+            'meta_title' => 'nullable|string|max:255',
+            'meta_description' => 'nullable|string|max:1000',
+            'meta_keywords' => 'nullable|string|max:1000',
+            'thumbnail' => 'nullable|image|max:5120',
             'image' => 'nullable|image|max:5120',
         ]);
 
+        $categoryIds = $data['category_ids'] ?? [];
+        unset($data['category_ids'], $data['image']);
+
         $titleVal = is_array($data['title']) ? ($data['title']['en'] ?? $data['title']['ar'] ?? 'post') : (string) $data['title'];
         $data['slug'] = Str::slug($titleVal.'-'.uniqid());
+        $data['employee_id'] = $request->user('employee')?->id;
 
-        if ($request->hasFile('image')) {
-            $data['image'] = $this->imageOptimizer->storeAndOptimize(
-                $request->file('image'),
+        if (! empty($data['is_published'])) {
+            $data['published_at'] = now();
+        }
+
+        $file = $request->file('thumbnail') ?? $request->file('image');
+        if ($file) {
+            $data['thumbnail'] = $this->imageOptimizer->storeAndOptimize(
+                $file,
                 'blogs',
                 ['maxWidth' => 1200, 'quality' => 82]
             );
         }
 
         $post = BlogPost::create($data);
+        if (! empty($categoryIds)) {
+            $post->categories()->sync($categoryIds);
+        }
+        $post->load('categories');
 
-        return $this->respondCreated($post, 'Blog post created');
+        return $this->respondCreated($this->formatBlogPost($post), 'Blog post created');
     }
 
     public function blogsUpdate(Request $request, BlogPost $post): ApiResponse
     {
         $data = $request->validate([
             'title' => 'sometimes',
+            'excerpt' => 'nullable',
             'content' => 'sometimes',
-            'category_id' => 'nullable|exists:blog_categories,id',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'exists:blog_categories,id',
             'is_published' => 'boolean',
+            'is_featured' => 'boolean',
+            'tag' => 'nullable|string|max:100',
+            'meta_title' => 'nullable|string|max:255',
+            'meta_description' => 'nullable|string|max:1000',
+            'meta_keywords' => 'nullable|string|max:1000',
+            'thumbnail' => 'nullable|image|max:5120',
             'image' => 'nullable|image|max:5120',
         ]);
 
-        if ($request->hasFile('image')) {
-            $data['image'] = $this->imageOptimizer->storeAndOptimize(
-                $request->file('image'),
+        $hasCategories = array_key_exists('category_ids', $data);
+        $categoryIds = $data['category_ids'] ?? [];
+        unset($data['category_ids'], $data['image']);
+
+        if (! empty($data['is_published']) && ! $post->published_at) {
+            $data['published_at'] = now();
+        }
+
+        $file = $request->file('thumbnail') ?? $request->file('image');
+        if ($file) {
+            $data['thumbnail'] = $this->imageOptimizer->storeAndOptimize(
+                $file,
                 'blogs',
                 ['maxWidth' => 1200, 'quality' => 82]
             );
         }
 
         $post->update($data);
+        if ($hasCategories) {
+            $post->categories()->sync($categoryIds);
+        }
+        $post->load('categories');
 
-        return $this->respondSuccess($post, 'Blog post updated');
+        return $this->respondSuccess($this->formatBlogPost($post), 'Blog post updated');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatBlogPost(BlogPost $post): array
+    {
+        $arr = $post->toArray();
+        $arr['title_translations'] = $post->getTranslations('title');
+        $arr['excerpt_translations'] = $post->getTranslations('excerpt');
+        $arr['content_translations'] = $post->getTranslations('content');
+        $arr['category_ids'] = $post->categories->pluck('id')->values()->all();
+
+        return $arr;
     }
 
     public function blogsDestroy(BlogPost $post): ApiResponse

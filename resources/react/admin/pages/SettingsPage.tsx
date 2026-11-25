@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
     Settings as SettingsIcon,
     Save,
@@ -32,20 +34,29 @@ import {
     CheckSquare,
     Layers,
     Sliders,
-    ShieldCheck,
-    ShieldAlert,
     RefreshCw,
     Lock,
     Eye,
+    Blocks,
+    Rocket,
     Server,
+    ShieldCheck,
 } from 'lucide-react';
 import { useThemeShield } from '../context/BrandingContext';
 import { apiClient } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import {
+    ModuleSettingsRenderer,
+    SKIPPED_SETTINGS_MODULES,
+    type AdminModuleDescriptor,
+} from './settings/ModuleSettingsRegistry';
+
+const UpdatesPanel = React.lazy(() => import('./UpdatesPage').then((m) => ({ default: m.UpdatesPage })));
+const InfrastructurePanel = React.lazy(() => import('./settings/InfrastructurePanel'));
+const ThemeShieldPanel = React.lazy(() => import('./settings/ThemeShieldPanel').then((m) => ({ default: m.ThemeShieldPanel })));
 
 type TabKey =
     | 'basic'
-    | 'theme_shield'
     | 'appearance'
     | 'contact'
     | 'loader'
@@ -64,10 +75,10 @@ type TabKey =
     | 'booking_sections'
     | 'financial'
     | 'integrations'
-    | 'infrastructure';
-
-// Admin-only server settings (Redis / Cloudflare / CDN), loaded only when opened.
-const InfrastructurePanel = React.lazy(() => import('./settings/InfrastructurePanel'));
+    | 'updates'
+    | 'infrastructure'
+    | 'theme_shield'
+    | `module:${string}`;
 
 interface SocialItem {
     icon: string;
@@ -101,14 +112,41 @@ interface BookingStepItem {
 }
 
 export const SettingsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     const { can, hasRole } = useAuth();
     const canManage = can('manage-settings');
     const isAdmin = hasRole('admin');
     const { safeMode, setSafeMode, resetToFactoryDefaults } = useThemeShield();
+    const location = useLocation();
+    const isCmsMode = location.pathname.startsWith('/admin/content/');
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const initialTab = (searchParams.get('tab') as TabKey) || 'basic';
+    const initialTab = (searchParams.get('tab') as TabKey) || (isCmsMode ? 'gallery' : 'basic');
     const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+
+    useEffect(() => {
+        const paramTab = searchParams.get('tab') as TabKey | null;
+        if (paramTab && paramTab !== activeTab) {
+            setActiveTab(paramTab);
+        }
+    }, [searchParams]);
+
+    // Fetch enabled modules so their settings appear automatically inside Site Settings (excluding skipped modules)
+    const { data: modulesData } = useQuery({
+        queryKey: ['admin', 'modules'],
+        queryFn: async (): Promise<AdminModuleDescriptor[]> => (await apiClient.get('/modules')).data?.data || [],
+        enabled: isAdmin && !isCmsMode,
+        staleTime: 1000 * 60 * 5,
+        retry: false,
+    });
+
+    const autoSettingsModules = useMemo(
+        () =>
+            (Array.isArray(modulesData) ? modulesData : []).filter(
+                (m) => m.enabled && !SKIPPED_SETTINGS_MODULES.has(m.key)
+            ),
+        [modulesData]
+    );
 
     const [settings, setSettings] = useState<Record<string, any>>({});
     const [socialMedia, setSocialMedia] = useState<SocialItem[]>([]);
@@ -176,7 +214,7 @@ export const SettingsPage: React.FC = () => {
             setMainGallery(parseJsonOrArray(data.main_gallery));
         } catch (err: any) {
             console.error('Failed to load settings', err);
-            setStatusMessage({ type: 'error', text: 'فشل استرجاع إعدادات النظام' });
+            setStatusMessage({ type: 'error', text: t('settings.load_error') });
         } finally {
             setLoading(false);
         }
@@ -251,17 +289,17 @@ export const SettingsPage: React.FC = () => {
     };
 
     const handleDeleteGalleryImage = async (imagePath: string) => {
-        if (!confirm('هل أنت متأكد من حذف هذه الصورة نهائياً؟')) return;
+        if (!confirm(t('settings.confirm_delete_image'))) return;
         try {
             await apiClient.put('/api/v1/settings', {
                 delete_gallery_image: imagePath,
             });
             setMainGallery((prev) => prev.filter((p) => p !== imagePath));
-            setStatusMessage({ type: 'success', text: 'تم حذف الصورة من المعرض' });
+            setStatusMessage({ type: 'success', text: t('settings.delete_image_success') });
             setTimeout(() => setStatusMessage(null), 3000);
         } catch (err: any) {
             console.error('Delete image error', err);
-            setStatusMessage({ type: 'error', text: 'فشل حذف الصورة' });
+            setStatusMessage({ type: 'error', text: t('settings.delete_image_error') });
         }
     };
 
@@ -306,7 +344,7 @@ export const SettingsPage: React.FC = () => {
                 });
             }
 
-            setStatusMessage({ type: 'success', text: 'تم حفظ وتحديث كافة الإعدادات بنجاح!' });
+            setStatusMessage({ type: 'success', text: t('settings.save_success') });
             setFileUploads({});
             setGalleryUploads([]);
             fetchSettings();
@@ -315,7 +353,7 @@ export const SettingsPage: React.FC = () => {
             console.error('Save error', err);
             setStatusMessage({
                 type: 'error',
-                text: err.response?.data?.message || err.message || 'حدث خطأ أثناء حفظ الإعدادات',
+                text: err.response?.data?.message || err.message || t('settings.save_error'),
             });
         } finally {
             setSaving(false);
@@ -330,77 +368,102 @@ export const SettingsPage: React.FC = () => {
         return field[locale] || '';
     };
 
-    // Navigation sections definition exactly matching the screenshot
-    const navSections = [
-        {
-            group: 'عام',
-            items: [
-                { id: 'basic', label: 'المعلومات الأساسية', icon: Info },
-                { id: 'appearance', label: 'الشعار والمظهر', icon: Palette },
-                { id: 'theme_shield', label: 'درع الثيم والتخصيص الآمن (Shield)', icon: ShieldCheck },
-                { id: 'contact', label: 'التواصل والشبكات', icon: Phone },
-                { id: 'loader', label: 'شاشة التحميل', icon: Hourglass },
-                { id: 'popup', label: 'Popup ترويجي', icon: Megaphone },
-            ],
-        },
-        {
-            group: 'الصفحة الرئيسية',
-            items: [
-                { id: 'gallery', label: 'المعرض الرئيسي', icon: Images },
-                { id: 'homepage_stats', label: 'الإحصائيات', icon: BarChart3 },
-                { id: 'finance_stats', label: 'إحصائيات التمويل', icon: TrendingUp },
-            ],
-        },
-        {
-            group: 'صفحة السيارات',
-            items: [
-                { id: 'cars_hero', label: 'هيرو صفحة السيارات', icon: Car },
-                { id: 'cars_ads', label: 'إعلانات الهيرو', icon: Sparkles },
-            ],
-        },
-        {
-            group: 'صفحة العروض',
-            items: [
-                { id: 'offers_hero', label: 'هيرو صفحة العروض', icon: Tag },
-            ],
-        },
-        {
-            group: 'صفحة من نحن',
-            items: [
-                { id: 'about_sections', label: 'نصوص الأقسام', icon: FileText },
-                { id: 'about_stats', label: 'الإحصائيات', icon: BarChart3 },
-                { id: 'about_branches', label: 'فروع التواجد', icon: MapPin },
-            ],
-        },
-        {
-            group: 'صفحة الحجز',
-            items: [
-                { id: 'booking_hero', label: 'هيرو الحجز', icon: CalendarCheck },
-                { id: 'booking_steps', label: 'خطوات الحجز', icon: CheckSquare },
-                { id: 'booking_sections', label: 'نصوص الأقسام', icon: Layers },
-            ],
-        },
-        {
-            group: 'المالية والحاسبة',
-            items: [
-                { id: 'financial', label: 'محددات التمويل والضرائب', icon: Calculator },
-            ],
-        },
-        {
-            group: 'الربط والـ SEO',
-            items: [
-                { id: 'integrations', label: 'الربط والـ SEO', icon: Cpu },
-            ],
-        },
-        ...(isAdmin
-            ? [
-                  {
-                      group: 'السيرفر',
-                      items: [{ id: 'infrastructure', label: 'Redis و Cloudflare و CDN', icon: Server }],
-                  },
-              ]
-            : []),
-    ];
+    const navSections = useMemo(() => {
+        if (isCmsMode) {
+            return [
+                {
+                    group: t('content.cms.group_home'),
+                    items: [
+                        { id: 'gallery', label: t('content.cms.tab_gallery'), icon: Images },
+                        { id: 'homepage_stats', label: t('content.cms.tab_homepage_stats'), icon: BarChart3 },
+                        { id: 'finance_stats', label: t('content.cms.tab_finance_stats'), icon: TrendingUp },
+                    ],
+                },
+                {
+                    group: t('content.cms.group_cars'),
+                    items: [
+                        { id: 'cars_hero', label: t('content.cms.tab_cars_hero'), icon: Car },
+                        { id: 'cars_ads', label: t('content.cms.tab_cars_ads'), icon: Sparkles },
+                    ],
+                },
+                {
+                    group: t('content.cms.group_offers'),
+                    items: [{ id: 'offers_hero', label: t('content.cms.tab_offers_hero'), icon: Tag }],
+                },
+                {
+                    group: t('content.cms.group_about'),
+                    items: [
+                        { id: 'about_sections', label: t('content.cms.tab_about_sections'), icon: FileText },
+                        { id: 'about_stats', label: t('content.cms.tab_about_stats'), icon: BarChart3 },
+                        { id: 'about_branches', label: t('content.cms.tab_about_branches'), icon: MapPin },
+                    ],
+                },
+                {
+                    group: t('content.cms.group_booking'),
+                    items: [
+                        { id: 'booking_hero', label: t('content.cms.tab_booking_hero'), icon: CalendarCheck },
+                        { id: 'booking_steps', label: t('content.cms.tab_booking_steps'), icon: CheckSquare },
+                        { id: 'booking_sections', label: t('content.cms.tab_booking_sections'), icon: Layers },
+                    ],
+                },
+            ];
+        }
+
+        return [
+            {
+                group: t('settings.group_general'),
+                items: [
+                    { id: 'basic', label: t('settings.tab_basic'), icon: Info },
+                    { id: 'appearance', label: t('settings.tab_appearance'), icon: Palette },
+                    { id: 'contact', label: t('settings.tab_contact'), icon: Phone },
+                    { id: 'loader', label: t('settings.tab_loader'), icon: Hourglass },
+                    { id: 'popup', label: t('settings.tab_popup'), icon: Megaphone },
+                ],
+            },
+            {
+                group: t('settings.group_finance_seo'),
+                items: [
+                    { id: 'financial', label: t('settings.tab_financial'), icon: Calculator },
+                    { id: 'integrations', label: t('settings.tab_integrations'), icon: Cpu },
+                ],
+            },
+            ...(autoSettingsModules.length > 0
+                ? [
+                      {
+                          group: t('settings.group_modules'),
+                          items: autoSettingsModules.map((m) => ({
+                              id: `module:${m.key}` as TabKey,
+                              label:
+                                  m.key === 'ai-assistant'
+                                      ? t('nav.items.ai_assistant')
+                                      : m.key === 'whatsapp'
+                                        ? t('nav.items.whatsapp_settings')
+                                        : (m.admin?.label || m.name),
+                              icon: Blocks,
+                          })),
+                      },
+                  ]
+                : []),
+            ...(isAdmin
+                ? [
+                      {
+                          group: t('settings.group_system'),
+                          items: [
+                              { id: 'updates', label: t('settings.tab_updates'), icon: Rocket },
+                              { id: 'infrastructure', label: t('settings.tab_infrastructure'), icon: Server },
+                              { id: 'theme_shield', label: t('settings.tab_theme_shield'), icon: ShieldCheck },
+                          ],
+                      },
+                  ]
+                : []),
+        ];
+    }, [isCmsMode, autoSettingsModules, isAdmin, t]);
+
+    const selectedModule = useMemo(() => {
+        if (!activeTab.startsWith('module:')) return null;
+        const key = activeTab.slice('module:'.length);
+        return autoSettingsModules.find((m) => m.key === key) ?? null;
+    }, [activeTab, autoSettingsModules]);
 
     // Find current active label
     const activeItemLabel = useMemo(() => {
@@ -408,16 +471,18 @@ export const SettingsPage: React.FC = () => {
             const it = g.items.find((i) => i.id === activeTab);
             if (it) return it.label;
         }
-        return 'المعلومات الأساسية';
-    }, [activeTab]);
+        return isCmsMode ? t('settings.title_cms') : t('settings.tab_basic');
+    }, [activeTab, navSections, isCmsMode, t]);
 
     return (
         <div className="space-y-6">
             {/* Top Page Title */}
             <div>
-                <h4 className="text-xl font-bold text-[var(--text-primary)]">إعدادات الموقع</h4>
+                <h4 className="text-xl font-bold text-[var(--text-primary)]">
+                    {isCmsMode ? t('settings.title_cms') : t('settings.title')}
+                </h4>
                 <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                    تحكم في محتوى وإعدادات جميع صفحات الموقع من مكان واحد
+                    {isCmsMode ? t('settings.subtitle_cms') : t('settings.subtitle')}
                 </p>
             </div>
 
@@ -481,32 +546,54 @@ export const SettingsPage: React.FC = () => {
                 {/* ========================================================== */}
                 <div className="flex-1 w-full min-w-0">
                     <div className="bg-[var(--surface-primary)] border border-[var(--border-default)] rounded-2xl shadow-xs overflow-hidden">
-                        {activeTab === 'infrastructure' ? (
+                        {selectedModule ? (
+                            <ModuleSettingsRenderer module={selectedModule} />
+                        ) : activeTab === 'updates' ? (
                             isAdmin ? (
-                                <React.Suspense fallback={<div className="py-20 text-center text-slate-400 text-xs">جاري التحميل...</div>}>
+                                <div className="p-6">
+                                    <React.Suspense fallback={<div className="py-20 text-center text-slate-400 text-xs">{t('common.loading')}</div>}>
+                                        <UpdatesPanel embedded />
+                                    </React.Suspense>
+                                </div>
+                            ) : (
+                                <div className="py-20 text-center text-slate-400 text-xs">{t('settings.admin_only_section')}</div>
+                            )
+                        ) : activeTab === 'infrastructure' ? (
+                            isAdmin ? (
+                                <React.Suspense fallback={<div className="py-20 text-center text-slate-400 text-xs">{t('common.loading')}</div>}>
                                     <InfrastructurePanel />
                                 </React.Suspense>
                             ) : (
-                                <div className="py-20 text-center text-slate-400 text-xs">هذا القسم متاح لمدير النظام فقط.</div>
+                                <div className="py-20 text-center text-slate-400 text-xs">{t('settings.admin_only_section')}</div>
+                            )
+                        ) : activeTab === 'theme_shield' ? (
+                            isAdmin ? (
+                                <div className="p-6">
+                                    <React.Suspense fallback={<div className="py-20 text-center text-slate-400 text-xs">{t('common.loading')}</div>}>
+                                        <ThemeShieldPanel />
+                                    </React.Suspense>
+                                </div>
+                            ) : (
+                                <div className="py-20 text-center text-slate-400 text-xs">{t('settings.admin_only_section')}</div>
                             )
                         ) : loading ? (
                             <div className="py-20 text-center text-slate-400 text-xs">
-                                جاري تحميل الإعدادات...
+                                {t('settings.loading_settings')}
                             </div>
                         ) : (
                             <form onSubmit={handleSave} className="p-6 space-y-6">
-                                {/* TAB: 1. المعلومات الأساسية */}
+                                {/* TAB: 1. Basic Info */}
                                 {activeTab === 'basic' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">المعلومات الأساسية</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">اسم الموقع ونص التذييل</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.basic.title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('settings.basic.subtitle')}</p>
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                                    اسم الموقع — عربي
+                                                    {t('settings.basic.site_name_ar')}
                                                 </label>
                                                 <input
                                                     type="text"
@@ -521,14 +608,14 @@ export const SettingsPage: React.FC = () => {
                                                             ar: e.target.value,
                                                         })
                                                     }
-                                                    placeholder="مثال: زاد كابيتال"
+                                                    placeholder={t('settings.basic.site_name_ar_ph')}
                                                     className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0 focus:outline-hidden focus:ring-1 focus:ring-[var(--tenant-primary)]"
                                                 />
                                             </div>
 
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                                    اسم الموقع — إنجليزي
+                                                    {t('settings.basic.site_name_en')}
                                                 </label>
                                                 <input
                                                     type="text"
@@ -551,7 +638,7 @@ export const SettingsPage: React.FC = () => {
 
                                             <div className="sm:col-span-2">
                                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                                    نص التذييل (Footer Text)
+                                                    {t('settings.basic.footer_text')}
                                                 </label>
                                                 <textarea
                                                     value={
@@ -561,7 +648,7 @@ export const SettingsPage: React.FC = () => {
                                                     }
                                                     onChange={(e) => handleChange('footer_text', e.target.value)}
                                                     rows={3}
-                                                    placeholder="النص الذي يظهر في أسفل جميع الصفحات..."
+                                                    placeholder={t('settings.basic.footer_text_ph')}
                                                     className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0 focus:outline-hidden focus:ring-1 focus:ring-[var(--tenant-primary)]"
                                                 />
                                             </div>
@@ -569,10 +656,10 @@ export const SettingsPage: React.FC = () => {
                                             <div className="sm:col-span-2 p-4 bg-slate-100/70 rounded-xl flex items-center justify-between">
                                                 <div>
                                                     <p className="font-bold text-xs text-slate-800">
-                                                        التوزيع التلقائي للطلبات
+                                                        {t('settings.basic.auto_assign')}
                                                     </p>
                                                     <p className="text-[11px] text-slate-500 mt-0.5">
-                                                        توزيع طلبات الحجز تلقائياً (Round-Robin) على موظفي المبيعات
+                                                        {t('settings.basic.auto_assign_desc')}
                                                     </p>
                                                 </div>
                                                 <input
@@ -586,25 +673,25 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 2. الشعار والمظهر */}
+                                {/* TAB: 2. Appearance */}
                                 {activeTab === 'appearance' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">الشعار والمظهر</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">اللوجو والأيقونة وخلفية الصفحات الداخلية</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.appearance.title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('settings.appearance.subtitle')}</p>
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {/* Header Logo */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                <span className="block text-xs font-semibold text-slate-700">شعار الهيدر (Header Logo)</span>
+                                                <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.header_logo')}</span>
                                                 <div className="h-16 rounded-lg bg-white border border-slate-200 flex items-center justify-center p-2">
                                                     {fileUploads.site_logo ? (
                                                         <span className="text-xs text-emerald-600 font-semibold truncate">{fileUploads.site_logo.name}</span>
                                                     ) : settings.site_logo ? (
                                                         <img src={`/storage/${settings.site_logo}`} alt="Header Logo" className="max-h-full object-contain" />
                                                     ) : (
-                                                        <span className="text-xs text-slate-400">لا يوجد شعار</span>
+                                                        <span className="text-xs text-slate-400">{t('settings.appearance.no_logo')}</span>
                                                     )}
                                                 </div>
                                                 <input
@@ -617,14 +704,14 @@ export const SettingsPage: React.FC = () => {
 
                                             {/* Footer Logo */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                <span className="block text-xs font-semibold text-slate-700">شعار الفوتر (Footer Logo)</span>
+                                                <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.footer_logo')}</span>
                                                 <div className="h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center p-2">
                                                     {fileUploads.footer_logo ? (
                                                         <span className="text-xs text-emerald-400 font-semibold truncate">{fileUploads.footer_logo.name}</span>
                                                     ) : settings.footer_logo ? (
                                                         <img src={`/storage/${settings.footer_logo}`} alt="Footer Logo" className="max-h-full object-contain" />
                                                     ) : (
-                                                        <span className="text-xs text-slate-500">لا يوجد شعار</span>
+                                                        <span className="text-xs text-slate-500">{t('settings.appearance.no_logo')}</span>
                                                     )}
                                                 </div>
                                                 <input
@@ -638,8 +725,8 @@ export const SettingsPage: React.FC = () => {
                                             {/* Favicon / Mobile Home Icon */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
                                                 <div className="flex items-center justify-between">
-                                                    <span className="block text-xs font-semibold text-slate-700">أيقونة الموقع وزر الرئيسية بالموبايل (Favicon)</span>
-                                                    <span className="text-[10px] text-amber-600 font-medium">زر الرئيسية بالجوال</span>
+                                                    <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.favicon')}</span>
+                                                    <span className="text-[10px] text-amber-600 font-medium">{t('settings.appearance.mobile_home_btn')}</span>
                                                 </div>
                                                 <div className="h-16 rounded-lg bg-white border border-slate-200 flex items-center justify-center p-2">
                                                     {fileUploads.site_favicon ? (
@@ -661,13 +748,13 @@ export const SettingsPage: React.FC = () => {
                                                     className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                 />
                                                 <p className="text-[10px] text-slate-400 leading-tight">
-                                                    يدعم PNG (يفضل بخلفية شفافة)، WebP، SVG، ICO. ستظهر الأيقونة كأيقونة للموقع وزر الرئيسية في شريط التنقل السفلي للهواتف.
+                                                    {t('settings.appearance.favicon_hint')}
                                                 </p>
                                             </div>
 
                                             {/* Breadcrumb Background */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                <span className="block text-xs font-semibold text-slate-700">خلفية الصفحات (Breadcrumb)</span>
+                                                <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.breadcrumb_bg')}</span>
                                                 <div className="h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
                                                     {fileUploads.breadcrumb_bg ? (
                                                         <span className="text-xs text-emerald-400 font-semibold">{fileUploads.breadcrumb_bg.name}</span>
@@ -687,14 +774,14 @@ export const SettingsPage: React.FC = () => {
 
                                             {/* Default Car Image */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                <span className="block text-xs font-semibold text-slate-700">صورة السيارة الافتراضية</span>
+                                                <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.default_car_image')}</span>
                                                 <div className="h-16 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
                                                     {fileUploads.default_car_image ? (
                                                         <span className="text-xs text-emerald-600 font-semibold">{fileUploads.default_car_image.name}</span>
                                                     ) : settings.default_car_image ? (
                                                         <img src={`/storage/${settings.default_car_image}`} alt="Default Car" className="h-full w-full object-cover" />
                                                     ) : (
-                                                        <span className="text-xs text-slate-400">صورة افتراضية</span>
+                                                        <span className="text-xs text-slate-400">{t('settings.appearance.default_image_ph')}</span>
                                                     )}
                                                 </div>
                                                 <input
@@ -707,7 +794,7 @@ export const SettingsPage: React.FC = () => {
 
                                             {/* Floating Request Car Icon */}
                                             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                <span className="block text-xs font-semibold text-slate-700">أيقونة زر طلب سيارة العائم</span>
+                                                <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.request_car_icon')}</span>
                                                 <div className="h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center p-2">
                                                     {fileUploads.request_car_icon ? (
                                                         <span className="text-xs text-emerald-400 font-semibold">{fileUploads.request_car_icon.name}</span>
@@ -732,10 +819,10 @@ export const SettingsPage: React.FC = () => {
                                                 <div>
                                                     <h5 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
                                                         <Lock className="w-4 h-4 text-[var(--tenant-primary)]" />
-                                                        تخصيص صفحة تسجيل الدخول والقائمة الجانبية (Admin Login & Sidebar)
+                                                        {t('settings.appearance.admin_branding_title')}
                                                     </h5>
                                                     <p className="text-xs text-slate-500 mt-0.5">
-                                                        خصص صورة الخلفية والشعار والنصوص لصفحة الدخول وشعار القائمة الجانبية للوحة التحكم
+                                                        {t('settings.appearance.admin_branding_sub')}
                                                     </p>
                                                 </div>
                                                 <a
@@ -745,14 +832,14 @@ export const SettingsPage: React.FC = () => {
                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
                                                 >
                                                     <ExternalLink className="w-3.5 h-3.5" />
-                                                    معاينة صفحة الدخول
+                                                    {t('settings.appearance.preview_login')}
                                                 </a>
                                             </div>
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {/* Login Background Image */}
                                                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                    <span className="block text-xs font-semibold text-slate-700">خلفية صفحة تسجيل الدخول</span>
+                                                    <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.login_bg')}</span>
                                                     <div className="h-20 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
                                                         {fileUploads.admin_login_bg ? (
                                                             <span className="text-xs text-emerald-400 font-semibold truncate px-2">{fileUploads.admin_login_bg.name}</span>
@@ -763,7 +850,7 @@ export const SettingsPage: React.FC = () => {
                                                                 className="h-full w-full object-cover"
                                                             />
                                                         ) : (
-                                                            <span className="text-xs text-slate-500">الافتراضية: لون سادة</span>
+                                                            <span className="text-xs text-slate-500">{t('settings.appearance.login_bg_default')}</span>
                                                         )}
                                                     </div>
                                                     <input
@@ -772,12 +859,12 @@ export const SettingsPage: React.FC = () => {
                                                         onChange={(e) => handleFileChange('admin_login_bg', e.target.files?.[0] || null)}
                                                         className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                     />
-                                                    <p className="text-[10px] text-slate-400">مقاس موصى به: 1920x1080 (JPG, WebP, PNG)</p>
+                                                    <p className="text-[10px] text-slate-400">{t('settings.appearance.login_bg_hint')}</p>
                                                 </div>
 
                                                 {/* Login Page Logo */}
                                                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                    <span className="block text-xs font-semibold text-slate-700">شعار كارت تسجيل الدخول</span>
+                                                    <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.login_logo')}</span>
                                                     <div className="h-20 rounded-lg bg-[var(--tenant-primary)] border border-slate-200 flex items-center justify-center p-2">
                                                         {fileUploads.admin_login_logo ? (
                                                             <span className="text-xs text-emerald-300 font-semibold truncate px-2">{fileUploads.admin_login_logo.name}</span>
@@ -788,7 +875,7 @@ export const SettingsPage: React.FC = () => {
                                                                 className="max-h-full object-contain"
                                                             />
                                                         ) : (
-                                                            <span className="text-xs text-white/70">الافتراضي: شعار تعميد (/images/logo.png)</span>
+                                                            <span className="text-xs text-white/70">{t('settings.appearance.login_logo_default')}</span>
                                                         )}
                                                     </div>
                                                     <input
@@ -797,12 +884,12 @@ export const SettingsPage: React.FC = () => {
                                                         onChange={(e) => handleFileChange('admin_login_logo', e.target.files?.[0] || null)}
                                                         className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                     />
-                                                    <p className="text-[10px] text-slate-400">يظهر في رأس كارت تسجيل الدخول (/admin/login)</p>
+                                                    <p className="text-[10px] text-slate-400">{t('settings.appearance.login_logo_hint')}</p>
                                                 </div>
 
                                                 {/* Admin Sidebar Logo */}
                                                 <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 space-y-2">
-                                                    <span className="block text-xs font-semibold text-slate-700">شعار القائمة الجانبية (Sidebar)</span>
+                                                    <span className="block text-xs font-semibold text-slate-700">{t('settings.appearance.sidebar_logo')}</span>
                                                     <div className="h-20 rounded-lg bg-[var(--tenant-sidebar-bg)] border border-slate-800 flex items-center justify-center p-2">
                                                         {fileUploads.admin_sidebar_logo ? (
                                                             <span className="text-xs text-emerald-300 font-semibold truncate px-2">{fileUploads.admin_sidebar_logo.name}</span>
@@ -813,7 +900,7 @@ export const SettingsPage: React.FC = () => {
                                                                 className="max-h-full object-contain"
                                                             />
                                                         ) : (
-                                                            <span className="text-xs text-white/70">الافتراضي: شعار الهيدر / تعميد</span>
+                                                            <span className="text-xs text-white/70">{t('settings.appearance.sidebar_logo_default')}</span>
                                                         )}
                                                     </div>
                                                     <input
@@ -822,7 +909,7 @@ export const SettingsPage: React.FC = () => {
                                                         onChange={(e) => handleFileChange('admin_sidebar_logo', e.target.files?.[0] || null)}
                                                         className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                     />
-                                                    <p className="text-[10px] text-slate-400">يظهر أعلى القائمة الجانبية في لوحة التحكم</p>
+                                                    <p className="text-[10px] text-slate-400">{t('settings.appearance.sidebar_logo_hint')}</p>
                                                 </div>
                                             </div>
 
@@ -830,33 +917,33 @@ export const SettingsPage: React.FC = () => {
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                                                 <div className="space-y-1.5">
                                                     <label className="block text-xs font-semibold text-slate-700">
-                                                        عنوان كارت صفحة الدخول (Title)
+                                                        {t('settings.appearance.login_title_label')}
                                                     </label>
                                                     <input
                                                         type="text"
                                                         value={settings.admin_login_title ?? ''}
                                                         onChange={(e) => handleChange('admin_login_title', e.target.value)}
-                                                        placeholder="مثال: نظام إدارة تعميد CRM (اتركه فارغاً للاكتفاء بالشعار فقط)"
+                                                        placeholder={t('settings.appearance.login_title_ph')}
                                                         className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary)]/30 focus:border-[var(--tenant-primary)]"
                                                     />
                                                     <p className="text-[10px] text-amber-700 leading-tight">
-                                                        💡 إذا تركت هذا الحقل فارغاً، لن تظهر أي نصوص وسيتم الاكتفاء بالشعار/الصورة بالحجم الكامل.
+                                                        {t('settings.appearance.login_title_hint')}
                                                     </p>
                                                 </div>
 
                                                 <div className="space-y-1.5">
                                                     <label className="block text-xs font-semibold text-slate-700">
-                                                        الوصف الترحيبي أسفل العنوان (Subtitle)
+                                                        {t('settings.appearance.login_subtitle_label')}
                                                     </label>
                                                     <input
                                                         type="text"
                                                         value={settings.admin_login_subtitle ?? ''}
                                                         onChange={(e) => handleChange('admin_login_subtitle', e.target.value)}
-                                                        placeholder="مثال: سجل الدخول للمتابعة وإدارة العمليات اليومية"
+                                                        placeholder={t('settings.appearance.login_subtitle_ph')}
                                                         className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary)]/30 focus:border-[var(--tenant-primary)]"
                                                     />
                                                     <p className="text-[10px] text-slate-400 leading-tight">
-                                                        يظهر تحت العنوان بخط أصغر (اختياري).
+                                                        {t('settings.appearance.login_subtitle_hint')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1189,16 +1276,16 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 3. التواصل والشبكات */}
+                                {/* TAB: 3. Contact & Social */}
                                 {activeTab === 'contact' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">بيانات التواصل والشبكات</h5>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.contact.title')}</h5>
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">البريد الإلكتروني</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.contact.email')}</label>
                                                 <input
                                                     type="email"
                                                     value={settings.contact_email || ''}
@@ -1208,7 +1295,7 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">رقم الهاتف</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.contact.phone')}</label>
                                                 <input
                                                     type="text"
                                                     value={settings.contact_phone || ''}
@@ -1218,7 +1305,7 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">رقم الواتساب</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.contact.whatsapp')}</label>
                                                 <input
                                                     type="text"
                                                     value={settings.contact_whatsapp || ''}
@@ -1228,7 +1315,7 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.contact.address')}</label>
                                                 <input
                                                     type="text"
                                                     value={typeof settings.contact_address === 'object' ? settings.contact_address?.ar || '' : settings.contact_address || ''}
@@ -1241,13 +1328,13 @@ export const SettingsPage: React.FC = () => {
                                         {/* Social Links */}
                                         <div className="space-y-3 pt-3 border-t">
                                             <div className="flex items-center justify-between">
-                                                <h6 className="font-bold text-xs text-slate-800">روابط التواصل الاجتماعي</h6>
+                                                <h6 className="font-bold text-xs text-slate-800">{t('settings.contact.social_links')}</h6>
                                                 <button
                                                     type="button"
                                                     onClick={() => setSocialMedia([...socialMedia, { icon: 'bi-facebook', color: '#1877F2', link: '' }])}
                                                     className="text-xs px-2.5 py-1 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                                 >
-                                                    + إضافة
+                                                    {t('settings.contact.add_btn')}
                                                 </button>
                                             </div>
                                             <div className="space-y-2">
@@ -1302,13 +1389,13 @@ export const SettingsPage: React.FC = () => {
                                         {/* Footer Quick Links */}
                                         <div className="space-y-3 pt-3 border-t">
                                             <div className="flex items-center justify-between">
-                                                <h6 className="font-bold text-xs text-slate-800">روابط الفوتر السريعة</h6>
+                                                <h6 className="font-bold text-xs text-slate-800">{t('settings.contact.footer_quick_links')}</h6>
                                                 <button
                                                     type="button"
                                                     onClick={() => setFooterQuickLinks([...footerQuickLinks, { title: { ar: '', en: '' }, url: '' }])}
                                                     className="text-xs px-2.5 py-1 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                                 >
-                                                    + إضافة
+                                                    {t('settings.contact.add_btn')}
                                                 </button>
                                             </div>
                                             <div className="space-y-2">
@@ -1322,7 +1409,7 @@ export const SettingsPage: React.FC = () => {
                                                                 cp[idx].title = { ...cp[idx].title, ar: e.target.value };
                                                                 setFooterQuickLinks(cp);
                                                             }}
-                                                            placeholder="العنوان (عربي)"
+                                                            placeholder={t('settings.contact.title_ar_ph')}
                                                             className="w-1/3 px-2.5 py-1.5 text-xs rounded-lg bg-white border border-slate-200"
                                                         />
                                                         <input
@@ -1364,13 +1451,13 @@ export const SettingsPage: React.FC = () => {
                                         {/* Footer Service Links */}
                                         <div className="space-y-3 pt-3 border-t">
                                             <div className="flex items-center justify-between">
-                                                <h6 className="font-bold text-xs text-slate-800">روابط الخدمات في الفوتر</h6>
+                                                <h6 className="font-bold text-xs text-slate-800">{t('settings.contact.footer_service_links')}</h6>
                                                 <button
                                                     type="button"
                                                     onClick={() => setFooterServiceLinks([...footerServiceLinks, { title: { ar: '', en: '' }, url: '' }])}
                                                     className="text-xs px-2.5 py-1 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                                 >
-                                                    + إضافة
+                                                    {t('settings.contact.add_btn')}
                                                 </button>
                                             </div>
                                             <div className="space-y-2">
@@ -1384,7 +1471,7 @@ export const SettingsPage: React.FC = () => {
                                                                 cp[idx].title = { ...cp[idx].title, ar: e.target.value };
                                                                 setFooterServiceLinks(cp);
                                                             }}
-                                                            placeholder="العنوان (عربي)"
+                                                            placeholder={t('settings.contact.title_ar_ph')}
                                                             className="w-1/3 px-2.5 py-1.5 text-xs rounded-lg bg-white border border-slate-200"
                                                         />
                                                         <input
@@ -1425,18 +1512,18 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 4. شاشة التحميل */}
+                                {/* TAB: 4. Page Loader */}
                                 {activeTab === 'loader' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">شاشة التحميل</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">الشاشة التي تظهر أثناء تحميل الصفحة</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.loader.title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('settings.loader.subtitle')}</p>
                                         </div>
 
                                         <div className="p-4 bg-slate-100/70 rounded-xl flex items-center justify-between">
                                             <div>
-                                                <p className="font-bold text-xs text-slate-800">تفعيل شاشة التحميل</p>
-                                                <p className="text-[11px] text-slate-500">تظهر قبل اكتمال تحميل الصفحة</p>
+                                                <p className="font-bold text-xs text-slate-800">{t('settings.loader.enable')}</p>
+                                                <p className="text-[11px] text-slate-500">{t('settings.loader.enable_desc')}</p>
                                             </div>
                                             <input
                                                 type="checkbox"
@@ -1447,14 +1534,14 @@ export const SettingsPage: React.FC = () => {
                                         </div>
 
                                         <div className="max-w-sm space-y-2">
-                                            <label className="block text-xs font-semibold text-slate-700">صورة / GIF التحميل</label>
+                                            <label className="block text-xs font-semibold text-slate-700">{t('settings.loader.image_label')}</label>
                                             <div className="h-24 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center p-2">
                                                 {fileUploads.page_loader_image ? (
                                                     <span className="text-xs text-emerald-400 font-semibold truncate">{fileUploads.page_loader_image.name}</span>
                                                 ) : settings.page_loader_image ? (
                                                     <img src={`/storage/${settings.page_loader_image}`} alt="Loader" className="max-h-full object-contain" />
                                                 ) : (
-                                                    <span className="text-xs text-slate-500">PNG أو GIF متحرك</span>
+                                                    <span className="text-xs text-slate-500">{t('settings.loader.image_ph')}</span>
                                                 )}
                                             </div>
                                             <input
@@ -1467,12 +1554,12 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 5. Popup ترويجي */}
+                                {/* TAB: 5. Promo Popup */}
                                 {activeTab === 'popup' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">Popup ترويجي</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">يظهر للزوار بعد فترة من التصفح للترويج للعروض</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.popup.title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('settings.popup.subtitle')}</p>
                                         </div>
 
                                         {(() => {
@@ -1481,8 +1568,8 @@ export const SettingsPage: React.FC = () => {
                                                 <div className="space-y-4">
                                                     <div className="p-4 bg-slate-100/70 rounded-xl flex items-center justify-between">
                                                         <div>
-                                                            <p className="font-bold text-xs text-slate-800">تفعيل الـ Popup</p>
-                                                            <p className="text-[11px] text-slate-500">إظهار النافذة المنبثقة تلقائياً</p>
+                                                            <p className="font-bold text-xs text-slate-800">{t('settings.popup.enable')}</p>
+                                                            <p className="text-[11px] text-slate-500">{t('settings.popup.enable_desc')}</p>
                                                         </div>
                                                         <input
                                                             type="checkbox"
@@ -1494,14 +1581,14 @@ export const SettingsPage: React.FC = () => {
 
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                         <div className="sm:col-span-2 space-y-2">
-                                                            <label className="block text-xs font-semibold text-slate-700">صورة الـ Popup</label>
+                                                            <label className="block text-xs font-semibold text-slate-700">{t('settings.popup.image_label')}</label>
                                                             <div className="h-32 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
                                                                 {fileUploads.popup_image ? (
                                                                     <span className="text-xs text-emerald-600 font-semibold">{fileUploads.popup_image.name}</span>
                                                                 ) : promoObj.image ? (
                                                                     <img src={`/storage/${promoObj.image}`} alt="Popup" className="h-full w-full object-cover" />
                                                                 ) : (
-                                                                    <span className="text-xs text-slate-400">لا توجد صورة</span>
+                                                                    <span className="text-xs text-slate-400">{t('settings.popup.no_image')}</span>
                                                                 )}
                                                             </div>
                                                             <input
@@ -1513,27 +1600,27 @@ export const SettingsPage: React.FC = () => {
                                                         </div>
 
                                                         <div>
-                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان</label>
+                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.popup.heading_label')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={promoObj.title || ''}
                                                                 onChange={(e) => handleNestedChange('promo_popup', 'title', e.target.value)}
-                                                                placeholder="عروض مميزة لهذا الشهر!"
+                                                                placeholder={t('settings.popup.heading_ph')}
                                                                 className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0"
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">نص الزر</label>
+                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.popup.btn_text_label')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={promoObj.button_text || ''}
                                                                 onChange={(e) => handleNestedChange('promo_popup', 'button_text', e.target.value)}
-                                                                placeholder="تصفح العروض"
+                                                                placeholder={t('settings.popup.btn_text_ph')}
                                                                 className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0"
                                                             />
                                                         </div>
                                                         <div className="sm:col-span-2">
-                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">رابط الزر</label>
+                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.popup.btn_link_label')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={promoObj.link || ''}
@@ -1544,12 +1631,12 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div className="sm:col-span-2">
-                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">نص الوصف</label>
+                                                            <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.popup.desc_label')}</label>
                                                             <textarea
                                                                 value={promoObj.text || ''}
                                                                 onChange={(e) => handleNestedChange('promo_popup', 'text', e.target.value)}
                                                                 rows={3}
-                                                                placeholder="نص قصير جذاب..."
+                                                                placeholder={t('settings.popup.desc_ph')}
                                                                 className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0"
                                                             />
                                                         </div>
@@ -1560,22 +1647,22 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 6. المعرض الرئيسي */}
+                                {/* TAB: 6. Main Gallery */}
                                 {activeTab === 'gallery' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3 flex items-center justify-between">
                                             <div>
-                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">المعرض الرئيسي</h5>
-                                                <p className="text-xs text-slate-500 mt-0.5">صور صفحة من نحن والواجهة الرئيسية</p>
+                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.gallery_title')}</h5>
+                                                <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.gallery_sub')}</p>
                                             </div>
                                             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
-                                                {mainGallery.length} صورة
+                                                {t('content.cms.gallery_count', { count: mainGallery.length })}
                                             </span>
                                         </div>
 
                                         <div className="p-5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 flex flex-col items-center justify-center text-center">
                                             <Upload className="h-8 w-8 text-slate-400 mb-2" />
-                                            <p className="text-xs font-bold text-slate-700">رفع صور جديدة إلى المعرض الرئيسي</p>
+                                            <p className="text-xs font-bold text-slate-700">{t('content.cms.gallery_upload')}</p>
                                             <input
                                                 type="file"
                                                 accept="image/*"
@@ -1585,7 +1672,7 @@ export const SettingsPage: React.FC = () => {
                                             />
                                             {galleryUploads.length > 0 && (
                                                 <span className="text-xs text-emerald-600 font-bold mt-2">
-                                                    تم تجهيز {galleryUploads.length} صورة للحفظ
+                                                    {t('content.cms.gallery_ready', { count: galleryUploads.length })}
                                                 </span>
                                             )}
                                         </div>
@@ -1607,20 +1694,20 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 7. إحصائيات الرئيسية */}
+                                {/* TAB: 7. Homepage Stats */}
                                 {activeTab === 'homepage_stats' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3 flex items-center justify-between">
                                             <div>
-                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">إحصائيات الصفحة الرئيسية</h5>
-                                                <p className="text-xs text-slate-500 mt-0.5">الأرقام التي تظهر في قسم الإنجازات</p>
+                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.homepage_stats_title')}</h5>
+                                                <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.homepage_stats_sub')}</p>
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => setHomepageStats([...homepageStats, { value: '+500', label: 'عميل سعيد' }])}
+                                                onClick={() => setHomepageStats([...homepageStats, { value: '+500', label: '' }])}
                                                 className="text-xs px-3 py-1.5 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                             >
-                                                + إضافة
+                                                {t('content.cms.add_btn')}
                                             </button>
                                         </div>
 
@@ -1646,7 +1733,7 @@ export const SettingsPage: React.FC = () => {
                                                             cp[idx].label = e.target.value;
                                                             setHomepageStats(cp);
                                                         }}
-                                                        placeholder="التسمية"
+                                                        placeholder={t('content.cms.label_ph')}
                                                         className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-200"
                                                     />
                                                     <button
@@ -1662,20 +1749,20 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 8. إحصائيات التمويل */}
+                                {/* TAB: 8. Finance Stats */}
                                 {activeTab === 'finance_stats' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3 flex items-center justify-between">
                                             <div>
-                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">إحصائيات قسم التمويل</h5>
-                                                <p className="text-xs text-slate-500 mt-0.5">الأرقام التي تظهر في قسم حلول التمويل</p>
+                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.finance_stats_title')}</h5>
+                                                <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.finance_stats_sub')}</p>
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => setFinanceStats([...financeStats, { value: '98%', label: 'نسبة الموافقة' }])}
+                                                onClick={() => setFinanceStats([...financeStats, { value: '98%', label: '' }])}
                                                 className="text-xs px-3 py-1.5 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                             >
-                                                + إضافة
+                                                {t('content.cms.add_btn')}
                                             </button>
                                         </div>
 
@@ -1701,7 +1788,7 @@ export const SettingsPage: React.FC = () => {
                                                             cp[idx].label = e.target.value;
                                                             setFinanceStats(cp);
                                                         }}
-                                                        placeholder="التسمية"
+                                                        placeholder={t('content.cms.label_ph')}
                                                         className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-200"
                                                     />
                                                     <button
@@ -1717,12 +1804,12 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 9. هيرو صفحة السيارات */}
+                                {/* TAB: 9. Cars Hero */}
                                 {activeTab === 'cars_hero' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">هيرو صفحة السيارات</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">العنوان والصورة التي تظهر في أعلى صفحة كل السيارات</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.cars_hero_title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.cars_hero_sub')}</p>
                                         </div>
 
                                         {(() => {
@@ -1730,7 +1817,7 @@ export const SettingsPage: React.FC = () => {
                                             return (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان — عربي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.title_ar')}</label>
                                                         <input
                                                             type="text"
                                                             value={heroObj.title?.ar || ''}
@@ -1739,7 +1826,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان — إنجليزي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.title_en')}</label>
                                                         <input
                                                             type="text"
                                                             value={heroObj.title?.en || ''}
@@ -1749,7 +1836,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">الوصف — عربي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.desc_ar')}</label>
                                                         <textarea
                                                             value={heroObj.subtitle?.ar || ''}
                                                             onChange={(e) => handleNestedChange('store_hero', 'subtitle', { ...heroObj.subtitle, ar: e.target.value })}
@@ -1758,7 +1845,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">الوصف — إنجليزي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.desc_en')}</label>
                                                         <textarea
                                                             value={heroObj.subtitle?.en || ''}
                                                             onChange={(e) => handleNestedChange('store_hero', 'subtitle', { ...heroObj.subtitle, en: e.target.value })}
@@ -1768,7 +1855,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div className="sm:col-span-2 space-y-2">
-                                                        <label className="block text-xs font-semibold text-slate-700">صورة الهيرو</label>
+                                                        <label className="block text-xs font-semibold text-slate-700">{t('content.cms.hero_image')}</label>
                                                         <div className="h-28 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
                                                             {fileUploads.cars_hero_image ? (
                                                                 <span className="text-xs text-emerald-400 font-semibold">{fileUploads.cars_hero_image.name}</span>
@@ -1791,25 +1878,25 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 10. إعلانات هيرو السيارات */}
+                                {/* TAB: 10. Cars Hero Ads */}
                                 {activeTab === 'cars_ads' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">إعلانات هيرو صفحة السيارات</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">البانرات الإعلانية التي تظهر في أعلى صفحة السيارات</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.cars_ads_title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.cars_ads_sub')}</p>
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             {/* Ad 1 */}
                                             <div className="p-4 bg-slate-100/70 rounded-xl space-y-3">
-                                                <p className="font-bold text-xs text-slate-800">إعلان 1</p>
+                                                <p className="font-bold text-xs text-slate-800">{t('content.cms.ad_num', { num: 1 })}</p>
                                                 <div className="h-24 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
                                                     {fileUploads.hero_ad_1_image ? (
                                                         <span className="text-xs text-emerald-600 font-semibold">{fileUploads.hero_ad_1_image.name}</span>
                                                     ) : settings.hero_ad_1_image ? (
                                                         <img src={`/storage/${settings.hero_ad_1_image}`} alt="" className="h-full w-full object-cover" />
                                                     ) : (
-                                                        <span className="text-xs text-slate-400">لا توجد صورة</span>
+                                                        <span className="text-xs text-slate-400">{t('content.cms.no_image')}</span>
                                                     )}
                                                 </div>
                                                 <input
@@ -1819,7 +1906,7 @@ export const SettingsPage: React.FC = () => {
                                                     className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                 />
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">الرابط</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.link_label')}</label>
                                                     <input
                                                         type="url"
                                                         value={settings.hero_ad_1_link || ''}
@@ -1833,14 +1920,14 @@ export const SettingsPage: React.FC = () => {
 
                                             {/* Ad 2 */}
                                             <div className="p-4 bg-slate-100/70 rounded-xl space-y-3">
-                                                <p className="font-bold text-xs text-slate-800">إعلان 2</p>
+                                                <p className="font-bold text-xs text-slate-800">{t('content.cms.ad_num', { num: 2 })}</p>
                                                 <div className="h-24 rounded-lg bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
                                                     {fileUploads.hero_ad_2_image ? (
                                                         <span className="text-xs text-emerald-600 font-semibold">{fileUploads.hero_ad_2_image.name}</span>
                                                     ) : settings.hero_ad_2_image ? (
                                                         <img src={`/storage/${settings.hero_ad_2_image}`} alt="" className="h-full w-full object-cover" />
                                                     ) : (
-                                                        <span className="text-xs text-slate-400">لا توجد صورة</span>
+                                                        <span className="text-xs text-slate-400">{t('content.cms.no_image')}</span>
                                                     )}
                                                 </div>
                                                 <input
@@ -1850,7 +1937,7 @@ export const SettingsPage: React.FC = () => {
                                                     className="w-full text-xs text-slate-500 file:me-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-[var(--tenant-primary)] file:text-white"
                                                 />
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">الرابط</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.link_label')}</label>
                                                     <input
                                                         type="url"
                                                         value={settings.hero_ad_2_link || ''}
@@ -1865,12 +1952,12 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 11. هيرو وبانر صفحة العروض والعداد */}
+                                {/* TAB: 11. Offers Hero */}
                                 {activeTab === 'offers_hero' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">بانر وهيرو صفحة العروض</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">التحكم في صورة البانر للموقع وللجوال والنصوص والعداد التنازلي لصفحة العروض</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.offers_hero_title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.offers_hero_sub')}</p>
                                         </div>
 
                                         {(() => {
@@ -1878,7 +1965,7 @@ export const SettingsPage: React.FC = () => {
                                             return (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان — عربي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.title_ar')}</label>
                                                         <input
                                                             type="text"
                                                             value={offersHero.title?.ar || ''}
@@ -1888,7 +1975,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان — إنجليزي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.title_en')}</label>
                                                         <input
                                                             type="text"
                                                             value={offersHero.title?.en || ''}
@@ -1899,7 +1986,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">الوصف — عربي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.desc_ar')}</label>
                                                         <textarea
                                                             value={offersHero.subtitle?.ar || ''}
                                                             onChange={(e) => handleNestedChange('store_offers_hero', 'subtitle', { ...offersHero.subtitle, ar: e.target.value })}
@@ -1908,7 +1995,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">الوصف — إنجليزي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.desc_en')}</label>
                                                         <textarea
                                                             value={offersHero.subtitle?.en || ''}
                                                             onChange={(e) => handleNestedChange('store_offers_hero', 'subtitle', { ...offersHero.subtitle, en: e.target.value })}
@@ -2023,22 +2110,22 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 12. نصوص أقسام من نحن */}
+                                {/* TAB: 12. About Sections */}
                                 {activeTab === 'about_sections' && (
                                     <div className="space-y-4">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">أقسام صفحة من نحن</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">نصوص ورؤية ورسالة وقيم الشركة</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.about_sections_title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.about_sections_sub')}</p>
                                         </div>
 
                                         <div className="space-y-3">
                                             {[
-                                                { id: 'hero', label: 'قسم الهيرو', fields: ['badge', 'title', 'subtitle'], textarea: ['subtitle'] },
-                                                { id: 'story', label: 'قصة الشركة والرسالة والرؤية والقيم', fields: ['title', 'content', 'mission_title', 'mission_text', 'vision_title', 'vision_text', 'values_title', 'values_text'], textarea: ['content', 'mission_text', 'vision_text', 'values_text'] },
-                                                { id: 'partners', label: 'قسم الشركاء', fields: ['badge', 'title', 'subtitle'], textarea: ['subtitle'] },
-                                                { id: 'dealer', label: 'قسم الموزعين', fields: ['title', 'description', 'partner_button_text', 'contact_button_text'], textarea: ['description'], plain: ['partner_button_link'] },
-                                                { id: 'locations', label: 'قسم المواقع', fields: ['title'], textarea: [] },
-                                                { id: 'testimonials', label: 'قسم التقييمات', fields: ['badge', 'title', 'rating_text'], textarea: [] },
+                                                { id: 'hero', label: t('content.cms.sec_hero'), fields: ['badge', 'title', 'subtitle'], textarea: ['subtitle'] },
+                                                { id: 'story', label: t('content.cms.sec_story'), fields: ['title', 'content', 'mission_title', 'mission_text', 'vision_title', 'vision_text', 'values_title', 'values_text'], textarea: ['content', 'mission_text', 'vision_text', 'values_text'] },
+                                                { id: 'partners', label: t('content.cms.sec_partners'), fields: ['badge', 'title', 'subtitle'], textarea: ['subtitle'] },
+                                                { id: 'dealer', label: t('content.cms.sec_dealer'), fields: ['title', 'description', 'partner_button_text', 'contact_button_text'], textarea: ['description'], plain: ['partner_button_link'] },
+                                                { id: 'locations', label: t('content.cms.sec_locations'), fields: ['title'], textarea: [] },
+                                                { id: 'testimonials', label: t('content.cms.sec_testimonials'), fields: ['badge', 'title', 'rating_text'], textarea: [] },
                                             ].map((sec) => (
                                                 <div key={sec.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                                                     <button
@@ -2115,20 +2202,20 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 13. إحصائيات صفحة من نحن */}
+                                {/* TAB: 13. About Stats */}
                                 {activeTab === 'about_stats' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3 flex items-center justify-between">
                                             <div>
-                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">إحصائيات صفحة من نحن</h5>
-                                                <p className="text-xs text-slate-500 mt-0.5">الأرقام التي تظهر في هيرو صفحة من نحن</p>
+                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.about_stats_title')}</h5>
+                                                <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.about_stats_sub')}</p>
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => setAboutStats([...aboutStats, { value: '+10', label: 'سنوات خبرة' }])}
+                                                onClick={() => setAboutStats([...aboutStats, { value: '+10', label: '' }])}
                                                 className="text-xs px-3 py-1.5 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                             >
-                                                + إضافة
+                                                {t('content.cms.add_btn')}
                                             </button>
                                         </div>
 
@@ -2154,7 +2241,7 @@ export const SettingsPage: React.FC = () => {
                                                             cp[idx].label = e.target.value;
                                                             setAboutStats(cp);
                                                         }}
-                                                        placeholder="التسمية"
+                                                        placeholder={t('content.cms.label_ph')}
                                                         className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-200"
                                                     />
                                                     <button
@@ -2170,25 +2257,25 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 14. فروع التواجد */}
+                                {/* TAB: 14. Branches */}
                                 {activeTab === 'about_branches' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3 flex items-center justify-between">
                                             <div>
-                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">فروع التواجد</h5>
-                                                <p className="text-xs text-slate-500 mt-0.5">مواقع الفروع التي تظهر في صفحة من نحن</p>
+                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.about_branches_title')}</h5>
+                                                <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.about_branches_sub')}</p>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() =>
                                                     setAboutBranches([
                                                         ...aboutBranches,
-                                                        { city: 'الرياض', name: 'فرع الرياض', address: '', phone: '', working_hours: '', map_link: '' },
+                                                        { city: '', name: '', address: '', phone: '', working_hours: '', map_link: '' },
                                                     ])
                                                 }
                                                 className="text-xs px-3 py-1.5 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                             >
-                                                + إضافة فرع
+                                                {t('content.cms.add_branch')}
                                             </button>
                                         </div>
 
@@ -2196,19 +2283,19 @@ export const SettingsPage: React.FC = () => {
                                             {aboutBranches.map((br, idx) => (
                                                 <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
                                                     <div className="flex items-center justify-between border-b pb-2">
-                                                        <span className="text-xs font-bold text-slate-800">فرع {idx + 1}: {br.name}</span>
+                                                        <span className="text-xs font-bold text-slate-800">{t('content.cms.branch_num', { num: idx + 1, name: br.name })}</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => setAboutBranches(aboutBranches.filter((_, i) => i !== idx))}
                                                             className="text-rose-500 hover:text-rose-700 text-xs flex items-center gap-1"
                                                         >
                                                             <Trash2 className="h-3.5 w-3.5" />
-                                                            <span>حذف</span>
+                                                            <span>{t('common.delete')}</span>
                                                         </button>
                                                     </div>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">المدينة</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.city')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={br.city}
@@ -2221,7 +2308,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">اسم الفرع</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.branch_name')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={br.name}
@@ -2234,7 +2321,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">رقم الهاتف</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.phone')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={br.phone}
@@ -2248,7 +2335,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div className="sm:col-span-2">
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">العنوان التفصيلي</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.address')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={br.address}
@@ -2261,7 +2348,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">أوقات العمل</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.working_hours')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={br.working_hours}
@@ -2274,7 +2361,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div className="sm:col-span-3">
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">رابط الخريطة</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.map_link')}</label>
                                                             <input
                                                                 type="url"
                                                                 value={br.map_link}
@@ -2294,12 +2381,12 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 15. هيرو صفحة الحجز */}
+                                {/* TAB: 15. Booking Hero */}
                                 {activeTab === 'booking_hero' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">هيرو صفحة الحجز</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">العنوان والصورة التي تظهر في أعلى صفحة الحجز</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.booking_hero_title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.booking_hero_sub')}</p>
                                         </div>
 
                                         {(() => {
@@ -2307,7 +2394,7 @@ export const SettingsPage: React.FC = () => {
                                             return (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان — عربي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.title_ar')}</label>
                                                         <input
                                                             type="text"
                                                             value={bHero.title?.ar || ''}
@@ -2317,7 +2404,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">العنوان — إنجليزي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.title_en')}</label>
                                                         <input
                                                             type="text"
                                                             value={bHero.title?.en || ''}
@@ -2328,7 +2415,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">الوصف — عربي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.desc_ar')}</label>
                                                         <textarea
                                                             value={bHero.subtitle?.ar || ''}
                                                             onChange={(e) => handleNestedChange('store_booking_hero', 'subtitle', { ...bHero.subtitle, ar: e.target.value })}
@@ -2337,7 +2424,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">الوصف — إنجليزي</label>
+                                                        <label className="block text-xs font-semibold text-slate-700 mb-1">{t('content.cms.desc_en')}</label>
                                                         <textarea
                                                             value={bHero.subtitle?.en || ''}
                                                             onChange={(e) => handleNestedChange('store_booking_hero', 'subtitle', { ...bHero.subtitle, en: e.target.value })}
@@ -2347,7 +2434,7 @@ export const SettingsPage: React.FC = () => {
                                                         />
                                                     </div>
                                                     <div className="sm:col-span-2 space-y-2">
-                                                        <label className="block text-xs font-semibold text-slate-700">صورة الهيرو</label>
+                                                        <label className="block text-xs font-semibold text-slate-700">{t('content.cms.hero_image')}</label>
                                                         <div className="h-28 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center overflow-hidden">
                                                             {fileUploads.booking_hero_image ? (
                                                                 <span className="text-xs text-emerald-400 font-semibold">{fileUploads.booking_hero_image.name}</span>
@@ -2370,13 +2457,13 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 16. خطوات الحجز */}
+                                {/* TAB: 16. Booking Steps */}
                                 {activeTab === 'booking_steps' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3 flex items-center justify-between">
                                             <div>
-                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">خطوات الحجز</h5>
-                                                <p className="text-xs text-slate-500 mt-0.5">الخطوات التي تظهر في صفحة الحجز للمستخدم</p>
+                                                <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.booking_steps_title')}</h5>
+                                                <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.booking_steps_sub')}</p>
                                             </div>
                                             <button
                                                 type="button"
@@ -2388,7 +2475,7 @@ export const SettingsPage: React.FC = () => {
                                                 }
                                                 className="text-xs px-3 py-1.5 rounded-lg border border-[var(--tenant-primary)] text-[var(--tenant-primary)] font-semibold hover:bg-[var(--tenant-primary)]/10"
                                             >
-                                                + إضافة خطوة
+                                                {t('content.cms.add_step')}
                                             </button>
                                         </div>
 
@@ -2396,19 +2483,19 @@ export const SettingsPage: React.FC = () => {
                                             {bookingSteps.map((step, idx) => (
                                                 <div key={idx} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
                                                     <div className="flex items-center justify-between border-b pb-2">
-                                                        <span className="text-xs font-bold text-slate-800">خطوة {idx + 1}</span>
+                                                        <span className="text-xs font-bold text-slate-800">{t('content.cms.step_num', { num: idx + 1 })}</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => setBookingSteps(bookingSteps.filter((_, i) => i !== idx))}
                                                             className="text-rose-500 hover:text-rose-700 text-xs flex items-center gap-1"
                                                         >
                                                             <Trash2 className="h-3.5 w-3.5" />
-                                                            <span>حذف</span>
+                                                            <span>{t('common.delete')}</span>
                                                         </button>
                                                     </div>
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                                         <div className="sm:col-span-3">
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">الأيقونة (Bootstrap Icon)</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.step_icon')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={step.icon}
@@ -2423,7 +2510,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">العنوان — عربي</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.title_ar')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={step.title?.ar || ''}
@@ -2436,7 +2523,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">العنوان — إنجليزي</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.title_en')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={step.title?.en || ''}
@@ -2450,7 +2537,7 @@ export const SettingsPage: React.FC = () => {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">الوصف — عربي</label>
+                                                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('content.cms.desc_ar')}</label>
                                                             <input
                                                                 type="text"
                                                                 value={step.description?.ar || ''}
@@ -2469,19 +2556,19 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 17. نصوص أقسام صفحة الحجز */}
+                                {/* TAB: 17. Booking Sections */}
                                 {activeTab === 'booking_sections' && (
                                     <div className="space-y-4">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">أقسام صفحة الحجز</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">نصوص الهيرو ونموذج الحجز وشاشة النجاح</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('content.cms.booking_sections_title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('content.cms.booking_sections_sub')}</p>
                                         </div>
 
                                         <div className="space-y-3">
                                             {[
-                                                { id: 'hero', label: 'قسم الهيرو', fields: ['badge', 'title', 'subtitle'], textarea: ['subtitle'] },
-                                                { id: 'form', label: 'نموذج الحجز', fields: ['title', 'subtitle'], textarea: ['subtitle'] },
-                                                { id: 'success', label: 'صفحة النجاح', fields: ['title', 'subtitle', 'description'], textarea: ['subtitle', 'description'] },
+                                                { id: 'hero', label: t('content.cms.sec_hero'), fields: ['badge', 'title', 'subtitle'], textarea: ['subtitle'] },
+                                                { id: 'form', label: t('content.cms.sec_booking_form'), fields: ['title', 'subtitle'], textarea: ['subtitle'] },
+                                                { id: 'success', label: t('content.cms.sec_booking_success'), fields: ['title', 'subtitle', 'description'], textarea: ['subtitle', 'description'] },
                                             ].map((sec) => (
                                                 <div key={sec.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                                                     <button
@@ -2546,17 +2633,17 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 18. محددات التمويل والضرائب */}
+                                {/* TAB: 18. Financial & Tax */}
                                 {activeTab === 'financial' && (
                                     <div className="space-y-5">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">محددات حاسبة التمويل والضرائب</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">نسب الفائدة والضريبة ومحددات التقسيط العامة</p>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.financial.title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('settings.financial.subtitle')}</p>
                                         </div>
 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">نسبة ضريبة القيمة المضافة (VAT %)</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.financial.vat')}</label>
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -2566,7 +2653,7 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">نسبة الفائدة السنوية الافتراضية (%)</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.financial.interest_rate')}</label>
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -2576,7 +2663,7 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">الحد الأقصى لسنوات التمويل</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.financial.max_years')}</label>
                                                 <input
                                                     type="number"
                                                     value={settings.max_finance_years ?? 5}
@@ -2585,7 +2672,7 @@ export const SettingsPage: React.FC = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-slate-700 mb-1">الحد الأدنى للدفعة الأولى (%)</label>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{t('settings.financial.min_down_payment')}</label>
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -2598,105 +2685,20 @@ export const SettingsPage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* TAB: 19. الربط والـ SEO */}
+                                {/* TAB: 19. Integrations & SEO */}
                                 {activeTab === 'integrations' && (
                                     <div className="space-y-6">
                                         <div className="border-b pb-3">
-                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">الربط والإشعارات والـ SEO</h5>
-                                            <p className="text-xs text-slate-500 mt-0.5">إعدادات Twilio وقوالب رسائل الواتساب ومعرفات التحليلات وميتا محركات البحث</p>
-                                        </div>
-
-                                        {/* Twilio */}
-                                        <div className="space-y-3">
-                                            <h6 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                                                <Cpu className="h-4 w-4 text-[var(--tenant-primary)]" />
-                                                <span>إعدادات Twilio API</span>
-                                            </h6>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Twilio Account SID</label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.twilio_sid || ''}
-                                                        onChange={(e) => handleChange('twilio_sid', e.target.value)}
-                                                        placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxx"
-                                                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
-                                                        dir="ltr"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Twilio Auth Token</label>
-                                                    <input
-                                                        type="password"
-                                                        value={settings.twilio_auth_token || ''}
-                                                        onChange={(e) => handleChange('twilio_auth_token', e.target.value)}
-                                                        placeholder="••••••••••••••••••••••••"
-                                                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
-                                                        dir="ltr"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">رقم مرسل الواتساب</label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.twilio_whatsapp_number || ''}
-                                                        onChange={(e) => handleChange('twilio_whatsapp_number', e.target.value)}
-                                                        placeholder="whatsapp:+14155238886"
-                                                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
-                                                        dir="ltr"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">رقم مرسل الرسائل النصية (SMS)</label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.twilio_sms_number || ''}
-                                                        onChange={(e) => handleChange('twilio_sms_number', e.target.value)}
-                                                        placeholder="+1234567890"
-                                                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
-                                                        dir="ltr"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Templates */}
-                                        <div className="space-y-3 pt-3 border-t">
-                                            <h6 className="font-bold text-xs text-slate-800 flex items-center gap-2">
-                                                <FileText className="h-4 w-4 text-[var(--tenant-primary)]" />
-                                                <span>قوالب رسائل الواتساب الآلية</span>
-                                            </h6>
-                                            <div className="p-3 bg-blue-50 text-blue-800 rounded-xl text-[11px]">
-                                                المتغيرات المتاحة: <code>{'{customer_name}'}</code>, <code>{'{car_name}'}</code>, <code>{'{status}'}</code>
-                                            </div>
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">قالب: تقديم طلب جديد</label>
-                                                    <textarea
-                                                        value={settings.whatsapp_template_new_lead || ''}
-                                                        onChange={(e) => handleChange('whatsapp_template_new_lead', e.target.value)}
-                                                        rows={2}
-                                                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">قالب: تحديث حالة الطلب</label>
-                                                    <textarea
-                                                        value={settings.whatsapp_template_status_update || ''}
-                                                        onChange={(e) => handleChange('whatsapp_template_status_update', e.target.value)}
-                                                        rows={2}
-                                                        className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
-                                                    />
-                                                </div>
-                                            </div>
+                                            <h5 className="font-bold text-sm text-[var(--text-primary)]">{t('settings.integrations.title')}</h5>
+                                            <p className="text-xs text-slate-500 mt-0.5">{t('settings.integrations.subtitle')}</p>
                                         </div>
 
                                         {/* Analytics & SEO */}
-                                        <div className="space-y-3 pt-3 border-t">
-                                            <h6 className="font-bold text-xs text-slate-800">التحليلات ومحركات البحث (SEO)</h6>
+                                        <div className="space-y-3">
+                                            <h6 className="font-bold text-xs text-slate-800">{t('settings.integrations.title')}</h6>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">معرف Google Analytics (GA4)</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.ga4')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.google_analytics_id || ''}
@@ -2707,7 +2709,7 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">معرف Google Tag Manager (GTM)</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.gtm')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.google_tag_manager_id || ''}
@@ -2718,7 +2720,7 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">معرف Meta Pixel</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.meta_pixel')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.meta_pixel_id || ''}
@@ -2729,7 +2731,7 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">معرف TikTok Pixel</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.tiktok_pixel')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.tiktok_pixel_id || ''}
@@ -2740,7 +2742,7 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div className="sm:col-span-2">
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">معرف Snapchat Pixel</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.snapchat_pixel')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.snapchat_pixel_id || ''}
@@ -2751,7 +2753,7 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div className="sm:col-span-2">
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">عنوان الموقع لمحركات البحث (Meta Title)</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.meta_title')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.meta_title || ''}
@@ -2760,7 +2762,7 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div className="sm:col-span-2">
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">الوصف الافتراضي (Meta Description)</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.meta_desc')}</label>
                                                     <textarea
                                                         value={settings.meta_description || ''}
                                                         onChange={(e) => handleChange('meta_description', e.target.value)}
@@ -2769,12 +2771,12 @@ export const SettingsPage: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div className="sm:col-span-2">
-                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">الكلمات المفتاحية (Meta Keywords)</label>
+                                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">{t('settings.integrations.meta_keywords')}</label>
                                                     <input
                                                         type="text"
                                                         value={settings.meta_keywords || ''}
                                                         onChange={(e) => handleChange('meta_keywords', e.target.value)}
-                                                        placeholder="سيارات، تمويل، تقسيط"
+                                                        placeholder={t('settings.integrations.meta_keywords_ph')}
                                                         className="w-full px-3 py-2 text-xs rounded-xl bg-slate-100/70 border-0"
                                                     />
                                                 </div>
@@ -2790,14 +2792,14 @@ export const SettingsPage: React.FC = () => {
                 {/* ========================================================== */}
                 {/* 3. LEFT STICKY SAVE CARD (Matching the image)             */}
                 {/* ========================================================== */}
-                <div className={`w-full lg:w-64 shrink-0 ${activeTab === 'infrastructure' ? 'hidden' : ''}`}>
+                <div className={`w-full lg:w-64 shrink-0 ${selectedModule || activeTab === 'updates' || activeTab === 'infrastructure' || activeTab === 'theme_shield' ? 'hidden' : ''}`}>
                     <div className="bg-[#0a0a0a] text-white rounded-2xl shadow-xl p-5 sticky top-20 relative overflow-hidden">
                         {/* Background Watermark Decorative Icon */}
                         <Save className="absolute -bottom-5 -right-3 h-28 w-28 text-white/5 pointer-events-none" />
 
-                        <h5 className="font-bold text-base text-white mb-1.5">حفظ التغييرات</h5>
+                        <h5 className="font-bold text-base text-white mb-1.5">{t('settings.save_card_title')}</h5>
                         <p className="text-xs text-white/60 mb-5 leading-relaxed">
-                            تأكد من مراجعة جميع الأقسام قبل الحفظ.
+                            {t('settings.save_card_desc')}
                         </p>
 
                         {canManage && (
@@ -2808,7 +2810,7 @@ export const SettingsPage: React.FC = () => {
                                 className="w-full py-3.5 px-4 rounded-xl font-bold text-xs bg-white/10 hover:bg-white/20 text-white border border-white/10 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                             >
                                 <CheckCircle2 className="h-4 w-4 text-[var(--tenant-primary)] shrink-0" />
-                                <span>{saving ? 'جاري التحديث...' : 'تحديث الإعدادات'}</span>
+                                <span>{saving ? t('settings.updating') : t('settings.update_settings')}</span>
                             </button>
                         )}
 

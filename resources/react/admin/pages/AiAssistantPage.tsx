@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Bot, CheckCircle2, KeyRound, MessageSquare, PlugZap, Save, Send, ShieldCheck, Store, Wrench, XCircle } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { Card } from '../../shared/components/ui/Card';
@@ -38,21 +39,22 @@ const SHOWROOM_FIELDS: { key: string; label: string; placeholder: string }[] = [
 ];
 
 const TABS = [
-    { id: 'connect', label: 'الربط', icon: PlugZap },
-    { id: 'persona', label: 'الشخصية', icon: Bot },
-    { id: 'rules', label: 'المسموح والممنوع', icon: ShieldCheck },
-    { id: 'showroom', label: 'معلومات المعرض', icon: Store },
-    { id: 'tools', label: 'الأدوات والحدود', icon: Wrench },
-    { id: 'playground', label: 'التجربة', icon: Send },
-    { id: 'conversations', label: 'المحادثات', icon: MessageSquare },
+    { id: 'connect', labelKey: 'ai.tab_connect', icon: PlugZap },
+    { id: 'persona', labelKey: 'ai.tab_persona', icon: Bot },
+    { id: 'rules', labelKey: 'ai.tab_rules', icon: ShieldCheck },
+    { id: 'showroom', labelKey: 'ai.tab_showroom', icon: Store },
+    { id: 'tools', labelKey: 'ai.tab_tools', icon: Wrench },
+    { id: 'playground', labelKey: 'ai.tab_playground', icon: Send },
+    { id: 'conversations', labelKey: 'ai.tab_conversations', icon: MessageSquare },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
 
 const field = 'w-full rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-hidden focus:border-[var(--tenant-primary)]';
-const errorText = (e: unknown) => (e as any)?.response?.data?.message || (e as Error)?.message || 'حدث خطأ';
+const errorText = (e: unknown) => (e as any)?.response?.data?.message || (e as Error)?.message || 'Error';
 
-export const AiAssistantPage: React.FC = () => {
+export const AiAssistantPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+    const { t } = useTranslation('admin');
     const queryClient = useQueryClient();
     const [tab, setTab] = useState<TabId>('connect');
     const [draft, setDraft] = useState<Dict | null>(null);
@@ -78,14 +80,14 @@ export const AiAssistantPage: React.FC = () => {
             queryClient.setQueryData(KEY, payload);
             setDraft(structuredClone(payload.settings));
             setApiKey('');
-            setNotice({ ok: true, text: 'تم حفظ إعدادات المساعد' });
+            setNotice({ ok: true, text: t('ai.save_success') });
         },
         onError: (e) => setNotice({ ok: false, text: errorText(e) }),
     });
 
     const test = useMutation({
         mutationFn: async () => (await apiClient.post(`${BASE}/test-connection`, apiKey.trim() ? { api_key: apiKey.trim() } : {})).data,
-        onSuccess: (res) => setNotice({ ok: true, text: `${res.message} (${res.data?.models?.length ?? 0} موديل متاح)` }),
+        onSuccess: (res) => setNotice({ ok: true, text: t('ai.test_success', { count: res.data?.models?.length ?? 0 }) }),
         onError: (e) => setNotice({ ok: false, text: errorText(e) }),
     });
 
@@ -117,23 +119,25 @@ export const AiAssistantPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                    <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
-                        <Bot className="h-6 w-6 text-[var(--tenant-primary)]" /> المساعد الذكي
-                    </h1>
-                    <p className="text-xs text-[var(--text-secondary)] mt-1">
-                        مساعد عربي للمتجر يبحث في سياراتك، يقارن، يحسب الأقساط، ويرد على أسئلة المعرض — بمفتاح Gemini الخاص بمعرضك
-                    </p>
+            {!embedded && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                        <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+                            <Bot className="h-6 w-6 text-[var(--tenant-primary)]" /> {t('ai.title')}
+                        </h1>
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                            {t('ai.subtitle')}
+                        </p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${data.ready ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {data.ready ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                        {data.ready ? t('ai.ready_on') : !data.api_key.configured ? t('ai.ready_no_key') : t('ai.ready_off')}
+                    </span>
                 </div>
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${data.ready ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                    {data.ready ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                    {data.ready ? 'المساعد يعمل في المتجر' : !data.api_key.configured ? 'أضف مفتاح Gemini لتشغيل المساعد' : 'المساعد متوقف'}
-                </span>
-            </div>
+            )}
 
             <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {TABS.map(({ id, label, icon: Icon }) => (
+                {TABS.map(({ id, labelKey, icon: Icon }) => (
                     <button
                         key={id}
                         onClick={() => setTab(id)}
@@ -141,7 +145,7 @@ export const AiAssistantPage: React.FC = () => {
                             tab === id ? 'bg-[var(--tenant-primary)] text-white' : 'bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                         }`}
                     >
-                        <Icon className="h-4 w-4" /> {label}
+                        <Icon className="h-4 w-4" /> {t(labelKey)}
                     </button>
                 ))}
             </div>
@@ -151,12 +155,12 @@ export const AiAssistantPage: React.FC = () => {
             )}
 
             {tab === 'connect' && (
-                <Card title="ربط Gemini" subtitle="كل معرض يستخدم مفتاحه الخاص من Google AI Studio. المفتاح يُحفظ مشفّراً ولا يظهر في المتجر.">
+                <Card title={t('ai.connect_title')} subtitle={t('ai.connect_sub')}>
                     <div className="space-y-4">
-                        <Toggle label="تفعيل المساعد" checked={!!draft.enabled} onChange={(v) => set('enabled', v)} />
-                        <Toggle label="إظهاره في المتجر (الماسكوت)" checked={!!draft.show_on_storefront} onChange={(v) => set('show_on_storefront', v)} />
+                        <Toggle label={t('ai.enable_ai')} checked={!!draft.enabled} onChange={(v) => set('enabled', v)} />
+                        <Toggle label={t('ai.show_storefront')} checked={!!draft.show_on_storefront} onChange={(v) => set('show_on_storefront', v)} />
                         <div>
-                            <label className="block text-xs font-semibold mb-1">مفتاح Gemini API</label>
+                            <label className="block text-xs font-semibold mb-1">{t('ai.api_key')}</label>
                             <div className="flex gap-2">
                                 <div className="relative flex-1">
                                     <KeyRound className="absolute start-3 top-2.5 h-4 w-4 text-[var(--text-muted)]" />
@@ -166,23 +170,21 @@ export const AiAssistantPage: React.FC = () => {
                                         autoComplete="off"
                                         value={apiKey}
                                         onChange={(e) => setApiKey(e.target.value)}
-                                        placeholder={data.api_key.configured ? `المفتاح الحالي ${data.api_key.masked} — اكتب مفتاحاً جديداً للتغيير` : 'AIza...'}
+                                        placeholder={data.api_key.configured ? `${data.api_key.masked}` : 'AIza...'}
                                         className={`${field} ps-9`}
                                     />
                                 </div>
-                                <Button variant="outline" loading={test.isPending} onClick={() => test.mutate()}>اختبار الاتصال</Button>
+                                <Button variant="outline" loading={test.isPending} onClick={() => test.mutate()}>{t('ai.test_conn')}</Button>
                             </div>
-                            <p className="text-[11px] text-[var(--text-muted)] mt-1">احصل على المفتاح من aistudio.google.com ← Get API key</p>
                         </div>
                         <div className="grid sm:grid-cols-3 gap-3">
                             <div className="sm:col-span-2">
-                                <label className="block text-xs font-semibold mb-1">الموديل</label>
+                                <label className="block text-xs font-semibold mb-1">{t('ai.model')}</label>
                                 <input dir="ltr" list="gemini-models" value={draft.model ?? ''} onChange={(e) => set('model', e.target.value)} className={field} />
                                 <datalist id="gemini-models">{models.map((m) => <option key={m} value={m} />)}</datalist>
-                                <p className="text-[11px] text-[var(--text-muted)] mt-1">"اختبار الاتصال" يجلب قائمة الموديلات المتاحة لمفتاحك.</p>
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold mb-1">الإبداع (0 - 1)</label>
+                                <label className="block text-xs font-semibold mb-1">{t('ai.temperature')}</label>
                                 <input type="number" step="0.1" min={0} max={2} value={draft.temperature} onChange={(e) => set('temperature', Number(e.target.value))} className={field} />
                             </div>
                         </div>
@@ -191,16 +193,16 @@ export const AiAssistantPage: React.FC = () => {
             )}
 
             {tab === 'persona' && (
-                <Card title="شخصية المساعد">
+                <Card title={t('ai.persona_title')}>
                     <div className="grid sm:grid-cols-2 gap-4">
-                        <TextField label="اسم المساعد" value={draft.assistant_name} onChange={(v) => set('assistant_name', v)} />
-                        <TextField label="الأسلوب واللهجة" value={draft.tone} onChange={(v) => set('tone', v)} />
-                        <TextField label="عنوان الفقاعة" value={draft.bubble_title} onChange={(v) => set('bubble_title', v)} />
-                        <TextField label="نص الفقاعة" value={draft.bubble_text} onChange={(v) => set('bubble_text', v)} />
-                        <TextArea className="sm:col-span-2" label="رسالة الترحيب" value={draft.greeting} onChange={(v) => set('greeting', v)} />
+                        <TextField label={t('ai.assistant_name')} value={draft.assistant_name} onChange={(v) => set('assistant_name', v)} />
+                        <TextField label={t('ai.tone')} value={draft.tone} onChange={(v) => set('tone', v)} />
+                        <TextField label={t('ai.bubble_title')} value={draft.bubble_title} onChange={(v) => set('bubble_title', v)} />
+                        <TextField label={t('ai.bubble_text')} value={draft.bubble_text} onChange={(v) => set('bubble_text', v)} />
+                        <TextArea className="sm:col-span-2" label={t('ai.greeting')} value={draft.greeting} onChange={(v) => set('greeting', v)} />
                         <TextArea
                             className="sm:col-span-2"
-                            label="اقتراحات سريعة (سطر لكل اقتراح، 6 كحد أقصى)"
+                            label={t('ai.quick_replies')}
                             value={(draft.quick_replies ?? []).join('\n')}
                             onChange={(v) => set('quick_replies', v.split('\n').map((s) => s.trim()).filter(Boolean).slice(0, 6))}
                         />
@@ -210,30 +212,30 @@ export const AiAssistantPage: React.FC = () => {
 
             {tab === 'rules' && (
                 <div className="grid lg:grid-cols-2 gap-4">
-                    <Card title="المواضيع المسموح بها">
+                    <Card title={t('ai.allowed_topics')}>
                         <Checklist items={data.catalog.topics} selected={draft.allowed_topics ?? []} onToggle={(k) => toggleInList('allowed_topics', k)} />
                     </Card>
-                    <Card title="ممنوع على المساعد">
+                    <Card title={t('ai.blocked_topics')}>
                         <Checklist items={data.catalog.blocked} selected={draft.blocked_topics ?? []} onToggle={(k) => toggleInList('blocked_topics', k)} />
                     </Card>
-                    <Card title="قواعد إضافية" className="lg:col-span-2">
+                    <Card title={t('ai.extra_rules')} className="lg:col-span-2">
                         <div className="space-y-4">
-                            <TextArea label="تعليمات خاصة بمعرضك" value={draft.custom_rules ?? ''} onChange={(v) => set('custom_rules', v)} placeholder="مثال: رشّح سيارات العروض أولاً. لا تذكر السيارات المستعملة." />
+                            <TextArea label={t('ai.custom_rules')} value={draft.custom_rules ?? ''} onChange={(v) => set('custom_rules', v)} />
                             <TextArea
-                                label="كلمات ممنوعة (سطر لكل كلمة) — يرد عليها المساعد بالرد الجاهز بدون استدعاء الذكاء الاصطناعي"
+                                label={t('ai.blocked_keywords')}
                                 value={(draft.blocked_keywords ?? []).join('\n')}
                                 onChange={(v) => set('blocked_keywords', v.split('\n').map((s) => s.trim()).filter(Boolean))}
                             />
-                            <TextArea label="الرد على المواضيع الخارجة" value={draft.off_topic_reply} onChange={(v) => set('off_topic_reply', v)} />
-                            <TextField label="تنبيه التمويل" value={draft.finance_disclaimer} onChange={(v) => set('finance_disclaimer', v)} />
-                            <TextField label="رسالة عند توقف المساعد" value={draft.unavailable_reply} onChange={(v) => set('unavailable_reply', v)} />
+                            <TextArea label={t('ai.off_topic_reply')} value={draft.off_topic_reply} onChange={(v) => set('off_topic_reply', v)} />
+                            <TextField label={t('ai.finance_disclaimer')} value={draft.finance_disclaimer} onChange={(v) => set('finance_disclaimer', v)} />
+                            <TextField label={t('ai.unavailable_reply')} value={draft.unavailable_reply} onChange={(v) => set('unavailable_reply', v)} />
                         </div>
                     </Card>
                 </div>
             )}
 
             {tab === 'showroom' && (
-                <Card title="معلومات المعرض" subtitle="المساعد يجيب عن هذه الأسئلة من هنا فقط — أي حقل فارغ سيخبر العميل أن يتواصل معكم مباشرة بدلاً من التخمين.">
+                <Card title={t('ai.showroom_title')} subtitle={t('ai.showroom_sub')}>
                     <div className="grid sm:grid-cols-2 gap-4">
                         {SHOWROOM_FIELDS.map((f) => (
                             <TextArea key={f.key} label={f.label} placeholder={f.placeholder} value={draft.showroom?.[f.key] ?? ''} onChange={(v) => set(`showroom.${f.key}`, v)} />
@@ -279,7 +281,7 @@ export const AiAssistantPage: React.FC = () => {
 
             {showSave && (
                 <div className="sticky bottom-3 flex justify-end">
-                    <Button loading={save.isPending} icon={<Save className="h-4 w-4" />} onClick={() => save.mutate()}>حفظ الإعدادات</Button>
+                    <Button loading={save.isPending} icon={<Save className="h-4 w-4" />} onClick={() => save.mutate()}>{t('ai.save_settings')}</Button>
                 </div>
             )}
         </div>

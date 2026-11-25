@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     UserCheck,
     Plus,
@@ -42,6 +43,8 @@ interface EmployeeItem {
 }
 
 export const EmployeesPage: React.FC = () => {
+    const { t, i18n } = useTranslation('admin');
+    const dateLocale = i18n.language === 'en' ? 'en-US' : 'ar-SA';
     const { user: currentUser, can } = useAuth();
     const canManage = can('manage-employees');
 
@@ -217,16 +220,16 @@ export const EmployeesPage: React.FC = () => {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                         <UserCheck className="h-6 w-6 text-[var(--tenant-primary)]" />
-                        الموظفون والأدوار والصلاحيات
+                        {t('employees.title')}
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
-                        إدارة فريق العمل، تعيين الأدوار والصلاحيات، وتتبع نشاط المستخدمين ({total} موظف مسجل)
+                        {t('employees.subtitle', { count: total })}
                     </p>
                 </div>
                 {canManage && (
                     <Button onClick={openCreateModal} className="flex items-center gap-2">
                         <Plus className="h-4 w-4" />
-                        إضافة موظف جديد
+                        {t('employees.add_employee')}
                     </Button>
                 )}
             </div>
@@ -240,7 +243,7 @@ export const EmployeesPage: React.FC = () => {
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="بحث بالاسم، البريد الإلكتروني، أو رقم الجوال..."
+                            placeholder={t('employees.search_ph')}
                             className="w-full ps-9 pe-4 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--tenant-primary)]/20 focus:border-[var(--tenant-primary)] bg-white"
                         />
                     </div>
@@ -253,25 +256,25 @@ export const EmployeesPage: React.FC = () => {
                     <table className="w-full text-start text-sm">
                         <thead className="bg-slate-50 text-slate-500 font-medium text-xs border-b border-slate-100">
                             <tr>
-                                <th className="py-3.5 px-4 text-start">الموظف</th>
-                                <th className="py-3.5 px-4 text-start">الاتصال</th>
-                                <th className="py-3.5 px-4 text-start">الأدوار الممنوحة</th>
-                                <th className="py-3.5 px-4 text-center">الحالة</th>
-                                <th className="py-3.5 px-4 text-center">تاريخ الإنشاء</th>
-                                <th className="py-3.5 px-4 text-end">الإجراءات</th>
+                                <th className="py-3.5 px-4 text-start">{t('employees.col_employee')}</th>
+                                <th className="py-3.5 px-4 text-start">{t('employees.col_contact')}</th>
+                                <th className="py-3.5 px-4 text-start">{t('employees.col_roles')}</th>
+                                <th className="py-3.5 px-4 text-center">{t('common.status')}</th>
+                                <th className="py-3.5 px-4 text-center">{t('employees.col_created')}</th>
+                                <th className="py-3.5 px-4 text-end">{t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
                                     <td colSpan={6} className="py-12 text-center text-slate-400">
-                                        جاري تحميل بيانات الموظفين...
+                                        {t('employees.loading')}
                                     </td>
                                 </tr>
                             ) : employees.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="py-12 text-center text-slate-400">
-                                        لا يوجد موظفون مطابقون لبحثك
+                                        {t('employees.empty')}
                                     </td>
                                 </tr>
                             ) : (
@@ -317,7 +320,7 @@ export const EmployeesPage: React.FC = () => {
                                                         </span>
                                                     ))
                                                 ) : (
-                                                    <span className="text-xs text-slate-400">بدون أدوار</span>
+                                                    <span className="text-xs text-slate-400">{t('employees.no_roles')}</span>
                                                 )}
                                             </div>
                                         </td>
@@ -325,22 +328,22 @@ export const EmployeesPage: React.FC = () => {
                                             <button
                                                 onClick={() => handleToggleActive(emp)}
                                                 className="inline-flex items-center gap-1 cursor-pointer focus:outline-none"
-                                                title="انقر لتغيير حالة التفعيل"
+                                                title={t('employees.toggle_active_title')}
                                             >
                                                 <Badge variant={emp.is_active ? 'success' : 'neutral'}>
-                                                    {emp.is_active ? 'نشط' : 'معطل'}
+                                                    {emp.is_active ? t('common.active') : t('common.inactive')}
                                                 </Badge>
                                             </button>
                                         </td>
                                         <td className="py-3.5 px-4 text-center text-xs text-slate-500">
-                                            {emp.created_at ? new Date(emp.created_at).toLocaleDateString('ar-SA') : '—'}
+                                            {emp.created_at ? new Date(emp.created_at).toLocaleDateString(dateLocale) : '—'}
                                         </td>
                                         <td className="py-3.5 px-4 text-end">
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
                                                     onClick={() => openEditModal(emp)}
                                                     className="p-1.5 text-slate-400 hover:text-[var(--tenant-primary)] hover:bg-[var(--tenant-primary)]/10 rounded"
-                                                    title="تعديل الموظف والأدوار"
+                                                    title={t('employees.edit_title')}
                                                 >
                                                     <Edit2 className="h-4 w-4" />
                                                 </button>
@@ -348,7 +351,7 @@ export const EmployeesPage: React.FC = () => {
                                                     <button
                                                         onClick={() => handleDeleteEmployee(emp.id)}
                                                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                        title="حذف الموظف"
+                                                        title={t('employees.delete_title')}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </button>
@@ -365,7 +368,7 @@ export const EmployeesPage: React.FC = () => {
                 {lastPage > 1 && (
                     <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
                         <div className="text-sm text-slate-600">
-                            صفحة {page} من {lastPage}
+                            {t('employees.page_of', { page, lastPage })}
                         </div>
                         <div className="flex gap-2">
                             <Button
@@ -374,7 +377,7 @@ export const EmployeesPage: React.FC = () => {
                                 disabled={page <= 1}
                                 onClick={() => fetchEmployees(page - 1)}
                             >
-                                السابق
+                                {t('employees.prev')}
                             </Button>
                             <Button
                                 variant="secondary"
@@ -382,7 +385,7 @@ export const EmployeesPage: React.FC = () => {
                                 disabled={page >= lastPage}
                                 onClick={() => fetchEmployees(page + 1)}
                             >
-                                التالي
+                                {t('employees.next')}
                             </Button>
                         </div>
                     </div>
@@ -395,7 +398,7 @@ export const EmployeesPage: React.FC = () => {
                     <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden my-8">
                         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="text-lg font-bold text-slate-900">
-                                {editingEmployee ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}
+                                {editingEmployee ? t('employees.modal_edit') : t('employees.modal_add')}
                             </h2>
                             <button
                                 onClick={() => setIsModalOpen(false)}
@@ -414,20 +417,20 @@ export const EmployeesPage: React.FC = () => {
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    الاسم الكامل *
+                                    {t('employees.full_name')}
                                 </label>
                                 <Input
                                     required
                                     value={form.name}
                                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                    placeholder="مثال: أحمد عبد الله"
+                                    placeholder={t('employees.name_ph')}
                                 />
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                        البريد الإلكتروني *
+                                        {t('employees.email')}
                                     </label>
                                     <Input
                                         type="email"
@@ -439,7 +442,7 @@ export const EmployeesPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                        رقم الجوال
+                                        {t('employees.phone')}
                                     </label>
                                     <Input
                                         value={form.phone}
@@ -452,8 +455,8 @@ export const EmployeesPage: React.FC = () => {
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                                     {editingEmployee
-                                        ? 'كلمة المرور (اتركها فارغة إذا لم ترغب بالتغيير)'
-                                        : 'كلمة المرور *'}
+                                        ? t('employees.password_optional')
+                                        : t('employees.password_required')}
                                 </label>
                                 <Input
                                     type="password"
@@ -466,7 +469,7 @@ export const EmployeesPage: React.FC = () => {
 
                             <div>
                                 <label className="block text-xs font-semibold text-slate-700 mb-2">
-                                    الأدوار والصلاحيات
+                                    {t('employees.roles_label')}
                                 </label>
                                 <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
                                     {roles.map((r) => {
@@ -501,7 +504,7 @@ export const EmployeesPage: React.FC = () => {
                                         onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                                         className="rounded text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary)] h-4 w-4"
                                     />
-                                    حساب نشط (يمكن للموظف تسجيل الدخول والعمل)
+                                    {t('employees.is_active')}
                                 </label>
                             </div>
 
@@ -512,10 +515,10 @@ export const EmployeesPage: React.FC = () => {
                                     onClick={() => setIsModalOpen(false)}
                                     disabled={saving}
                                 >
-                                    إلغاء
+                                    {t('common.cancel')}
                                 </Button>
                                 <Button type="submit" disabled={saving}>
-                                    {saving ? 'جاري الحفظ...' : 'حفظ الموظف'}
+                                    {saving ? t('common.saving') : t('employees.save_employee')}
                                 </Button>
                             </div>
                         </form>

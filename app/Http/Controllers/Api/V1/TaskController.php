@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ApiBaseController;
 use App\Http\Requests\Api\V1\Tasks\TaskPostponeRequest;
 use App\Http\Requests\Api\V1\Tasks\TaskRequest;
 use App\Http\Resources\V1\TaskResource;
+use App\Models\Booking;
 use App\Models\Task;
 use App\Services\Tasks\TaskFilterService;
 use Illuminate\Http\Request;
@@ -39,8 +40,13 @@ class TaskController extends ApiBaseController
     {
         Gate::authorize('create', Task::class);
 
+        $employee = $request->user('employee');
         $data = $request->validated();
-        $data['created_by'] = $request->user('employee')->id;
+        $data['created_by'] = $employee->id;
+
+        if (! $employee->isAdmin()) {
+            $data['assigned_to'] = $employee->id;
+        }
 
         $task = Task::create($data);
 
@@ -116,6 +122,63 @@ class TaskController extends ApiBaseController
         $task->update(['due_date' => $base->addDays($days)]);
 
         return $this->respondSuccess($this->taskData($task), 'Task postponed successfully');
+    }
+
+    public function notificationsSummary(Request $request): ApiResponse
+    {
+        $employee = $request->user('employee');
+
+        $tasksQuery = Task::query()
+            ->with('assignedTo')
+            ->where('status', '!=', 'done')
+            ->whereDate('due_date', today());
+
+        if (! $employee->isAdmin()) {
+            $tasksQuery->where(function ($q) use ($employee) {
+                $q->where('assigned_to', $employee->id)
+                    ->orWhere('created_by', $employee->id);
+            });
+        }
+
+        $todayTasksCount = (clone $tasksQuery)->count();
+        $todayTasks = $tasksQuery
+            ->orderByRaw("CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END")
+            ->latest()
+            ->take(10)
+            ->get();
+
+        $bookingsQuery = Booking::query()
+            ->with('car')
+            ->where('status', 'new');
+
+        if (! $employee->isAdmin()) {
+            $bookingsQuery->where('assigned_to', $employee->id);
+        }
+
+        $newBookingsCount = (clone $bookingsQuery)->count();
+        $newBookings = $bookingsQuery->latest()->take(10)->get();
+
+        return $this->respondSuccess([
+            'today_tasks' => $todayTasks->map(fn (Task $t) => [
+                'id' => $t->id,
+                'title' => $t->title,
+                'priority' => $t->priority,
+                'due_date' => $t->due_date?->toDateString(),
+                'assigned_to_name' => $t->assignedTo?->name,
+            ])->values(),
+            'new_bookings' => $newBookings->map(fn (Booking $b) => [
+                'id' => $b->id,
+                'client_name' => $b->client_name,
+                'client_phone' => $b->client_phone,
+                'car_name' => $b->car?->name,
+                'created_at' => $b->created_at?->toIso8601String(),
+            ])->values(),
+            'counts' => [
+                'today_tasks' => $todayTasksCount,
+                'new_bookings' => $newBookingsCount,
+                'total' => $todayTasksCount + $newBookingsCount,
+            ],
+        ], 'Notifications summary retrieved');
     }
 
     /**

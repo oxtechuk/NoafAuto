@@ -1,576 +1,395 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
-    BarChart3,
-    TrendingUp,
-    DollarSign,
-    Users,
-    Car,
-    Calendar,
-    Target,
-    Layers,
-    ArrowUpRight,
-    ArrowDownRight,
-    RefreshCw,
-    Activity,
-    LineChart,
-    PieChart,
-    CheckCircle2,
-    Clock,
-    AlertCircle,
-    ChevronLeft,
+    ArrowDownRight, ArrowUpRight, BadgeCheck, BarChart3, Bot, Car, Contact, FileText, Info, LayoutDashboard, MessageCircle, Printer, RefreshCw, Target, TrendingUp, Users,
 } from 'lucide-react';
-import { Card } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
 import { apiClient } from '../api/client';
+import { useBranding } from '../context/BrandingContext';
+import { ReportChartCard } from '../components/reports/ReportCharts';
+import { ReportTable } from '../components/reports/ReportTable';
+import { formatValue, type ReportKpi, type ReportPayload, type ReportSectionsMeta } from '../components/reports/types';
 
-type PeriodType = 'month' | 'quarter' | 'year' | 'all';
-type ReportTab = 'bookings' | 'sources' | 'monthly';
-
-const getLocalized = (val: any): string => {
-    if (!val) return '';
-    if (typeof val === 'string') {
-        try {
-            const parsed = JSON.parse(val);
-            if (parsed && typeof parsed === 'object') {
-                return String(parsed.ar || parsed.en || Object.values(parsed)[0] || '');
-            }
-        } catch {
-            return val;
-        }
-        return val;
-    }
-    if (typeof val === 'object') {
-        return String(val.ar || val.en || Object.values(val)[0] || '');
-    }
-    return String(val);
+const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    'layout-dashboard': LayoutDashboard, users: Users, car: Car, 'badge-check': BadgeCheck, target: Target, contact: Contact,
+    'trending-up': TrendingUp, 'message-circle': MessageCircle, bot: Bot,
 };
 
+/** Old sidebar links keep working. */
+const LEGACY_SECTIONS: Record<string, string> = { bookings: 'overview', sources: 'channels', monthly: 'trend' };
+
+const pad = (n: number) => String(n).padStart(2, '0');
+/** Local date (not toISOString, which shifts the day in UTC+3). */
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+const PRESETS: { key: string; labelKey: string; range: () => { from?: string; to?: string; all?: boolean } }[] = [
+    { key: '7d', labelKey: 'reports.preset_7d', range: () => { const d = new Date(); d.setDate(d.getDate() - 6); return { from: ymd(d), to: ymd(new Date()) }; } },
+    { key: '30d', labelKey: 'reports.preset_30d', range: () => { const d = new Date(); d.setDate(d.getDate() - 29); return { from: ymd(d), to: ymd(new Date()) }; } },
+    { key: 'month', labelKey: 'reports.preset_month', range: () => { const d = new Date(); return { from: ymd(new Date(d.getFullYear(), d.getMonth(), 1)), to: ymd(d) }; } },
+    { key: 'last-month', labelKey: 'reports.preset_last_month', range: () => { const d = new Date(); return { from: ymd(new Date(d.getFullYear(), d.getMonth() - 1, 1)), to: ymd(new Date(d.getFullYear(), d.getMonth(), 0)) }; } },
+    { key: 'quarter', labelKey: 'reports.preset_quarter', range: () => { const d = new Date(); return { from: ymd(new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1)), to: ymd(d) }; } },
+    { key: 'year', labelKey: 'reports.preset_year', range: () => { const d = new Date(); return { from: ymd(new Date(d.getFullYear(), 0, 1)), to: ymd(d) }; } },
+    { key: 'all', labelKey: 'common.all', range: () => ({ all: true }) },
+];
+
+const select = 'rounded-md border border-[var(--border-default)] bg-[var(--surface-primary)] px-2 py-1.5 text-xs text-[var(--text-primary)]';
+
 export const ReportsPage: React.FC = () => {
-    const location = useLocation();
+    const { t } = useTranslation('admin');
+    const { branding } = useBranding();
+    const { section: rawSection } = useParams<{ section?: string }>();
+    const [params, setParams] = useSearchParams();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const [refreshing, setRefreshing] = useState(false);
+    const [exporting, setExporting] = useState<string | null>(null);
+    const [printingFull, setPrintingFull] = useState(false);
+    const [fullReportSections, setFullReportSections] = useState<Array<{ key: string; label: string; payload: ReportPayload }> | null>(null);
 
-    const activeTab: ReportTab = useMemo(() => {
-        if (location.pathname.includes('/reports/sources')) return 'sources';
-        if (location.pathname.includes('/reports/monthly')) return 'monthly';
-        return 'bookings';
-    }, [location.pathname]);
+    const { data: meta, isLoading: metaLoading } = useQuery({
+        queryKey: ['admin', 'reports', 'sections'],
+        queryFn: async (): Promise<ReportSectionsMeta> => (await apiClient.get('/reports/sections')).data.data,
+        staleTime: 1000 * 60 * 10,
+    });
 
-    const [period, setPeriod] = useState<PeriodType>('month');
-    const [loading, setLoading] = useState(true);
-    const [bookingReport, setBookingReport] = useState<any>(null);
-    const [sourceReport, setSourceReport] = useState<any[]>([]);
-    const [monthlyReport, setMonthlyReport] = useState<any[]>([]);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const section = LEGACY_SECTIONS[rawSection ?? ''] ?? rawSection ?? meta?.sections[0]?.key ?? 'overview';
+    const preset = params.get('preset') ?? '30d';
+    const filters = useMemo(() => {
+        const out: Record<string, string> = {};
+        for (const key of ['from', 'to', 'all', 'employee_id', 'brand_id', 'compare']) {
+            const value = params.get(key);
+            if (value) out[key] = value;
+        }
+        return out;
+    }, [params]);
+    const queryKey = ['admin', 'reports', section, filters];
 
-    const fetchReports = async () => {
-        setLoading(true);
-        setErrorMsg(null);
+    const { data: report, isFetching, isError } = useQuery({
+        queryKey,
+        queryFn: async (): Promise<ReportPayload> => (await apiClient.get(`/reports/sections/${section}`, { params: filters })).data.data,
+        enabled: !!meta && meta.sections.some((s) => s.key === section),
+        placeholderData: keepPreviousData,
+        staleTime: 1000 * 60 * 5,
+    });
+
+    if (rawSection && LEGACY_SECTIONS[rawSection]) {
+        return <Navigate to={`/admin/reports/${LEGACY_SECTIONS[rawSection]}?${params.toString()}`} replace />;
+    }
+
+    const update = (changes: Record<string, string | null>) => {
+        const next = new URLSearchParams(params);
+        Object.entries(changes).forEach(([k, v]) => (v === null || v === '' ? next.delete(k) : next.set(k, v)));
+        setParams(next, { replace: true });
+    };
+
+    const applyPreset = (key: string) => {
+        const range = PRESETS.find((p) => p.key === key)!.range();
+        update({ preset: key, from: range.from ?? null, to: range.to ?? null, all: range.all ? '1' : null });
+    };
+
+    const refresh = async () => {
+        setRefreshing(true);
         try {
-            let from = '';
-            const now = new Date();
-            if (period === 'month') {
-                const d = new Date();
-                d.setMonth(d.getMonth() - 1);
-                from = d.toISOString().split('T')[0];
-            } else if (period === 'quarter') {
-                const d = new Date();
-                d.setMonth(d.getMonth() - 3);
-                from = d.toISOString().split('T')[0];
-            } else if (period === 'year') {
-                const d = new Date();
-                d.setFullYear(d.getFullYear() - 1);
-                from = d.toISOString().split('T')[0];
-            }
-
-            const params: Record<string, string> = {};
-            if (from) {
-                params.from = from;
-                params.to = now.toISOString().split('T')[0];
-            }
-
-            const [bookingRes, sourceRes, monthlyRes] = await Promise.allSettled([
-                apiClient.get<any>('/api/v1/reports/bookings', { params }),
-                apiClient.get<any>('/api/v1/reports/sources', { params }),
-                apiClient.get<any>('/api/v1/reports/monthly'),
-            ]);
-
-            if (bookingRes.status === 'fulfilled') {
-                const payload = bookingRes.value.data;
-                setBookingReport(payload?.data || payload || null);
-            }
-
-            if (sourceRes.status === 'fulfilled') {
-                const payload = sourceRes.value.data;
-                const channels = payload?.data?.channels || payload?.channels || payload?.data || [];
-                setSourceReport(Array.isArray(channels) ? channels : []);
-            }
-
-            if (monthlyRes.status === 'fulfilled') {
-                const payload = monthlyRes.value.data;
-                const months = payload?.data?.months || payload?.months || payload?.data || [];
-                setMonthlyReport(Array.isArray(months) ? months : []);
-            }
-        } catch (err: any) {
-            console.error('Failed to load reports', err);
-            setErrorMsg('تعذر تحميل بعض البيانات الإحصائية، يرجى المحاولة مرة أخرى.');
+            const fresh = (await apiClient.get(`/reports/sections/${section}`, { params: { ...filters, fresh: 1 } })).data.data;
+            queryClient.setQueryData(queryKey, fresh);
         } finally {
-            setLoading(false);
+            setRefreshing(false);
         }
     };
 
-    useEffect(() => {
-        fetchReports();
-    }, [period]);
-
-    const financial = bookingReport?.financial || {
-        total_bookings: 0,
-        total_sold: 0,
-        total_commission: 0,
-        total_down_payment: 0,
-        total_remaining: 0,
+    const exportTable = async (table: string) => {
+        setExporting(table);
+        try {
+            const res = await apiClient.get(`/reports/sections/${section}/export`, { params: { ...filters, table }, responseType: 'blob' });
+            const url = URL.createObjectURL(res.data);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `report-${section}-${table}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } finally {
+            setExporting(null);
+        }
     };
 
-    const conversionRate =
-        financial.total_bookings > 0
-            ? Math.round((financial.total_sold / financial.total_bookings) * 100)
-            : 0;
+    const printCurrentSection = () => {
+        setFullReportSections(null);
+        setTimeout(() => window.print(), 80);
+    };
+
+    const printFullReport = async () => {
+        if (!meta?.sections?.length) return;
+        setPrintingFull(true);
+        try {
+            const results = await Promise.all(
+                meta.sections.map(async (s) => {
+                    const res = await apiClient.get(`/reports/sections/${s.key}`, { params: filters });
+                    return { key: s.key, label: s.label, payload: res.data.data as ReportPayload };
+                })
+            );
+            setFullReportSections(results);
+            const cleanup = () => {
+                setFullReportSections(null);
+                window.removeEventListener('afterprint', cleanup);
+            };
+            window.addEventListener('afterprint', cleanup);
+            setTimeout(() => window.print(), 250);
+        } finally {
+            setPrintingFull(false);
+        }
+    };
+
+    if (metaLoading || !meta) {
+        return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--tenant-primary)]" /></div>;
+    }
+    if (!meta.sections.some((s) => s.key === section)) {
+        return <Navigate to="/admin/reports" replace />;
+    }
+
+    const compare = params.get('compare') !== '0';
+
+    const currentSectionObj = meta.sections.find((s) => s.key === section);
+    const currentSectionLabel = String(t(`reports.sections.${section}`, { defaultValue: currentSectionObj?.label ?? section }));
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-5 print:space-y-4">
+            <style>{`
+                @media print {
+                    @page { size: A4 portrait; margin: 10mm; }
+                    body { background: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .print-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+                    .print-page-break { break-before: page; page-break-before: always; }
+                    .print-page-frame {
+                        border: 2px solid var(--tenant-primary, #1877F2) !important;
+                        border-radius: 14px !important;
+                        padding: 16px !important;
+                        background: #ffffff !important;
+                    }
+                }
+            `}</style>
+
+            {/* Screen Header */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3 print:hidden">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <h1 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
                         <BarChart3 className="h-6 w-6 text-[var(--tenant-primary)]" />
-                        التقارير الإحصائية والتحليلات
+                        {meta.can_view_all ? t('reports.page_title') : t('reports.my_report_title')}
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1">
-                        تحليل الأداء المالي، معدل تحويل الحجوزات، وعائد الحملات الإعلانية ونمو المبيعات
+                    <p className="text-xs text-[var(--text-secondary)] mt-1">
+                        {report ? t('reports.range_text', { from: report.range.from, to: report.range.to }) : '…'}
+                        {report?.range.previous_from && compare && t('reports.compare_text', { from: report.range.previous_from, to: report.range.previous_to })}
                     </p>
                 </div>
-
-                {/* Period Selector */}
-                <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200">
+                <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
                     <button
-                        onClick={() => setPeriod('month')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                            period === 'month'
-                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        type="button"
+                        onClick={printCurrentSection}
+                        disabled={!report}
+                        className="flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-secondary)] disabled:opacity-50 cursor-pointer transition-colors"
                     >
-                        آخر 30 يوم
+                        <Printer className="h-3.5 w-3.5 text-[var(--tenant-primary)]" />
+                        <span>{t('reports.print_section_pdf')}</span>
                     </button>
                     <button
-                        onClick={() => setPeriod('quarter')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                            period === 'quarter'
-                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        type="button"
+                        onClick={printFullReport}
+                        disabled={printingFull}
+                        className="flex items-center gap-1.5 rounded-lg bg-[var(--tenant-primary)] px-3.5 py-1.5 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-60 cursor-pointer shadow-xs transition-all"
                     >
-                        آخر 3 أشهر
+                        <FileText className={`h-3.5 w-3.5 ${printingFull ? 'animate-pulse' : ''}`} />
+                        <span>{printingFull ? t('reports.preparing_pdf') : t('reports.print_full_pdf')}</span>
                     </button>
                     <button
-                        onClick={() => setPeriod('year')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                            period === 'year'
-                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                        type="button"
+                        onClick={refresh}
+                        disabled={refreshing}
+                        className="flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--surface-primary)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] cursor-pointer"
                     >
-                        العام الحالي
+                        <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> {t('crud.refresh')}
                     </button>
-                    <button
-                        onClick={() => setPeriod('all')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                            period === 'all'
-                                ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
-                        الكل
-                    </button>
-                    <Button variant="secondary" size="sm" onClick={fetchReports} title="تحديث البيانات">
-                        <RefreshCw className="h-3.5 w-3.5" />
-                    </Button>
                 </div>
             </div>
 
-            {/* Sub-Reports Navigation Tabs */}
-            <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
-                <button
-                    onClick={() => navigate('/admin/reports/bookings')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                        activeTab === 'bookings'
-                            ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                            : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
-                    }`}
-                >
-                    <DollarSign className="w-4 h-4" />
-                    <span>تقرير الحجوزات والمبيعات</span>
-                </button>
-
-                <button
-                    onClick={() => navigate('/admin/reports/sources')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                        activeTab === 'sources'
-                            ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                            : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
-                    }`}
-                >
-                    <Target className="w-4 h-4" />
-                    <span>عائد الحملات ومصادر العملاء</span>
-                </button>
-
-                <button
-                    onClick={() => navigate('/admin/reports/monthly')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                        activeTab === 'monthly'
-                            ? 'bg-[var(--tenant-primary)] text-white shadow-xs'
-                            : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
-                    }`}
-                >
-                    <TrendingUp className="w-4 h-4" />
-                    <span>النمو السنوي والأداء الشهري</span>
-                </button>
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-2 print:hidden">
+                <div className="flex flex-wrap gap-1">
+                    {PRESETS.map((p) => (
+                        <button key={p.key} onClick={() => applyPreset(p.key)}
+                            className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${preset === p.key ? 'bg-[var(--tenant-primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)]'}`}>
+                            {t(p.labelKey)}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-1 text-xs">
+                    <input type="date" aria-label={t('reports.from')} value={params.get('from') ?? ''} max={params.get('to') ?? undefined} onChange={(e) => update({ preset: 'custom', from: e.target.value, all: null })} className={select} />
+                    <span className="text-[var(--text-muted)]">→</span>
+                    <input type="date" aria-label={t('reports.to')} value={params.get('to') ?? ''} min={params.get('from') ?? undefined} onChange={(e) => update({ preset: 'custom', to: e.target.value, all: null })} className={select} />
+                </div>
+                {meta.can_view_all && (
+                    <select aria-label={t('reports.employee')} value={params.get('employee_id') ?? ''} onChange={(e) => update({ employee_id: e.target.value })} className={select}>
+                        <option value="">{t('reports.all_employees')}</option>
+                        {meta.employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                )}
+                <select aria-label={t('reports.brand')} value={params.get('brand_id') ?? ''} onChange={(e) => update({ brand_id: e.target.value })} className={select}>
+                    <option value="">{t('reports.all_brands')}</option>
+                    {meta.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+                <label className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] ms-auto">
+                    <input type="checkbox" checked={compare} onChange={(e) => update({ compare: e.target.checked ? null : '0' })} className="h-3.5 w-3.5 accent-[var(--tenant-primary)]" />
+                    {t('reports.compare_previous')}
+                </label>
             </div>
 
-            {errorMsg && (
-                <div className="p-4 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>{errorMsg}</span>
+            {/* Sections */}
+            <div className="flex gap-1.5 overflow-x-auto pb-1 print:hidden">
+                {meta.sections.map((s) => {
+                    const Icon = ICONS[s.icon] ?? BarChart3;
+                    return (
+                        <button key={s.key} onClick={() => navigate(`/admin/reports/${s.key}?${params.toString()}`)}
+                            className={`flex items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] px-3 py-2 text-xs font-semibold ${section === s.key ? 'bg-[var(--tenant-primary)] text-white' : 'bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
+                            <Icon className="h-4 w-4" /> {String(t(`reports.sections.${s.key}`, { defaultValue: s.label }))}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {isError && <div className="rounded-[var(--radius-md)] bg-rose-50 px-4 py-2.5 text-xs text-rose-800">{t('reports.load_error')}</div>}
+
+            {/* Printable Branded Frame */}
+            <div className="print-page-frame">
+                {/* Executive Print Header with Platform Logo (visible only in PDF/Print) */}
+                <div className="hidden print:block rounded-xl border border-slate-200 bg-slate-50/80 p-4 mb-5 border-t-4 border-t-[var(--tenant-primary,#1877F2)]">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            {branding.logo_url && (
+                                <img
+                                    src={branding.logo_url}
+                                    alt={branding.company_name || 'Logo'}
+                                    className="h-12 w-auto max-w-[140px] object-contain rounded-lg bg-white p-1 border border-slate-200"
+                                />
+                            )}
+                            <div>
+                                <h1 className="text-lg font-extrabold text-slate-900">
+                                    {fullReportSections ? t('reports.exec_report_title') : currentSectionLabel}
+                                </h1>
+                                <p className="text-xs text-slate-600 mt-0.5">
+                                    {t('reports.period_label')} {report ? `${report.range.from} → ${report.range.to}` : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="text-end text-[11px] text-slate-500">
+                            <div className="font-bold text-sm text-[var(--tenant-primary,#1877F2)]">
+                                {branding.company_name || 'Tameed CRM'}
+                            </div>
+                            <div>{t('reports.generated_at')} {new Date().toLocaleDateString()}</div>
+                        </div>
+                    </div>
                 </div>
-            )}
 
-            {/* TAB 1: Bookings & Financial Performance */}
-            {activeTab === 'bookings' && (
-                <div className="space-y-6">
-                    {/* KPI Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Card orientation="vertical" className="p-5">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold text-slate-500">إجمالي الحجوزات والطلبات</span>
-                                <div className="h-9 w-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                                    <Target className="h-5 w-5" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-bold text-slate-900">
-                                {loading ? '—' : financial.total_bookings}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-2">
-                                المبيعات المنجزة:{' '}
-                                <span className="font-semibold text-emerald-600">{financial.total_sold}</span>
-                            </div>
-                        </Card>
-
-                        <Card orientation="vertical" className="p-5">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold text-slate-500">صافي العمولات المحصلة</span>
-                                <div className="h-9 w-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                                    <DollarSign className="h-5 w-5" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-bold text-slate-900">
-                                {loading ? '—' : `${Number(financial.total_commission).toLocaleString()} ر.س`}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-2">
-                                الدفوعات المقدمة: {Number(financial.total_down_payment).toLocaleString()} ر.س
-                            </div>
-                        </Card>
-
-                        <Card orientation="vertical" className="p-5">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold text-slate-500">معدل الإغلاق والتحويل</span>
-                                <div className="h-9 w-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-                                    <TrendingUp className="h-5 w-5" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-bold text-slate-900">{loading ? '—' : `${conversionRate}%`}</div>
-                            <div className="text-xs text-slate-500 mt-2">
-                                {conversionRate >= 20 ? (
-                                    <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                                        <ArrowUpRight className="h-3.5 w-3.5" /> أداء مبيعات استثنائي
+                {fullReportSections ? (
+                    /* Full Multi-Section Executive Report (for Print/PDF) */
+                    <div className="space-y-8">
+                        {fullReportSections.map((sec, idx) => (
+                            <section key={sec.key} className={`space-y-4 ${idx > 0 ? 'print-page-break' : ''}`}>
+                                <div className="flex items-center gap-2 border-b-2 border-[var(--tenant-primary,#1877F2)] pb-2">
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-[var(--tenant-primary,#1877F2)] text-white text-xs font-bold">
+                                        {String(idx + 1).padStart(2, '0')}
                                     </span>
-                                ) : (
-                                    <span className="text-slate-400">معدل تحويل قياسي لقطاع التمويل</span>
-                                )}
-                            </div>
-                        </Card>
-
-                        <Card orientation="vertical" className="p-5">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold text-slate-500">متوسط القسط الشهري</span>
-                                <div className="h-9 w-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                                    <Layers className="h-5 w-5" />
+                                    <h2 className="text-base font-extrabold text-slate-900">
+                                        {String(t(`reports.sections.${sec.key}`, { defaultValue: sec.label }))}
+                                    </h2>
                                 </div>
-                            </div>
-                            <div className="text-2xl font-bold text-slate-900">
-                                {loading
-                                    ? '—'
-                                    : `${Math.round(bookingReport?.installments?.avg_monthly || 0).toLocaleString()} ر.س`}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-2">
-                                متوسط المدة: {Math.round(bookingReport?.installments?.avg_duration || 0)} سنوات
-                            </div>
-                        </Card>
-                    </div>
-
-                    {/* Split Section: Top Cars and Top Agents */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Top Selling Cars */}
-                        <Card orientation="vertical" className="p-5">
-                            <div className="flex items-center justify-between border-b pb-3 mb-4">
-                                <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                                    <Car className="h-5 w-5 text-[var(--tenant-primary)]" />
-                                    السيارات الأكثر طلباً ومبيعاً
-                                </h2>
-                            </div>
-
-                            <div className="space-y-3">
-                                {loading ? (
-                                    <div className="text-center py-8 text-slate-400 text-sm">جاري التحميل...</div>
-                                ) : !bookingReport?.top_cars || bookingReport.top_cars.length === 0 ? (
-                                    <div className="text-center py-8 text-slate-400 text-sm">لا توجد بيانات كافية</div>
-                                ) : (
-                                    bookingReport.top_cars.map((tc: any, index: number) => (
-                                        <div
-                                            key={tc.car_id}
-                                            className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-7 w-7 rounded-full bg-[var(--tenant-primary)]/10 text-[var(--tenant-primary)] font-bold text-xs flex items-center justify-center">
-                                                    #{index + 1}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-slate-900 text-sm">
-                                                        {getLocalized(tc.car?.name) || `سيارة #${tc.car_id}`}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500">
-                                                        {getLocalized(tc.car?.brand?.name) || 'ماركة معتمدة'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-end">
-                                                <div className="text-xs font-semibold text-slate-800">
-                                                    {tc.total_bookings} طلب
-                                                </div>
-                                                <div className="text-[11px] text-emerald-600 font-bold">
-                                                    {tc.total_sold} منجزة
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
+                                {sec.payload.kpis.length > 0 && (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 print-avoid-break">
+                                        {sec.payload.kpis.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} compare={compare} />)}
+                                    </div>
                                 )}
-                            </div>
-                        </Card>
-
-                        {/* Sales Consultants Performance */}
-                        <Card orientation="vertical" className="p-5">
-                            <div className="flex items-center justify-between border-b pb-3 mb-4">
-                                <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                                    <Users className="h-5 w-5 text-[var(--tenant-primary)]" />
-                                    إنتاجية مستشاري المبيعات
-                                </h2>
-                            </div>
-
-                            <div className="space-y-3">
-                                {loading ? (
-                                    <div className="text-center py-8 text-slate-400 text-sm">جاري التحميل...</div>
-                                ) : !bookingReport?.employees || bookingReport.employees.length === 0 ? (
-                                    <div className="text-center py-8 text-slate-400 text-sm">لا توجد بيانات موظفين</div>
-                                ) : (
-                                    bookingReport.employees.map((emp: any) => (
-                                        <div
-                                            key={emp.assigned_to}
-                                            className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/70 transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-8 w-8 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center">
-                                                    {emp.employee?.name ? emp.employee.name.charAt(0) : 'U'}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-slate-900 text-sm">
-                                                        {getLocalized(emp.employee?.name) || `موظف #${emp.assigned_to}`}
-                                                    </div>
-                                                    <div className="text-xs text-slate-500">
-                                                        {emp.total_bookings} طلب معالج
-                                                    </div>
-                                                </div>
+                                {sec.payload.charts.length > 0 && (
+                                    <div className="grid lg:grid-cols-2 gap-4">
+                                        {sec.payload.charts.map((chart) => (
+                                            <div key={chart.key} className={`print-avoid-break ${chart.type === 'line' ? 'lg:col-span-2' : ''}`}>
+                                                <ReportChartCard chart={chart} />
                                             </div>
-                                            <div className="text-end">
-                                                <div className="text-xs font-bold text-emerald-600">
-                                                    {Number(emp.total_commission).toLocaleString()} ر.س عمولة
-                                                </div>
-                                                <div className="text-[11px] text-slate-500">
-                                                    {emp.total_sold} مبيعة مكتملة
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
+                                        ))}
+                                    </div>
                                 )}
-                            </div>
-                        </Card>
+                                {sec.payload.tables.map((table) => (
+                                    <div key={table.key} className="print-avoid-break">
+                                        <ReportTable table={table} onExport={() => exportTable(table.key)} exporting={false} />
+                                    </div>
+                                ))}
+                            </section>
+                        ))}
                     </div>
+                ) : !report ? (
+                    <ReportSkeleton />
+                ) : (
+                    <div className={`space-y-5 transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
+                        {report.kpis.length > 0 && (
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 print-avoid-break">
+                                {report.kpis.map((kpi) => <KpiCard key={kpi.key} kpi={kpi} compare={compare} />)}
+                            </div>
+                        )}
+                        {report.charts.length > 0 && (
+                            <div className="grid lg:grid-cols-2 gap-4">
+                                {report.charts.map((chart) => (
+                                    <div key={chart.key} className={`print-avoid-break ${chart.type === 'line' ? 'lg:col-span-2' : ''}`}><ReportChartCard chart={chart} /></div>
+                                ))}
+                            </div>
+                        )}
+                        {report.tables.map((table) => (
+                            <div key={table.key} className="print-avoid-break">
+                                <ReportTable table={table} onExport={() => exportTable(table.key)} exporting={exporting === table.key} />
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Executive Print Footer */}
+                <div className="hidden print:flex items-center justify-between border-t border-slate-200 mt-6 pt-3 text-[10px] text-slate-400">
+                    <span>{branding.company_name || 'Tameed CRM'} — {t('reports.exec_footer')}</span>
+                    <span>{new Date().toLocaleString()}</span>
                 </div>
-            )}
+            </div>
+        </div>
+    );
+};
 
-            {/* TAB 2: Marketing Attribution & Sources */}
-            {activeTab === 'sources' && (
-                <Card orientation="vertical" className="p-5">
-                    <div className="flex items-center justify-between border-b pb-3 mb-4">
-                        <div>
-                            <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                                <Target className="h-5 w-5 text-[var(--tenant-primary)]" />
-                                عائد الحملات الإعلانية وقنوات الاستقطاب (Marketing Attribution)
-                            </h2>
-                            <p className="text-xs text-slate-500 mt-1">
-                                تتبع مصدر كل عميل محتمل ونسبة التحويل إلى حجز فعلي ومبيعات منجزة
-                            </p>
-                        </div>
-                    </div>
+const KpiCard: React.FC<{ kpi: ReportKpi; compare: boolean }> = ({ kpi, compare }) => {
+    const { t } = useTranslation('admin');
+    const change = compare ? kpi.change : null;
+    const good = change !== null && change !== 0 && (change > 0) !== kpi.lower_is_better;
+    const ChangeIcon = change !== null && change < 0 ? ArrowDownRight : ArrowUpRight;
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-start text-sm">
-                            <thead className="bg-slate-50 text-slate-500 font-medium text-xs border-b border-slate-100">
-                                <tr>
-                                    <th className="py-3 px-4 text-start">القناة / المنصة الإعلانية</th>
-                                    <th className="py-3 px-4 text-center">العملاء المحتملين (Leads)</th>
-                                    <th className="py-3 px-4 text-center">الحجوزات المبرمة</th>
-                                    <th className="py-3 px-4 text-center">المبيعات المكتملة</th>
-                                    <th className="py-3 px-4 text-center">العائد المحقق</th>
-                                    <th className="py-3 px-4 text-center">نسبة التحويل</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={6} className="py-8 text-center text-slate-400">
-                                            جاري جلب إحصائيات القنوات...
-                                        </td>
-                                    </tr>
-                                ) : sourceReport.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="py-8 text-center text-slate-400">
-                                            لا توجد بيانات قنوات استقطاب مسجلة حتى الآن
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    sourceReport.map((s, idx) => {
-                                        const leads = Number(s.leads_count || 0);
-                                        const bookings = Number(s.bookings_count || 0);
-                                        const sold = Number(s.sold_count || 0);
-                                        const rev = Number(s.revenue || 0);
-                                        const conv = leads > 0 ? Math.round((bookings / leads) * 100) : (bookings > 0 ? 100 : 0);
-
-                                        return (
-                                            <tr key={idx} className="hover:bg-slate-50/70">
-                                                <td className="py-3 px-4 font-semibold text-slate-900 flex items-center gap-2">
-                                                    <span className="w-2 h-2 rounded-full bg-[var(--tenant-primary)]"></span>
-                                                    {getLocalized(s.channel || s.source) || 'مباشر (Direct / Organic)'}
-                                                </td>
-                                                <td className="py-3 px-4 text-center text-slate-700 font-medium">
-                                                    {leads}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-bold text-slate-900">
-                                                    {bookings}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-bold text-emerald-600">
-                                                    {sold}
-                                                </td>
-                                                <td className="py-3 px-4 text-center text-slate-900 font-semibold">
-                                                    {rev > 0 ? `${rev.toLocaleString()} ر.س` : '—'}
-                                                </td>
-                                                <td className="py-3 px-4 text-center">
-                                                    <Badge
-                                                        variant={
-                                                            conv >= 20
-                                                                ? 'success'
-                                                                : conv >= 10
-                                                                ? 'primary'
-                                                                : 'neutral'
-                                                        }
-                                                    >
-                                                        {conv}%
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
-            )}
-
-            {/* TAB 3: Monthly Growth (12 Months) */}
-            {activeTab === 'monthly' && (
-                <Card orientation="vertical" className="p-5">
-                    <div className="flex items-center justify-between border-b pb-3 mb-4">
-                        <div>
-                            <h2 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-                                <TrendingUp className="h-5 w-5 text-[var(--tenant-primary)]" />
-                                تقرير النمو السنوي والأداء الشهري (آخر 12 شهراً)
-                            </h2>
-                            <p className="text-xs text-slate-500 mt-1">
-                                تطور حجم الطلبات، والعملاء المحتملين، وإجمالي العمولات المحصلة شهرياً
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-start text-sm">
-                            <thead className="bg-slate-50 text-slate-500 font-medium text-xs border-b border-slate-100">
-                                <tr>
-                                    <th className="py-3 px-4 text-start">الشهر</th>
-                                    <th className="py-3 px-4 text-center">العملاء المحتملين (Leads)</th>
-                                    <th className="py-3 px-4 text-center">الحجوزات والطلبات</th>
-                                    <th className="py-3 px-4 text-center">المبيعات المكتملة</th>
-                                    <th className="py-3 px-4 text-center">إجمالي العمولات المحصلة</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={5} className="py-8 text-center text-slate-400">
-                                            جاري جلب إحصائيات الأشهر...
-                                        </td>
-                                    </tr>
-                                ) : monthlyReport.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="py-8 text-center text-slate-400">
-                                            لا توجد بيانات كافية مسجلة للأشهر السابقة
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    monthlyReport.map((m, idx) => (
-                                        <tr key={idx} className="hover:bg-slate-50/70">
-                                            <td className="py-3 px-4 font-bold text-slate-900">
-                                                {m.label || m.key}
-                                            </td>
-                                            <td className="py-3 px-4 text-center text-slate-700">
-                                                {m.leads_count || 0}
-                                            </td>
-                                            <td className="py-3 px-4 text-center font-bold text-slate-900">
-                                                {m.bookings_count || 0}
-                                            </td>
-                                            <td className="py-3 px-4 text-center font-bold text-emerald-600">
-                                                {m.sold_count || 0}
-                                            </td>
-                                            <td className="py-3 px-4 text-center font-semibold text-slate-900">
-                                                {Number(m.revenue || 0) > 0 ? `${Number(m.revenue).toLocaleString()} ر.س` : '—'}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
+    return (
+        <div className="rounded-[var(--radius-lg)] border border-[var(--border-default)] bg-[var(--surface-primary)] p-4">
+            <p className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-secondary)]">
+                {String(t(`reports.kpis.${kpi.key}`, { defaultValue: kpi.label }))}
+                {kpi.hint && <span title={kpi.hint}><Info className="h-3 w-3 text-[var(--text-muted)]" /></span>}
+            </p>
+            <p className="mt-1.5 text-xl font-bold tabular-nums text-[var(--text-primary)]">{formatValue(kpi.value, kpi.format)}</p>
+            {compare && kpi.previous !== null && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+                    {change !== null && change !== 0 && (
+                        <span className={`flex items-center font-semibold ${good ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            <ChangeIcon className="h-3.5 w-3.5" />
+                            {Math.abs(change)}{kpi.format === 'percent' ? t('reports.pts') : '%'}
+                        </span>
+                    )}
+                    <span>{t('reports.prev_value')} {formatValue(kpi.previous, kpi.format)}</span>
+                </p>
             )}
         </div>
     );
 };
+
+const ReportSkeleton: React.FC = () => (
+    <div className="space-y-4 animate-pulse">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 rounded-[var(--radius-lg)] bg-[var(--surface-secondary)]" />)}
+        </div>
+        <div className="h-56 rounded-[var(--radius-lg)] bg-[var(--surface-secondary)]" />
+    </div>
+);

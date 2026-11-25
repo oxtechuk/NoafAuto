@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\DeployWebhookController;
 use App\Http\Controllers\Api\V1\EmployeeController as V1EmployeeController;
 use App\Http\Controllers\Api\V1\InfrastructureController;
 use App\Http\Controllers\Api\V1\LeadController as V1LeadController;
+use App\Http\Controllers\Api\V1\LeadNoteController as V1LeadNoteController;
 use App\Http\Controllers\Api\V1\ModuleController as V1ModuleController;
 use App\Http\Controllers\Api\V1\ReportController as V1ReportController;
 use App\Http\Controllers\Api\V1\RoleController as V1RoleController;
@@ -52,6 +53,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('reports/bookings', [V1ReportController::class, 'bookings'])->name('reports.bookings');
         Route::get('reports/sources', [V1ReportController::class, 'sources'])->name('reports.sources');
         Route::get('reports/monthly', [V1ReportController::class, 'monthly'])->name('reports.monthly');
+        Route::get('reports/sections', [V1ReportController::class, 'sections'])->name('reports.sections');
+        Route::get('reports/sections/{section}', [V1ReportController::class, 'section'])->name('reports.section')->where('section', '[a-z0-9-]+');
+        Route::get('reports/sections/{section}/export', [V1ReportController::class, 'export'])->name('reports.export')->where('section', '[a-z0-9-]+');
 
         // Client Sub-Modules (must precede leads apiResource)
         Route::get('leads/calculator', [V1ClientController::class, 'calculatorLeadsIndex'])->name('leads.calculator.index');
@@ -66,6 +70,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::delete('leads/newsletter/{subscriber}', [V1ClientController::class, 'newsletterDestroy'])->name('leads.newsletter.destroy');
 
         Route::apiResource('leads', V1LeadController::class)->whereNumber('lead');
+        Route::apiResource('leads.notes', V1LeadNoteController::class)->only(['index', 'store', 'destroy'])->whereNumber(['lead', 'note']);
 
         Route::apiResource('bookings', V1BookingController::class)->except('update');
         Route::prefix('bookings/{booking}')->name('bookings.')->controller(V1BookingController::class)->group(function () {
@@ -81,6 +86,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::delete('/documents/{document}', 'deleteDocument')->name('documents.destroy');
         });
 
+        Route::get('notifications/summary', [V1TaskController::class, 'notificationsSummary'])->name('notifications.summary');
         Route::apiResource('tasks', V1TaskController::class);
         Route::prefix('tasks/{task}')->name('tasks.')->controller(V1TaskController::class)->group(function () {
             Route::post('/toggle', 'toggle')->name('toggle');

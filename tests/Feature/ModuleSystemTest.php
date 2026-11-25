@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Services\Modules\ModuleManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ModuleSystemTest extends TestCase
@@ -107,5 +108,35 @@ class ModuleSystemTest extends TestCase
             ->postJson(route('api.v1.modules.enable', 'feedback-demo'))
             ->assertOk()
             ->assertJsonPath('data.enabled', true);
+    }
+
+    public function test_enabling_a_module_runs_its_migrations_and_keeps_the_manifest_readable(): void
+    {
+        $this->artisan('sitekit:make-module', ['name' => 'FeedbackDemo'])->assertSuccessful();
+        File::ensureDirectoryExists("{$this->testModuleDir}/database/migrations");
+        File::put("{$this->testModuleDir}/database/migrations/2026_01_01_000000_create_feedback_demo_probe_table.php", <<<'PHP'
+            <?php
+
+            use Illuminate\Database\Migrations\Migration;
+            use Illuminate\Database\Schema\Blueprint;
+            use Illuminate\Support\Facades\Schema;
+
+            return new class extends Migration
+            {
+                public function up(): void
+                {
+                    Schema::create('feedback_demo_probe', fn (Blueprint $table) => $table->id());
+                }
+            };
+            PHP);
+        (new ModuleManager)->disable('feedback-demo');
+        $this->assertFalse(Schema::hasTable('feedback_demo_probe'));
+
+        $this->actingAs($this->admin, 'employee')
+            ->postJson(route('api.v1.modules.enable', 'feedback-demo'))
+            ->assertOk();
+
+        $this->assertTrue(Schema::hasTable('feedback_demo_probe'));
+        $this->assertStringNotContainsString('\/', File::get("{$this->testModuleDir}/module.json"));
     }
 }

@@ -1,19 +1,21 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
 
 // 1. Brands Page
 export const BrandsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="الماركات التجارية"
-            subtitle="إدارة العلامات التجارية للسيارات، الشعارات، ونوع الماركة"
+            title={t('catalog.brands_title')}
+            subtitle={t('catalog.brands_sub')}
             endpoint="/api/v1/brands"
             columns={[
-                { key: 'logo', title: 'الشعار', type: 'image' },
-                { key: 'name', title: 'اسم الماركة' },
+                { key: 'logo', title: t('catalog.logo'), type: 'image' },
+                { key: 'name', title: t('catalog.brand_name') },
                 {
                     key: 'brand_type',
-                    title: 'نوع الماركة',
+                    title: t('catalog.brand_type'),
                     render: (val, row) => (
                         <span className="text-slate-600">
                             {formatLocaleString(row.brand_type?.name)}
@@ -22,19 +24,19 @@ export const BrandsPage: React.FC = () => {
                 },
                 {
                     key: 'cars_count',
-                    title: 'السيارات المسجلة',
+                    title: t('catalog.cars_count'),
                     render: (val) => (
                         <span className="font-bold text-[var(--tenant-primary)]">
                             {val ?? 0}
                         </span>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم الماركة', type: 'text', required: true, multilingual: true },
-                { name: 'logo', label: 'شعار الماركة', type: 'file' },
-                { name: 'is_active', label: 'نشط في المعرض', type: 'switch' },
+                { name: 'name', label: t('catalog.brand_name'), type: 'text', required: true, multilingual: true },
+                { name: 'logo', label: t('catalog.brand_logo'), type: 'file' },
+                { name: 'is_active', label: t('catalog.active_in_showroom'), type: 'switch' },
             ]}
         />
     );
@@ -42,16 +44,17 @@ export const BrandsPage: React.FC = () => {
 
 // 2. Car Models Page
 export const CarModelsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="موديلات السيارات"
-            subtitle="إدارة موديلات وطرازات السيارات التابعة لكل ماركة"
+            title={t('catalog.models_title')}
+            subtitle={t('catalog.models_sub')}
             endpoint="/api/v1/catalog/models"
             columns={[
-                { key: 'name', title: 'اسم الموديل' },
+                { key: 'name', title: t('catalog.model_name') },
                 {
                     key: 'brand',
-                    title: 'الماركة',
+                    title: t('catalog.brand'),
                     render: (val, row) => (
                         <div className="flex items-center gap-2">
                             {row.brand?.logo && (
@@ -69,17 +72,17 @@ export const CarModelsPage: React.FC = () => {
                 },
                 {
                     key: 'cars_count',
-                    title: 'عدد السيارات',
+                    title: t('catalog.count_cars'),
                     render: (val) => (
                         <span className="font-semibold text-slate-700">{val ?? 0}</span>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم الموديل', type: 'text', required: true, multilingual: true },
-                { name: 'brand_id', label: 'الماركة التابع لها', type: 'number', required: true, placeholder: 'رقم الماركة (Brand ID)' },
-                { name: 'is_active', label: 'تفعيل الموديل', type: 'switch' },
+                { name: 'name', label: t('catalog.model_name'), type: 'text', required: true, multilingual: true },
+                { name: 'brand_id', label: t('catalog.parent_brand'), type: 'number', required: true, placeholder: 'Brand ID' },
+                { name: 'is_active', label: t('catalog.activate_model'), type: 'switch' },
             ]}
         />
     );
@@ -87,26 +90,27 @@ export const CarModelsPage: React.FC = () => {
 
 // 3. Brand Types Page
 export const BrandTypesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="أنواع الماركات"
-            subtitle="تصنيف الماركات حسب بلد المنشأ (ياباني، كوري، صيني، ألماني...)"
+            title={t('catalog.brand_types_title')}
+            subtitle={t('catalog.brand_types_sub')}
             endpoint="/api/v1/catalog/brand-types"
             columns={[
-                { key: 'name', title: 'نوع الماركة' },
+                { key: 'name', title: t('catalog.brand_type') },
                 {
                     key: 'brands_count',
-                    title: 'عدد الماركات',
+                    title: t('catalog.brands_count'),
                     render: (val) => (
                         <span className="font-semibold text-slate-700">{val ?? 0}</span>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم النوع', type: 'text', required: true, multilingual: true },
-                { name: 'sort_order', label: 'الترتيب', type: 'number', placeholder: '0' },
-                { name: 'is_active', label: 'مفعل', type: 'switch' },
+                { name: 'name', label: t('catalog.type_name'), type: 'text', required: true, multilingual: true },
+                { name: 'sort_order', label: t('catalog.sort_order'), type: 'number', placeholder: '0' },
+                { name: 'is_active', label: t('common.enabled'), type: 'switch' },
             ]}
         />
     );
@@ -114,26 +118,27 @@ export const BrandTypesPage: React.FC = () => {
 
 // 4. Car Categories Page
 export const CarCategoriesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="تصنيفات السيارات"
-            subtitle="إدارة فئات وتصنيفات المعرض (عائلي، اقتصادي، فخم، دفع رباعي...)"
+            title={t('catalog.categories_title')}
+            subtitle={t('catalog.categories_sub')}
             endpoint="/api/v1/catalog/categories"
             columns={[
-                { key: 'name', title: 'اسم التصنيف' },
+                { key: 'name', title: t('catalog.category_name') },
                 {
                     key: 'cars_count',
-                    title: 'عدد السيارات',
+                    title: t('catalog.count_cars'),
                     render: (val) => (
                         <span className="font-bold text-[var(--tenant-primary)]">{val ?? 0}</span>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم التصنيف', type: 'text', required: true, multilingual: true },
-                { name: 'sort_order', label: 'ترتيب الظهور', type: 'number', placeholder: '0' },
-                { name: 'is_active', label: 'مفعل في المعرض', type: 'switch' },
+                { name: 'name', label: t('catalog.category_name'), type: 'text', required: true, multilingual: true },
+                { name: 'sort_order', label: t('catalog.sort_order'), type: 'number', placeholder: '0' },
+                { name: 'is_active', label: t('catalog.active_in_showroom'), type: 'switch' },
             ]}
         />
     );
@@ -141,20 +146,21 @@ export const CarCategoriesPage: React.FC = () => {
 
 // 5. Car Types Page
 export const CarTypesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="أنواع الهياكل"
-            subtitle="أنواع هياكل وتصاميم السيارات (سيدان، هاتشباك، كروس أوفر، SUV...)"
+            title={t('catalog.car_types_title')}
+            subtitle={t('catalog.car_types_sub')}
             endpoint="/api/v1/catalog/types"
             columns={[
-                { key: 'name', title: 'نوع الهيكل' },
-                { key: 'slug', title: 'المعرّف (Slug)' },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'name', title: t('catalog.body_type') },
+                { key: 'slug', title: t('catalog.slug') },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'نوع الهيكل', type: 'text', required: true, multilingual: true },
-                { name: 'sort_order', label: 'ترتيب العرض', type: 'number', placeholder: '0' },
-                { name: 'is_active', label: 'مفعل', type: 'switch' },
+                { name: 'name', label: t('catalog.body_type'), type: 'text', required: true, multilingual: true },
+                { name: 'sort_order', label: t('catalog.sort_order'), type: 'number', placeholder: '0' },
+                { name: 'is_active', label: t('common.enabled'), type: 'switch' },
             ]}
         />
     );
@@ -162,18 +168,19 @@ export const CarTypesPage: React.FC = () => {
 
 // 6. Specifications Page
 export const SpecsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="المواصفات الفنية"
-            subtitle="قائمة المواصفات التقنية والميكانيكية المتاحة للاختيار عند إضافة سيارة"
+            title={t('catalog.specs_title')}
+            subtitle={t('catalog.specs_sub')}
             endpoint="/api/v1/catalog/specs"
             columns={[
-                { key: 'name', title: 'اسم المواصفة' },
-                { key: 'icon', title: 'رمز الأيقونة (Icon)' },
+                { key: 'name', title: t('catalog.spec_name') },
+                { key: 'icon', title: t('catalog.icon') },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم المواصفة', type: 'text', required: true, multilingual: true },
-                { name: 'icon', label: 'رمز الأيقونة (Lucide icon)', type: 'text', placeholder: 'مثال: gauge, zap, shield' },
+                { name: 'name', label: t('catalog.spec_name'), type: 'text', required: true, multilingual: true },
+                { name: 'icon', label: t('catalog.icon'), type: 'text', placeholder: 'gauge, zap, shield' },
             ]}
         />
     );
@@ -181,18 +188,19 @@ export const SpecsPage: React.FC = () => {
 
 // 7. Features Page
 export const FeaturesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="المميزات والكماليات"
-            subtitle="تجهيزات الراحة وكماليات المقصورة للسيارات (شاشات، تبريد مقاعد، فتحة سقف...)"
+            title={t('catalog.features_title')}
+            subtitle={t('catalog.features_sub')}
             endpoint="/api/v1/catalog/features"
             columns={[
-                { key: 'name', title: 'الميزة / الخاصية' },
-                { key: 'icon', title: 'الأيقونة' },
+                { key: 'name', title: t('catalog.feature_name') },
+                { key: 'icon', title: t('catalog.icon') },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم الميزة', type: 'text', required: true, multilingual: true },
-                { name: 'icon', label: 'رمز الأيقونة', type: 'text', placeholder: 'مثال: music, wifi, sun' },
+                { name: 'name', label: t('catalog.feature_name'), type: 'text', required: true, multilingual: true },
+                { name: 'icon', label: t('catalog.icon'), type: 'text', placeholder: 'music, wifi, sun' },
             ]}
         />
     );
@@ -200,18 +208,19 @@ export const FeaturesPage: React.FC = () => {
 
 // 8. Safety Features Page
 export const SafetyFeaturesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="ميزات وأنظمة السلامة"
-            subtitle="أنظمة الأمان والوسائد الهوائية وحساسات الطوارئ"
+            title={t('catalog.safety_title')}
+            subtitle={t('catalog.safety_sub')}
             endpoint="/api/v1/catalog/safety"
             columns={[
-                { key: 'name', title: 'نظام السلامة' },
-                { key: 'icon', title: 'الأيقونة' },
+                { key: 'name', title: t('catalog.safety_name') },
+                { key: 'icon', title: t('catalog.icon') },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم نظام السلامة', type: 'text', required: true, multilingual: true },
-                { name: 'icon', label: 'رمز الأيقونة', type: 'text', placeholder: 'مثال: shield-check, eye, bell' },
+                { name: 'name', label: t('catalog.safety_name'), type: 'text', required: true, multilingual: true },
+                { name: 'icon', label: t('catalog.icon'), type: 'text', placeholder: 'shield-check, eye, bell' },
             ]}
         />
     );
@@ -219,17 +228,18 @@ export const SafetyFeaturesPage: React.FC = () => {
 
 // 9. Offers Manager Page
 export const OffersManagerPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="العروض الترويجية والخصومات"
-            subtitle="إدارة حملات التخفيض، شارات الأسعار الخاصة، وفترات سريان العروض"
+            title={t('catalog.offers_title')}
+            subtitle={t('catalog.offers_sub')}
             endpoint="/api/v1/catalog/offers"
             columns={[
-                { key: 'image', title: 'بانر العرض', type: 'image' },
-                { key: 'title', title: 'عنوان العرض' },
+                { key: 'image', title: t('catalog.offer_banner'), type: 'image' },
+                { key: 'title', title: t('catalog.offer_title') },
                 {
                     key: 'discount_percent',
-                    title: 'نسبة الخصم',
+                    title: t('catalog.discount_percent'),
                     render: (val) =>
                         val ? (
                             <span className="font-bold text-emerald-600">{val}%</span>
@@ -239,18 +249,18 @@ export const OffersManagerPage: React.FC = () => {
                 },
                 {
                     key: 'special_price',
-                    title: 'السعر الخاص',
+                    title: t('catalog.special_price'),
                     render: (val) =>
-                        val ? `${Number(val).toLocaleString()} ر.س` : '-',
+                        val ? `${Number(val).toLocaleString()} ${t('common.sar')}` : '-',
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'title', label: 'عنوان العرض', type: 'text', required: true, multilingual: true },
-                { name: 'discount_percent', label: 'نسبة الخصم (%)', type: 'number', placeholder: 'مثال: 15' },
-                { name: 'special_price', label: 'السعر الترويجي الخاص (ر.س)', type: 'number' },
-                { name: 'image', label: 'صورة بانر العرض', type: 'file' },
-                { name: 'is_active', label: 'تفعيل العرض', type: 'switch' },
+                { name: 'title', label: t('catalog.offer_title'), type: 'text', required: true, multilingual: true },
+                { name: 'discount_percent', label: t('catalog.discount_percent'), type: 'number', placeholder: '15' },
+                { name: 'special_price', label: t('catalog.special_price'), type: 'number' },
+                { name: 'image', label: t('catalog.offer_banner'), type: 'file' },
+                { name: 'is_active', label: t('catalog.activate_offer'), type: 'switch' },
             ]}
         />
     );

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
     Layers,
     Calculator,
@@ -26,59 +27,92 @@ interface KanbanItem {
     client_name: string;
     client_phone: string;
     car_name?: string;
+    car_brand?: string;
+    car_year?: string | number;
     total_price?: string | number;
-    assigned_to?: string;
-    created_at?: string;
+    assigned_to?: string | null;
+    status?: string;
+    created_at?: string | null;
+    updated_at?: string | null;
 }
 
 interface KanbanStage {
+    key: string;
     title: string;
+    color: string;
+    group: 'active' | 'lost';
+    total_amount: number;
     items: KanbanItem[];
 }
 
-const STAGE_CONFIG: Record<string, { title: string; color: string; badge: string; border: string }> = {
-    new: {
-        title: 'طلبات جديدة',
-        color: 'bg-blue-500',
+const COLOR_STYLES: Record<string, { dot: string; bar: string; badge: string }> = {
+    primary: {
+        dot: 'bg-[var(--tenant-primary,#1877F2)]',
+        bar: 'bg-[var(--tenant-primary,#1877F2)]',
         badge: 'bg-blue-50 text-blue-700 border-blue-200',
-        border: 'border-t-blue-500',
     },
-    contacted: {
-        title: 'تم التواصل',
-        color: 'bg-amber-500',
+    info: {
+        dot: 'bg-sky-500',
+        bar: 'bg-sky-500',
+        badge: 'bg-sky-50 text-sky-700 border-sky-200',
+    },
+    warning: {
+        dot: 'bg-amber-500',
+        bar: 'bg-amber-500',
         badge: 'bg-amber-50 text-amber-700 border-amber-200',
-        border: 'border-t-amber-500',
     },
-    credit_check: {
-        title: 'فحص ائتماني',
-        color: 'bg-purple-500',
-        badge: 'bg-purple-50 text-purple-700 border-purple-200',
-        border: 'border-t-purple-500',
-    },
-    bank_approval: {
-        title: 'موافقة البنك',
-        color: 'bg-indigo-500',
-        badge: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-        border: 'border-t-indigo-500',
-    },
-    shipping: {
-        title: 'تجهيز وشحن',
-        color: 'bg-cyan-500',
-        badge: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-        border: 'border-t-cyan-500',
-    },
-    delivered: {
-        title: 'تم التسليم',
-        color: 'bg-emerald-500',
+    success: {
+        dot: 'bg-emerald-500',
+        bar: 'bg-emerald-500',
         badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        border: 'border-t-emerald-500',
+    },
+    secondary: {
+        dot: 'bg-slate-400',
+        bar: 'bg-slate-400',
+        badge: 'bg-slate-100 text-slate-700 border-slate-200',
+    },
+    danger: {
+        dot: 'bg-rose-500',
+        bar: 'bg-rose-500',
+        badge: 'bg-rose-50 text-rose-700 border-rose-200',
     },
 };
 
-// 1. Kanban Tracking Page with full Drag & Drop
+function formatKanbanTime(dateStr: string | null | undefined, t: any, lang: string): string {
+    if (!dateStr) return t('sales.now');
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    const diffMs = Date.now() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    const diffWeeks = Math.floor(diffDays / 7);
+
+    if (diffMins < 1) return t('bookings_ui.just_now');
+    if (diffMins < 60) return t('bookings_ui.mins_ago', { count: diffMins });
+    if (diffHours < 24) return t('bookings_ui.hours_ago', { count: diffHours });
+    if (diffDays === 1) return t('bookings_ui.yesterday');
+    if (diffDays === 2) return t('bookings_ui.two_days_ago');
+    if (diffDays < 7) return t('bookings_ui.days_ago', { count: diffDays });
+    if (diffWeeks === 1) return t('bookings_ui.one_week_ago');
+    if (diffWeeks === 2) return t('bookings_ui.two_weeks_ago');
+    if (diffWeeks <= 4) return t('bookings_ui.weeks_ago', { count: diffWeeks });
+    return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'ar-SA');
+}
+
+function getInitials(name?: string | null): string {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+}
+
+// 1. Odoo-CRM Style Kanban Tracking Page
 export const KanbanTrackingPage: React.FC = () => {
+    const { t, i18n } = useTranslation('admin');
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
+    const [groupFilter, setGroupFilter] = useState<'active' | 'lost' | 'all'>('active');
     const [draggedItem, setDraggedItem] = useState<{ id: number; sourceStage: string } | null>(null);
     const [dragOverStage, setDragOverStage] = useState<string | null>(null);
     const [movingId, setMovingId] = useState<number | null>(null);
@@ -98,9 +132,10 @@ export const KanbanTrackingPage: React.FC = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/sales/tracking'] });
+            queryClient.invalidateQueries({ queryKey: ['admin', 'bookings'] });
+            queryClient.invalidateQueries({ queryKey: ['admin', 'notifications', 'summary'] });
         },
         onError: () => {
-            // Revert on error
             refetch();
         },
         onSettled: () => {
@@ -108,14 +143,11 @@ export const KanbanTrackingPage: React.FC = () => {
         },
     });
 
-    const stages: Record<string, KanbanStage> = useMemo(() => {
-        return data || {};
-    }, [data]);
+    const stages: Record<string, KanbanStage> = useMemo(() => data || {}, [data]);
 
     const handleMoveStage = (id: number, targetStage: string, sourceStage: string) => {
         if (targetStage === sourceStage) return;
 
-        // Optimistic UI update
         queryClient.setQueryData(['/sales/tracking'], (oldData: Record<string, KanbanStage> | undefined) => {
             if (!oldData) return oldData;
             const updated = JSON.parse(JSON.stringify(oldData)) as Record<string, KanbanStage>;
@@ -125,9 +157,13 @@ export const KanbanTrackingPage: React.FC = () => {
             if (index === -1) return oldData;
 
             const [item] = sourceItems.splice(index, 1);
+            const price = Number(item.total_price || 0);
+            updated[sourceStage].total_amount = Math.max(0, (updated[sourceStage].total_amount || 0) - price);
+
             if (updated[targetStage]) {
                 if (!updated[targetStage].items) updated[targetStage].items = [];
                 updated[targetStage].items.unshift(item);
+                updated[targetStage].total_amount = (updated[targetStage].total_amount || 0) + price;
             }
             return updated;
         });
@@ -135,68 +171,161 @@ export const KanbanTrackingPage: React.FC = () => {
         updateStageMutation.mutate({ id, stage: targetStage });
     };
 
-    const totalCount = useMemo(() => {
-        return Object.values(stages).reduce((sum, col) => sum + (col.items?.length || 0), 0);
+    const { activeCount, lostCount } = useMemo(() => {
+        let active = 0;
+        let lost = 0;
+        for (const col of Object.values(stages)) {
+            const len = col.items?.length || 0;
+            if (col.group === 'lost') lost += len;
+            else active += len;
+        }
+        return { activeCount: active, lostCount: lost };
     }, [stages]);
 
-    return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <Layers className="h-6 w-6 text-indigo-600" />
-                        <span>تتبع مسار الطلبات (Kanban Pipeline)</span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
-                            {totalCount} طلب
-                        </span>
-                    </h1>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                        اسحب الكرت بالموس وأفلته في المرحلة التالية لنقله مباشرة، أو استخدم القائمة السريعة
-                    </p>
-                </div>
+    const visibleStages = useMemo(() => {
+        return Object.entries(stages).filter(([, col]) => {
+            if (groupFilter === 'all') return true;
+            return (col.group || 'active') === groupFilter;
+        });
+    }, [stages, groupFilter]);
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="بحث بالعميل أو السيارة..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pr-8 pl-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
+    const activeStagesList = useMemo(
+        () => Object.entries(stages).filter(([, col]) => (col.group || 'active') === 'active'),
+        [stages]
+    );
+    const lostStagesList = useMemo(
+        () => Object.entries(stages).filter(([, col]) => col.group === 'lost'),
+        [stages]
+    );
+
+    const { visibleCount, visibleValue } = useMemo(() => {
+        let cnt = 0;
+        let val = 0;
+        for (const [, col] of visibleStages) {
+            cnt += col.items?.length || 0;
+            val += Number(col.total_amount || 0);
+        }
+        return { visibleCount: cnt, visibleValue: val };
+    }, [visibleStages]);
+
+    return (
+        <div className="space-y-4">
+            {/* Odoo-style Control Panel Header */}
+            <div className="bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs space-y-3.5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    {/* Title & Pipeline Summary */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-[var(--tenant-primary,#1877F2)]/10 text-[var(--tenant-primary,#1877F2)] flex items-center justify-center shrink-0">
+                            <Layers className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h1 className="text-lg font-bold text-slate-900">{t('sales.kanban_title')}</h1>
+                                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[var(--tenant-primary,#1877F2)]/10 text-[var(--tenant-primary,#1877F2)]">
+                                    {t('sales.kanban_count', { count: visibleCount })}
+                                </span>
+                                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {t('sales.pipeline_value')}: {Math.round(visibleValue).toLocaleString()} {t('common.sar')}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">{t('sales.kanban_sub')}</p>
+                        </div>
                     </div>
 
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => refetch()}
-                        disabled={isFetching}
-                        className="gap-1.5 text-xs shrink-0"
+                    {/* Search + Refresh */}
+                    <div className="flex items-center gap-2 w-full lg:w-auto">
+                        <div className="relative flex-1 lg:w-72">
+                            <Search className="absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder={t('sales.kanban_search_ph')}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full ps-9 pe-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-hidden focus:border-[var(--tenant-primary,#1877F2)] transition-colors"
+                            />
+                        </div>
+
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => refetch()}
+                            disabled={isFetching}
+                            className="gap-1.5 text-xs shrink-0 h-[34px]"
+                        >
+                            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                            <span>{t('crud.refresh')}</span>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Group Filter Pills (Active vs Lost vs All) */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                        type="button"
+                        onClick={() => setGroupFilter('active')}
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            groupFilter === 'active'
+                                ? 'bg-[var(--tenant-primary,#1877F2)] text-white border-[var(--tenant-primary,#1877F2)] shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
                     >
-                        <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-                        <span>تحديث</span>
-                    </Button>
+                        <span className={`w-2 h-2 rounded-full ${groupFilter === 'active' ? 'bg-white' : 'bg-emerald-500'}`} />
+                        <span>{t('sales.filter_active')}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                            groupFilter === 'active' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                        }`}>
+                            {activeCount}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setGroupFilter('lost')}
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            groupFilter === 'lost'
+                                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                    >
+                        <span className={`w-2 h-2 rounded-full ${groupFilter === 'lost' ? 'bg-white' : 'bg-rose-500'}`} />
+                        <span>{t('sales.filter_lost')}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                            groupFilter === 'lost' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                        }`}>
+                            {lostCount}
+                        </span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setGroupFilter('all')}
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                            groupFilter === 'all'
+                                ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                    >
+                        <span>{t('sales.filter_all')}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                            groupFilter === 'all' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 border border-slate-200'
+                        }`}>
+                            {activeCount + lostCount}
+                        </span>
+                    </button>
                 </div>
             </div>
 
-            {/* Kanban Columns */}
+            {/* Odoo-style Horizontal Kanban Board */}
             {isLoading ? (
                 <div className="py-24 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
-                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-indigo-600" />
-                    <span className="text-sm font-medium">جاري تحميل مسار الطلبات...</span>
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-3 text-[var(--tenant-primary,#1877F2)]" />
+                    <span className="text-sm font-medium">{t('sales.kanban_loading')}</span>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 overflow-x-auto pb-4 items-start">
-                    {Object.entries(stages).map(([stageKey, col]) => {
-                        const config = STAGE_CONFIG[stageKey] || {
-                            title: col.title,
-                            color: 'bg-slate-500',
-                            badge: 'bg-slate-100 text-slate-700 border-slate-200',
-                            border: 'border-t-slate-400',
-                        };
-
+                <div className="flex gap-3.5 overflow-x-auto pb-4 items-start">
+                    {visibleStages.map(([stageKey, col]) => {
+                        const style = COLOR_STYLES[col.color || 'secondary'] || COLOR_STYLES.secondary;
+                        const stageTitle = String(t(`booking_statuses.${stageKey}`, { defaultValue: col.title }));
                         const isOver = dragOverStage === stageKey;
 
                         const filteredItems = (col.items || []).filter((item) => {
@@ -206,9 +335,12 @@ export const KanbanTrackingPage: React.FC = () => {
                                 item.client_name?.toLowerCase().includes(q) ||
                                 item.client_phone?.includes(q) ||
                                 item.car_name?.toLowerCase().includes(q) ||
+                                item.car_brand?.toLowerCase().includes(q) ||
                                 String(item.id).includes(q)
                             );
                         });
+
+                        const colSum = filteredItems.reduce((acc, it) => acc + Number(it.total_price || 0), 0);
 
                         return (
                             <div
@@ -241,29 +373,42 @@ export const KanbanTrackingPage: React.FC = () => {
                                     }
                                     setDraggedItem(null);
                                 }}
-                                className={`rounded-xl p-2.5 border-t-4 ${config.border} border border-slate-200 transition-all flex flex-col min-w-[210px] ${
+                                className={`w-[300px] shrink-0 rounded-xl border transition-all flex flex-col ${
                                     isOver
-                                        ? 'bg-indigo-50/70 border-indigo-400 ring-2 ring-indigo-500/40 shadow-md'
-                                        : 'bg-slate-100/70'
+                                        ? 'bg-blue-50/60 border-[var(--tenant-primary,#1877F2)] ring-2 ring-[var(--tenant-primary,#1877F2)]/25 shadow-md'
+                                        : 'bg-slate-100/80 border-slate-200/80'
                                 }`}
                             >
-                                {/* Column Header */}
-                                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className={`w-2 h-2 rounded-full ${config.color}`} />
-                                        <span className="font-bold text-xs text-slate-800">
-                                            {config.title}
+                                {/* Odoo Column Header: Title + Count + Progress Bar + Total SAR */}
+                                <div className="p-3 pb-2.5 bg-white/80 rounded-t-xl border-b border-slate-200/80">
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot}`} />
+                                            <span className="font-bold text-xs text-slate-900 truncate" title={stageTitle}>
+                                                {stageTitle}
+                                            </span>
+                                        </div>
+                                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${style.badge}`}>
+                                            {filteredItems.length}
                                         </span>
                                     </div>
-                                    <span
-                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${config.badge}`}
-                                    >
-                                        {filteredItems.length}
-                                    </span>
+
+                                    {/* Odoo Progress Bar & Sum */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all ${style.bar}`}
+                                                style={{ width: filteredItems.length > 0 ? '100%' : '0%' }}
+                                            />
+                                        </div>
+                                        <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">
+                                            {Math.round(colSum).toLocaleString()} {t('common.sar')}
+                                        </span>
+                                    </div>
                                 </div>
 
-                                {/* Cards List */}
-                                <div className="space-y-2 flex-1 min-h-[120px] max-h-[70vh] overflow-y-auto pr-0.5">
+                                {/* Cards Stack */}
+                                <div className="p-2.5 space-y-2.5 flex-1 min-h-[160px] max-h-[68vh] overflow-y-auto">
                                     {filteredItems.map((item) => {
                                         const isBeingDragged = draggedItem?.id === item.id;
                                         const isUpdating = movingId === item.id;
@@ -284,39 +429,42 @@ export const KanbanTrackingPage: React.FC = () => {
                                                     setDraggedItem(null);
                                                     setDragOverStage(null);
                                                 }}
-                                                className={`p-3 rounded-lg bg-white border border-slate-200 shadow-2xs transition-all select-none cursor-grab active:cursor-grabbing hover:shadow-md hover:border-indigo-300 relative group ${
+                                                className={`p-3 rounded-lg bg-white border border-slate-200/90 shadow-2xs transition-all select-none cursor-grab active:cursor-grabbing hover:shadow-md hover:border-[var(--tenant-primary,#1877F2)]/60 group ${
                                                     isBeingDragged
-                                                        ? 'opacity-30 border-dashed border-indigo-500 scale-95'
+                                                        ? 'opacity-30 border-dashed border-[var(--tenant-primary,#1877F2)] scale-95'
                                                         : ''
                                                 } ${isUpdating ? 'animate-pulse pointer-events-none' : ''}`}
                                             >
-                                                {/* Card Header */}
-                                                <div className="flex items-center justify-between gap-1 mb-1.5">
+                                                {/* Row 1: Client Name + #ID */}
+                                                <div className="flex items-start justify-between gap-2 mb-1">
                                                     <div className="flex items-center gap-1.5 min-w-0">
-                                                        <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-indigo-400 shrink-0" />
-                                                        <span className="font-bold text-xs text-slate-900 truncate">
+                                                        <GripVertical className="h-3.5 w-3.5 text-slate-300 group-hover:text-[var(--tenant-primary,#1877F2)] shrink-0" />
+                                                        <span className="font-bold text-[13px] text-slate-900 truncate">
                                                             {item.client_name}
                                                         </span>
                                                     </div>
-                                                    <span className="text-[10px] font-semibold text-slate-400 shrink-0">
+                                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 shrink-0">
                                                         #{item.id}
                                                     </span>
                                                 </div>
 
-                                                {/* Car info */}
-                                                <div className="flex items-center gap-1.5 text-[11px] font-medium text-indigo-700 bg-indigo-50/60 px-2 py-1 rounded-md mb-2">
-                                                    <Car className="h-3 w-3 shrink-0" />
-                                                    <span className="truncate">{item.car_name || 'سيارة غير محددة'}</span>
+                                                {/* Row 2: Car Subtitle */}
+                                                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 mb-2.5 ps-5">
+                                                    <Car className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                    <span className="truncate font-medium">
+                                                        {[item.car_brand, item.car_name, item.car_year].filter(Boolean).join(' • ') || t('sales.unassigned_car')}
+                                                    </span>
                                                 </div>
 
-                                                {/* Price & Contact */}
-                                                <div className="flex items-center justify-between gap-2 text-xs mb-2">
+                                                {/* Row 3: Amount + WhatsApp */}
+                                                <div className="flex items-center justify-between gap-2 mb-2.5 ps-5">
                                                     {item.total_price ? (
-                                                        <span className="font-extrabold text-slate-800 text-[11px]">
-                                                            {Number(item.total_price).toLocaleString()} <span className="text-[9px] font-normal text-slate-500">ر.س</span>
+                                                        <span className="font-extrabold text-slate-900 text-xs whitespace-nowrap">
+                                                            {Number(item.total_price).toLocaleString()}{' '}
+                                                            <span className="text-[10px] font-semibold text-slate-500">{t('common.sar')}</span>
                                                         </span>
                                                     ) : (
-                                                        <span className="text-[10px] text-slate-400">السعر غير محدد</span>
+                                                        <span className="text-[11px] text-slate-400">{t('sales.price_unset')}</span>
                                                     )}
 
                                                     {item.client_phone && (
@@ -325,51 +473,62 @@ export const KanbanTrackingPage: React.FC = () => {
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             onClick={(e) => e.stopPropagation()}
-                                                            title={`مراسلة واتساب: ${item.client_phone}`}
-                                                            className="flex items-center gap-1 text-[10px] text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded transition-colors"
+                                                            title={t('sales.whatsapp_chat', { phone: item.client_phone })}
+                                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/70 px-2 py-0.5 rounded-md transition-colors shrink-0"
                                                         >
-                                                            <MessageCircle className="h-2.5 w-2.5" />
-                                                            <span>واتساب</span>
+                                                            <MessageCircle className="h-3 w-3" />
+                                                            <span>{t('sales.whatsapp')}</span>
                                                         </a>
                                                     )}
                                                 </div>
 
-                                                {/* Footer: Date & Assignee */}
-                                                <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] text-slate-400">
-                                                    <span>{item.created_at || 'الآن'}</span>
-                                                    {item.assigned_to ? (
-                                                        <span className="text-slate-600 font-medium truncate max-w-[90px]" title={item.assigned_to}>
-                                                            👤 {item.assigned_to}
+                                                {/* Row 4: Odoo Footer (Agent Avatar + Time + Compact Status Switcher) */}
+                                                <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <span
+                                                            className="h-5 w-5 rounded-full bg-[var(--tenant-primary,#1877F2)]/10 text-[var(--tenant-primary,#1877F2)] text-[9px] font-bold flex items-center justify-center shrink-0"
+                                                            title={item.assigned_to || t('sales.unassigned')}
+                                                        >
+                                                            {item.assigned_to ? getInitials(item.assigned_to) : '—'}
                                                         </span>
-                                                    ) : (
-                                                        <span className="text-slate-300">غير مسند</span>
-                                                    )}
-                                                </div>
+                                                        <span className="text-[11px] text-slate-600 font-medium truncate max-w-[95px]">
+                                                            {item.assigned_to || t('sales.unassigned')}
+                                                        </span>
+                                                    </div>
 
-                                                {/* Quick Stage Mover Selector (Click Alternative to Drag) */}
-                                                <div className="mt-2 pt-1.5 border-t border-dashed border-slate-100 flex items-center justify-between gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                                                    <span className="text-[9px] text-slate-400 flex items-center gap-0.5">
-                                                        <ArrowRightLeft className="h-2.5 w-2.5" />
-                                                        <span>نقل إلى:</span>
-                                                    </span>
-                                                    <select
-                                                        value={stageKey}
-                                                        onChange={(e) => {
-                                                            const newStage = e.target.value;
-                                                            if (newStage && newStage !== stageKey) {
-                                                                handleMoveStage(item.id, newStage, stageKey);
-                                                            }
-                                                        }}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        disabled={isUpdating}
-                                                        className="text-[10px] bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                                                    >
-                                                        {Object.entries(STAGE_CONFIG).map(([key, cfg]) => (
-                                                            <option key={key} value={key}>
-                                                                {cfg.title}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                                                            {formatKanbanTime(item.created_at, t, i18n.language)}
+                                                        </span>
+                                                        <select
+                                                            value={stageKey}
+                                                            onChange={(e) => {
+                                                                const newStage = e.target.value;
+                                                                if (newStage && newStage !== stageKey) {
+                                                                    handleMoveStage(item.id, newStage, stageKey);
+                                                                }
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            disabled={isUpdating}
+                                                            title={t('sales.move_to')}
+                                                            className="w-5 h-5 opacity-60 group-hover:opacity-100 text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-slate-700 cursor-pointer focus:outline-hidden"
+                                                        >
+                                                            <optgroup label={t('sales.group_active_label')}>
+                                                                {activeStagesList.map(([key, cfg]) => (
+                                                                    <option key={key} value={key}>
+                                                                        {String(t(`booking_statuses.${key}`, { defaultValue: cfg.title }))}
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                            <optgroup label={t('sales.group_lost_label')}>
+                                                                {lostStagesList.map(([key, cfg]) => (
+                                                                    <option key={key} value={key}>
+                                                                        {String(t(`booking_statuses.${key}`, { defaultValue: cfg.title }))}
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
@@ -378,17 +537,17 @@ export const KanbanTrackingPage: React.FC = () => {
                                     {/* Empty drop zone state */}
                                     {filteredItems.length === 0 && (
                                         <div
-                                            className={`h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-center p-2 transition-colors ${
+                                            className={`h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-center p-3 transition-colors ${
                                                 isOver
-                                                    ? 'border-indigo-400 bg-indigo-50/50 text-indigo-600'
+                                                    ? 'border-[var(--tenant-primary,#1877F2)] bg-blue-50/50 text-[var(--tenant-primary,#1877F2)]'
                                                     : 'border-slate-200 text-slate-400'
                                             }`}
                                         >
-                                            <span className="text-[11px] font-medium">
-                                                {isOver ? 'أفلت البطاقة هنا' : 'لا توجد طلبات'}
+                                            <span className="text-xs font-medium">
+                                                {isOver ? t('sales.drop_here') : t('sales.no_requests')}
                                             </span>
-                                            <span className="text-[9px] text-slate-400 mt-0.5">
-                                                اسحب أي كرت وأفلته هنا
+                                            <span className="text-[10px] text-slate-400 mt-0.5">
+                                                {t('sales.drag_hint')}
                                             </span>
                                         </div>
                                     )}
@@ -404,6 +563,7 @@ export const KanbanTrackingPage: React.FC = () => {
 
 // 2. Calculator Settings Page
 export const CalculatorSettingsPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     const queryClient = useQueryClient();
     const [savedMsg, setSavedMsg] = useState(false);
 
@@ -438,24 +598,24 @@ export const CalculatorSettingsPage: React.FC = () => {
         <div className="max-w-2xl mx-auto space-y-6">
             <div>
                 <h1 className="text-xl font-bold text-[var(--text-primary)]">
-                    إعدادات حاسبة التمويل والأقساط
+                    {t('sales.calc_title')}
                 </h1>
                 <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                    تعديل نسب الفائدة البنكية، الحد الأقصى للسنوات، ونسب الدفعة الأولى المعروضة للعملاء
+                    {t('sales.calc_sub')}
                 </p>
             </div>
 
             {savedMsg && (
                 <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
-                    <span>تم حفظ إعدادات الحاسبة بنجاح!</span>
+                    <span>{t('sales.calc_saved')}</span>
                 </div>
             )}
 
             <Card className="p-6">
                 {isLoading ? (
                     <div className="py-12 text-center text-slate-400">
-                        جاري تحميل إعدادات الحاسبة...
+                        {t('sales.calc_loading')}
                     </div>
                 ) : (
                     <form
@@ -467,7 +627,7 @@ export const CalculatorSettingsPage: React.FC = () => {
                     >
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                النسبة السنوية للربح البنكي (%)
+                                {t('sales.profit_rate')}
                             </label>
                             <Input
                                 type="number"
@@ -476,14 +636,14 @@ export const CalculatorSettingsPage: React.FC = () => {
                                 onChange={(e) =>
                                     setFormState({ ...formState, profit_rate: e.target.value })
                                 }
-                                placeholder="مثال: 3.75"
+                                placeholder="3.75"
                                 className="text-xs"
                             />
                         </div>
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                الحد الأقصى لسنوات التمويل (بالسنوات)
+                                {t('sales.max_years')}
                             </label>
                             <Input
                                 type="number"
@@ -491,14 +651,14 @@ export const CalculatorSettingsPage: React.FC = () => {
                                 onChange={(e) =>
                                     setFormState({ ...formState, max_years: e.target.value })
                                 }
-                                placeholder="مثال: 5"
+                                placeholder="5"
                                 className="text-xs"
                             />
                         </div>
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                الحد الأدنى للدفعة الأولى (%)
+                                {t('sales.min_down')}
                             </label>
                             <Input
                                 type="number"
@@ -506,14 +666,14 @@ export const CalculatorSettingsPage: React.FC = () => {
                                 onChange={(e) =>
                                     setFormState({ ...formState, min_down_payment: e.target.value })
                                 }
-                                placeholder="مثال: 0 أو 10"
+                                placeholder="10"
                                 className="text-xs"
                             />
                         </div>
 
                         <div>
                             <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                الحد الأقصى للدفعة الأخيرة (البالون) (%)
+                                {t('sales.last_payment_max')}
                             </label>
                             <Input
                                 type="number"
@@ -521,7 +681,7 @@ export const CalculatorSettingsPage: React.FC = () => {
                                 onChange={(e) =>
                                     setFormState({ ...formState, last_payment_max: e.target.value })
                                 }
-                                placeholder="مثال: 40"
+                                placeholder="40"
                                 className="text-xs"
                             />
                         </div>
@@ -535,7 +695,7 @@ export const CalculatorSettingsPage: React.FC = () => {
                             >
                                 <Save className="h-4 w-4" />
                                 <span>
-                                    {saveMutation.isPending ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+                                    {saveMutation.isPending ? t('common.saving') : t('sales.save_settings')}
                                 </span>
                             </Button>
                         </div>

@@ -2,8 +2,14 @@ import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../pages/LoginPage';
-import { RequireAuth } from '../context/AuthContext';
+import { RequireAuth, useAuth } from '../context/AuthContext';
 import { Skeleton, TableSkeleton } from '../../shared/components/ui/Skeleton';
+
+const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user, hasRole } = useAuth();
+    const isAdmin = user?.role === 'admin' || hasRole('admin');
+    return isAdmin ? <>{children}</> : <Navigate to="/admin" replace />;
+};
 
 // Generic page skeleton (title, stat cards, table) for lazy loaded routes
 const PageFallback: React.FC = () => (
@@ -38,6 +44,7 @@ const ModulesPage = React.lazy(() => import('../pages/ModulesPage').then(m => ({
 const UpdatesPage = React.lazy(() => import('../pages/UpdatesPage').then(m => ({ default: m.UpdatesPage })));
 const AiAssistantPage = React.lazy(() => import('../pages/AiAssistantPage').then(m => ({ default: m.AiAssistantPage })));
 const WhatsAppPage = React.lazy(() => import('../pages/WhatsAppPage').then(m => ({ default: m.WhatsAppPage })));
+const WhatsAppConversationsPage = React.lazy(() => import('../pages/WhatsAppConversationsPage').then(m => ({ default: m.WhatsAppConversationsPage })));
 
 // Lazy Loaded Catalog Sub-Module Pages
 const BrandsPage = React.lazy(() => import('../pages/catalog/CatalogSubPages').then(m => ({ default: m.BrandsPage })));
@@ -323,23 +330,7 @@ export const AppRoutes: React.FC = () => {
                     }
                 />
                 <Route
-                    path="reports/sources"
-                    element={
-                        <Suspense fallback={<PageFallback />}>
-                            <ReportsPage />
-                        </Suspense>
-                    }
-                />
-                <Route
-                    path="reports/bookings"
-                    element={
-                        <Suspense fallback={<PageFallback />}>
-                            <ReportsPage />
-                        </Suspense>
-                    }
-                />
-                <Route
-                    path="reports/monthly"
+                    path="reports/:section"
                     element={
                         <Suspense fallback={<PageFallback />}>
                             <ReportsPage />
@@ -453,38 +444,40 @@ export const AppRoutes: React.FC = () => {
                     }
                 />
 
-                {/* System Settings & Modules */}
+                {/* System Settings & Modules (Admin Only) */}
                 <Route
                     path="settings"
                     element={
-                        <Suspense fallback={<PageFallback />}>
-                            <SettingsPage />
-                        </Suspense>
+                        <RequireAdmin>
+                            <Suspense fallback={<PageFallback />}>
+                                <SettingsPage />
+                            </Suspense>
+                        </RequireAdmin>
                     }
                 />
                 <Route
                     path="settings/integrations"
                     element={
-                        <Suspense fallback={<PageFallback />}>
-                            <SettingsPage />
-                        </Suspense>
+                        <RequireAdmin>
+                            <Suspense fallback={<PageFallback />}>
+                                <SettingsPage />
+                            </Suspense>
+                        </RequireAdmin>
                     }
                 />
                 <Route
                     path="modules"
                     element={
-                        <Suspense fallback={<PageFallback />}>
-                            <ModulesPage />
-                        </Suspense>
+                        <RequireAdmin>
+                            <Suspense fallback={<PageFallback />}>
+                                <ModulesPage />
+                            </Suspense>
+                        </RequireAdmin>
                     }
                 />
                 <Route
                     path="updates"
-                    element={
-                        <Suspense fallback={<PageFallback />}>
-                            <UpdatesPage />
-                        </Suspense>
-                    }
+                    element={<Navigate to="/admin/settings?tab=updates" replace />}
                 />
                 <Route
                     path="ai-assistant"
@@ -497,8 +490,18 @@ export const AppRoutes: React.FC = () => {
                 <Route
                     path="whatsapp"
                     element={
+                        <RequireAdmin>
+                            <Suspense fallback={<PageFallback />}>
+                                <WhatsAppPage />
+                            </Suspense>
+                        </RequireAdmin>
+                    }
+                />
+                <Route
+                    path="whatsapp/conversations"
+                    element={
                         <Suspense fallback={<PageFallback />}>
-                            <WhatsAppPage />
+                            <WhatsAppConversationsPage />
                         </Suspense>
                     }
                 />

@@ -23,10 +23,22 @@ Route::prefix('api/v1/modules/whatsapp')
         Route::put('/settings', [AdminWhatsAppController::class, 'updateSettings'])->name('settings.update');
         Route::post('/test-connection', [AdminWhatsAppController::class, 'testConnection'])->name('test-connection');
         Route::post('/test-send', [AdminWhatsAppController::class, 'testSend'])->name('test-send');
+        // Official Meta connection: Embedded Signup, number health, templates.
+        Route::post('/onboarding/embedded', [AdminWhatsAppController::class, 'completeEmbeddedSignup'])->middleware('throttle:10,1')->name('onboarding.embedded');
+        Route::get('/health', [AdminWhatsAppController::class, 'health'])->name('health');
+        Route::get('/templates', [AdminWhatsAppController::class, 'templates'])->name('templates');
+        Route::post('/templates/sync', [AdminWhatsAppController::class, 'syncTemplates'])->middleware('throttle:10,1')->name('templates.sync');
+        // Inbox: admins see everything, other employees only the conversations assigned to them.
+        Route::get('/inbox/meta', [AdminWhatsAppController::class, 'inboxMeta'])->name('inbox.meta');
         Route::get('/conversations', [AdminWhatsAppController::class, 'conversations'])->name('conversations');
         Route::get('/conversations/{conversation}', [AdminWhatsAppController::class, 'messages'])->name('conversations.show');
+        Route::patch('/conversations/{conversation}', [AdminWhatsAppController::class, 'update'])->name('conversations.update');
         Route::post('/conversations/{conversation}/reply', [AdminWhatsAppController::class, 'reply'])->name('conversations.reply');
         Route::post('/conversations/{conversation}/resume-ai', [AdminWhatsAppController::class, 'resumeAi'])->name('conversations.resume-ai');
+        // Internal notes, saved on the customer's CRM lead (created if missing).
+        Route::post('/conversations/{conversation}/notes', [AdminWhatsAppController::class, 'storeNote'])->name('conversations.notes.store');
+        Route::delete('/conversations/{conversation}/notes/{note}', [AdminWhatsAppController::class, 'destroyNote'])->name('conversations.notes.destroy');
+        Route::post('/contacts/notes', [AdminWhatsAppController::class, 'storeContactNote'])->name('contacts.notes.store');
         Route::get('/log', [AdminWhatsAppController::class, 'log'])->name('log');
         Route::get('/stats', [AdminWhatsAppController::class, 'stats'])->name('stats');
     });

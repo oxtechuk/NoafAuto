@@ -308,6 +308,139 @@ class WhatsAppTest extends TestCase
         $this->actingAs(Employee::factory()->create(), 'employee')->getJson(route('api.v1.whatsapp.settings'))->assertForbidden();
     }
 
+    public function test_new_conversations_are_distributed_round_robin_to_sales(): void
+    {
+        Employee::factory()->admin()->create();
+        [$first, $second] = Employee::factory()->count(2)->create();
+        $this->connectMeta(['inbound' => ['create_lead' => false]]);
+
+        $this->metaWebhook($this->inboundValue(from: '966550000001', id: 'wamid.1'))->assertOk();
+        $this->metaWebhook($this->inboundValue(from: '966550000002', id: 'wamid.2'))->assertOk();
+        $this->metaWebhook($this->inboundValue(from: '966550000003', id: 'wamid.3'))->assertOk();
+        $this->metaWebhook($this->inboundValue(from: '966550000001', text: 'تاني', id: 'wamid.4'))->assertOk();
+
+        $this->assertSame(
+            [$first->id, $second->id, $first->id],
+            WhatsAppConversation::orderBy('id')->pluck('assigned_to')->all(),
+        );
+    }
+
+    public function test_conversation_goes_to_the_owner_of_the_existing_lead(): void
+    {
+        Employee::factory()->create();
+        $owner = Employee::factory()->create();
+        $this->connectMeta();
+        Lead::factory()->create(['client_phone' => '0551234567', 'assigned_to' => $owner->id]);
+
+        $this->metaWebhook($this->inboundValue())->assertOk();
+
+        $this->assertSame($owner->id, WhatsAppConversation::firstOrFail()->assigned_to);
+    }
+
+    public function test_auto_assign_can_be_turned_off(): void
+    {
+        Employee::factory()->create();
+        $this->connectMeta(['inbox' => ['auto_assign' => false]]);
+
+        $this->metaWebhook($this->inboundValue())->assertOk();
+
+        $this->assertNull(WhatsAppConversation::firstOrFail()->assigned_to);
+    }
+
+    public function test_sales_only_see_their_own_conversations_and_admin_sees_all(): void
+    {
+        $admin = Employee::factory()->admin()->create();
+        [$mine, $other] = Employee::factory()->count(2)->create();
+        $this->connectMeta();
+        $own = WhatsAppConversation::create(['phone' => '966550000001', 'assigned_to' => $mine->id, 'last_message_at' => now()]);
+        $foreign = WhatsAppConversation::create(['phone' => '966550000002', 'assigned_to' => $other->id, 'last_message_at' => now()]);
+        WhatsAppConversation::create(['phone' => '966550000003', 'last_message_at' => now()]);
+
+        $this->actingAs($mine, 'employee')->getJson(route('api.v1.whatsapp.conversations'))
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $own->id);
+        $this->actingAs($mine, 'employee')->getJson(route('api.v1.whatsapp.conversations.show', $foreign))->assertNotFound();
+        $this->actingAs($mine, 'employee')->postJson(route('api.v1.whatsapp.conversations.reply', $foreign), ['text' => 'x'])->assertNotFound();
+        $this->actingAs($mine, 'employee')->getJson(route('api.v1.whatsapp.conversations.show', $own))->assertOk();
+        $this->actingAs($mine, 'employee')->getJson(route('api.v1.whatsapp.settings'))->assertForbidden();
+
+        $this->actingAs($admin, 'employee')->getJson(route('api.v1.whatsapp.conversations'))->assertOk()->assertJsonCount(3, 'data');
+        $this->actingAs($admin, 'employee')->getJson(route('api.v1.whatsapp.conversations', ['assigned_to' => 'none']))->assertOk()->assertJsonCount(1, 'data');
+        $this->actingAs($admin, 'employee')->getJson(route('api.v1.whatsapp.conversations', ['assigned_to' => $other->id]))
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $foreign->id);
+    }
+
+    public function test_admin_can_hide_the_customer_phone_from_sales(): void
+    {
+        $admin = Employee::factory()->admin()->create();
+        $sales = Employee::factory()->create();
+        $this->connectMeta(['inbox' => ['hide_phone_from_sales' => true]]);
+        $conversation = WhatsAppConversation::create(['phone' => '966551234567', 'name' => 'محمد', 'assigned_to' => $sales->id, 'last_message_at' => now()]);
+
+        $list = $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations'))->assertOk();
+        $list->assertJsonPath('data.0.phone', '966•••••••67')->assertJsonPath('data.0.phone_hidden', true);
+        $this->assertStringNotContainsString('966551234567', $list->getContent());
+
+        $thread = $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations.show', $conversation))->assertOk();
+        $this->assertStringNotContainsString('966551234567', $thread->getContent());
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.inbox.meta'))->assertJsonPath('data.phone_hidden', true);
+
+        // Searching by number would reveal it, so sales can only search by name.
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations', ['search' => '1234567']))->assertJsonCount(0, 'data');
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations', ['search' => 'محمد']))->assertJsonCount(1, 'data');
+
+        $this->actingAs($admin, 'employee')->getJson(route('api.v1.whatsapp.conversations'))->assertJsonPath('data.0.phone', '966551234567');
+    }
+
+    public function test_assignee_sets_status_and_tags_but_only_admin_reassigns(): void
+    {
+        $admin = Employee::factory()->admin()->create();
+        [$sales, $other] = Employee::factory()->count(2)->create();
+        $this->connectMeta();
+        $conversation = WhatsAppConversation::create(['phone' => '966551234567', 'assigned_to' => $sales->id, 'last_message_at' => now()]);
+        $this->assertSame('open', $conversation->fresh()->status);
+
+        $this->actingAs($sales, 'employee')->patchJson(route('api.v1.whatsapp.conversations.update', $conversation), ['status' => 'pending', 'tags' => [' تمويل ', 'مهتم']])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.tags', ['تمويل', 'مهتم']);
+        $this->actingAs($sales, 'employee')->patchJson(route('api.v1.whatsapp.conversations.update', $conversation), ['status' => 'archived'])->assertUnprocessable();
+        $this->actingAs($sales, 'employee')->patchJson(route('api.v1.whatsapp.conversations.update', $conversation), ['assigned_to' => $other->id])->assertForbidden();
+
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations', ['tag' => 'تمويل']))->assertJsonCount(1, 'data');
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations', ['status' => 'closed']))->assertJsonCount(0, 'data');
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.inbox.meta'))
+            ->assertOk()
+            ->assertJsonPath('data.statuses.1.key', 'pending')
+            ->assertJsonPath('data.statuses.1.count', 1)
+            ->assertJsonPath('data.employees', []);
+
+        $this->actingAs($admin, 'employee')->patchJson(route('api.v1.whatsapp.conversations.update', $conversation), ['assigned_to' => $other->id])
+            ->assertOk()->assertJsonPath('data.assignee_name', $other->name);
+        $this->actingAs($sales, 'employee')->getJson(route('api.v1.whatsapp.conversations.show', $conversation))->assertNotFound();
+    }
+
+    public function test_customer_message_reopens_a_closed_conversation(): void
+    {
+        $this->connectMeta();
+        WhatsAppConversation::create(['phone' => '966551234567', 'status' => 'closed']);
+
+        $this->metaWebhook($this->inboundValue())->assertOk();
+
+        $this->assertSame('open', WhatsAppConversation::firstOrFail()->status);
+    }
+
+    public function test_admin_saves_inbox_settings_and_preset_tags_replace_the_defaults(): void
+    {
+        $admin = Employee::factory()->admin()->create();
+
+        $this->actingAs($admin, 'employee')->putJson(route('api.v1.whatsapp.settings.update'), [
+            'settings' => ['inbox' => ['hide_phone_from_sales' => true, 'auto_assign' => false, 'preset_tags' => ['VIP']]],
+        ])->assertOk()
+            ->assertJsonPath('data.settings.inbox.hide_phone_from_sales', true)
+            ->assertJsonPath('data.settings.inbox.auto_assign', false)
+            ->assertJsonPath('data.settings.inbox.preset_tags', ['VIP']);
+    }
+
     public function test_without_connection_the_legacy_path_is_used(): void
     {
         $this->assertFalse($this->settings()->isConfigured());

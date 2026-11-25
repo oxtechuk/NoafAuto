@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { Skeleton } from '../ui/Skeleton';
 import {
@@ -50,11 +51,14 @@ export interface CrudTableManagerProps {
     customActions?: (row: any) => React.ReactNode;
 }
 
+import i18n from '../../../i18n';
+
 export function formatLocaleString(val: any): string {
     if (val === null || val === undefined) return '-';
     if (typeof val === 'object') {
         if ('ar' in val || 'en' in val) {
-            return val.ar || val.en || '-';
+            const isEn = i18n.language === 'en';
+            return isEn ? (val.en || val.ar || '-') : (val.ar || val.en || '-');
         }
         const vals = Object.values(val);
         return vals.length > 0 && typeof vals[0] === 'string' ? (vals[0] as string) : '-';
@@ -68,10 +72,12 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
     endpoint,
     columns,
     formFields,
-    searchPlaceholder = 'بحث...',
+    searchPlaceholder,
     defaultFormData = {},
     customActions,
 }) => {
+    const { t, i18n } = useTranslation('admin');
+    const resolvedSearchPlaceholder = searchPlaceholder ?? t('common.search');
     const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
@@ -279,35 +285,34 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                         className="gap-1.5 text-xs"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-                        <span>تحديث</span>
+                        <span>{t('crud.refresh')}</span>
                     </Button>
                     <Button variant="primary" onClick={handleOpenAdd} className="gap-1.5 text-xs">
                         <Plus className="h-4 w-4" />
-                        <span>إضافة جديد</span>
+                        <span>{t('crud.add_new')}</span>
                     </Button>
                 </div>
             </div>
 
             {/* Filter Bar */}
-            <Card className="p-4">
-                <div className="flex items-center gap-3">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="h-4 w-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <Input
-                            placeholder={searchPlaceholder}
-                            value={search}
-                            onChange={(e) => {
-                                setSearch(e.target.value);
-                                setPage(1);
-                            }}
-                            className="ps-9 text-xs"
-                        />
-                    </div>
+            <Card padding="sm">
+                <div className="relative max-w-md">
+                    <Search className="h-4 w-4 absolute start-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                        type="text"
+                        placeholder={resolvedSearchPlaceholder}
+                        value={search}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPage(1);
+                        }}
+                        className="w-full ps-9 pe-3 py-2 text-xs rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-hidden focus:border-[var(--tenant-primary)]"
+                    />
                 </div>
             </Card>
 
             {/* Table Card */}
-            <Card className="overflow-hidden">
+            <Card padding="none" className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs">
                         <thead>
@@ -317,7 +322,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                         {col.title}
                                     </th>
                                 ))}
-                                <th className="px-4 py-3 text-end">الإجراءات</th>
+                                <th className="px-4 py-3 text-end">{t('common.actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--border-default)]">
@@ -337,7 +342,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                         colSpan={columns.length + 1}
                                         className="py-12 text-center text-slate-400"
                                     >
-                                        لا توجد بيانات مسجلة حالياً
+                                        {t('crud.no_items')}
                                     </td>
                                 </tr>
                             ) : (
@@ -394,18 +399,19 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                                             }`}
                                                         >
-                                                            {val ? 'نشط' : 'معطل'}
+                                                            {val ? t('common.active') : t('common.inactive')}
                                                         </button>
                                                     </td>
                                                 );
                                             }
 
+                                            const translatedVal = row[`${col.key}_translations`] ?? val;
                                             return (
                                                 <td
                                                     key={col.key}
                                                     className="px-4 py-3 font-medium text-[var(--text-primary)]"
                                                 >
-                                                    {formatLocaleString(val)}
+                                                    {formatLocaleString(translatedVal)}
                                                 </td>
                                             );
                                         })}
@@ -414,24 +420,22 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                         <td className="px-4 py-3 text-end">
                                             <div className="flex items-center justify-end gap-1.5">
                                                 {customActions && customActions(row)}
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
+                                                <button
+                                                    type="button"
                                                     onClick={() => handleOpenEdit(row)}
-                                                    className="h-7 w-7 p-0"
-                                                    title="تعديل"
+                                                    className="inline-flex items-center justify-center h-8 w-8 rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-secondary)] text-[var(--text-primary)] hover:bg-[var(--border-default)] transition-colors cursor-pointer"
+                                                    title={t('common.edit')}
                                                 >
                                                     <Edit3 className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button
-                                                    variant="secondary"
-                                                    size="sm"
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => setDeleteConfirmId(row.id)}
-                                                    className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50 hover:border-rose-200"
-                                                    title="حذف"
+                                                    className="inline-flex items-center justify-center h-8 w-8 rounded-[var(--radius-md)] border border-rose-200 bg-rose-50/70 text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                                    title={t('common.delete')}
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -459,7 +463,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                     <Card className="w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-default)]">
                             <h3 className="font-bold text-sm text-[var(--text-primary)]">
-                                {editingItem ? `تعديل: ${title}` : `إضافة جديد إلى ${title}`}
+                                {editingItem ? t('crud.edit_item', { title }) : t('crud.add_item', { title })}
                             </h3>
                             <button
                                 onClick={() => setModalOpen(false)}
@@ -648,7 +652,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                     onClick={() => setModalOpen(false)}
                                     className="text-xs"
                                 >
-                                    إلغاء
+                                    {t('common.cancel')}
                                 </Button>
                                 <Button
                                     type="submit"
@@ -658,7 +662,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                 >
                                     <Save className="h-3.5 w-3.5" />
                                     <span>
-                                        {saveMutation.isPending ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                                        {saveMutation.isPending ? t('common.saving') : t('common.save_changes')}
                                     </span>
                                 </Button>
                             </div>
@@ -676,11 +680,10 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                         </div>
                         <div>
                             <h3 className="font-bold text-sm text-[var(--text-primary)]">
-                                تأكيد الحذف
+                                {t('crud.delete_confirm_title')}
                             </h3>
                             <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                هل أنت متأكد من رغبتك في حذف هذا العنصر نهائياً؟ لا يمكن التراجع عن
-                                هذه العملية.
+                                {t('crud.delete_confirm_desc')}
                             </p>
                         </div>
                         <div className="flex items-center justify-center gap-2 pt-2">
@@ -690,7 +693,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                 onClick={() => setDeleteConfirmId(null)}
                                 className="text-xs"
                             >
-                                إلغاء
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 variant="primary"
@@ -699,7 +702,7 @@ export const CrudTableManager: React.FC<CrudTableManagerProps> = ({
                                 onClick={() => deleteMutation.mutate(deleteConfirmId)}
                                 className="bg-rose-600 hover:bg-rose-700 text-white text-xs"
                             >
-                                {deleteMutation.isPending ? 'جاري الحذف...' : 'نعم، احذف'}
+                                {deleteMutation.isPending ? t('crud.deleting') : t('crud.yes_delete')}
                             </Button>
                         </div>
                     </Card>

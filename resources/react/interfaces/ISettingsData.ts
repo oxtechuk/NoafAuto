@@ -19,6 +19,7 @@ export interface ISettingsData {
   footer_logo?: string;
   favicon: string;
   request_car_icon?: string;
+  default_car_image?: string;
   site_name: string;
   footer_text: string;
   footer_description?: string;

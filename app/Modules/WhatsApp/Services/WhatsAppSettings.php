@@ -21,8 +21,11 @@ class WhatsAppSettings
     /** Secret fields per provider (stored encrypted, never returned to the browser). */
     public const SECRET_FIELDS = [
         'twilio' => ['auth_token'],
-        'meta' => ['access_token', 'app_secret'],
+        'meta' => ['access_token', 'app_secret', 'pin'],
     ];
+
+    /** Meta pricing categories the showroom can price for the cost estimate. */
+    public const PRICED_CATEGORIES = ['marketing', 'utility', 'authentication'];
 
     /** Events the core can notify about, with their placeholders. */
     public const EVENTS = [
@@ -66,6 +69,12 @@ class WhatsAppSettings
                 'business_account_id' => '',
                 'graph_version' => 'v23.0',
                 'verify_token' => '',
+                'connection' => 'manual', // manual | embedded (set by the Embedded Signup flow)
+                'connected_at' => '',
+            ],
+            // Price per billable message in SAR, as on the showroom's Meta invoice (Meta changes rates; 0 = not set).
+            'pricing' => [
+                'rates' => ['marketing' => 0, 'utility' => 0, 'authentication' => 0],
             ],
             'notifications' => [
                 'booking_created' => $notification((string) ($legacy['whatsapp_template_new_lead'] ?? '')),
@@ -77,6 +86,11 @@ class WhatsAppSettings
                 'auto_reply' => 'off', // off | ai | static
                 'static_reply' => 'أهلاً بك! وصلت رسالتك وبيتواصل معك أحد موظفينا قريباً.',
                 'human_pause_hours' => 12,
+            ],
+            'inbox' => [
+                'auto_assign' => true, // round-robin new conversations to the sales team
+                'hide_phone_from_sales' => false, // non-admins see a masked customer number
+                'preset_tags' => ['مهتم', 'تمويل', 'كاش', 'متابعة', 'غير جاد'],
             ],
         ];
     }
@@ -93,6 +107,10 @@ class WhatsAppSettings
             if (isset($stored['notifications'][$event]['template_params'])) {
                 $settings['notifications'][$event]['template_params'] = array_values((array) $stored['notifications'][$event]['template_params']);
             }
+        }
+        // Lists replace the defaults instead of merging index by index.
+        if (isset($stored['inbox']['preset_tags'])) {
+            $settings['inbox']['preset_tags'] = array_values((array) $stored['inbox']['preset_tags']);
         }
 
         if ($settings['meta']['verify_token'] === '') {
@@ -137,6 +155,9 @@ class WhatsAppSettings
             if (isset($values['notifications'][$event]['template_params'])) {
                 $data['notifications'][$event]['template_params'] = array_values((array) $values['notifications'][$event]['template_params']);
             }
+        }
+        if (isset($values['inbox']['preset_tags'])) {
+            $data['inbox']['preset_tags'] = array_values((array) $values['inbox']['preset_tags']);
         }
         $record->data = $data;
 

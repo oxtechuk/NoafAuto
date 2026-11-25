@@ -12,6 +12,7 @@ use App\Models\ContactSource;
 use App\Models\GeneralSetting;
 use App\Models\NewsletterSubscriber;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ClientSubModuleController extends ApiBaseController
 {
@@ -123,34 +124,40 @@ class ClientSubModuleController extends ApiBaseController
     // ==========================================
     public function trackingIndex(): ApiResponse
     {
-        $stages = [
-            'new' => ['title' => 'طلبات جديدة', 'items' => []],
-            'contacted' => ['title' => 'تم التواصل', 'items' => []],
-            'credit_check' => ['title' => 'فحص ائتماني', 'items' => []],
-            'bank_approval' => ['title' => 'موافقة البنك', 'items' => []],
-            'shipping' => ['title' => 'تجهيز وشحن', 'items' => []],
-            'delivered' => ['title' => 'تم التسليم', 'items' => []],
-        ];
+        $stages = [];
+        foreach (Booking::STATUSES as $key => $meta) {
+            $stages[$key] = [
+                'key' => $key,
+                'title' => $meta['label'],
+                'color' => $meta['color'] ?? 'secondary',
+                'group' => $meta['group'] ?? 'active',
+                'total_amount' => 0,
+                'items' => [],
+            ];
+        }
 
         $bookings = Booking::with(['car.brand', 'assignedEmployee'])
-            ->whereNotIn('status', ['cancelled', 'rejected'])
+            ->whereIn('status', array_keys(Booking::STATUSES))
             ->latest()
-            ->take(150)
+            ->take(300)
             ->get();
 
         foreach ($bookings as $b) {
-            $stage = $b->stage ?? 'new';
-            if (! isset($stages[$stage])) {
-                $stage = 'new';
-            }
-            $stages[$stage]['items'][] = [
+            $status = isset($stages[$b->status]) ? $b->status : 'new';
+            $price = (float) ($b->total_price ?? 0);
+            $stages[$status]['total_amount'] += $price;
+            $stages[$status]['items'][] = [
                 'id' => $b->id,
                 'client_name' => $b->client_name,
                 'client_phone' => $b->client_phone,
                 'car_name' => $b->car?->name,
+                'car_brand' => $b->car?->brand?->name,
+                'car_year' => $b->car?->year,
                 'total_price' => $b->total_price,
                 'assigned_to' => $b->assignedEmployee?->name,
-                'created_at' => $b->created_at?->diffForHumans(),
+                'status' => $status,
+                'created_at' => $b->created_at?->toIso8601String(),
+                'updated_at' => $b->updated_at?->toIso8601String(),
             ];
         }
 
@@ -160,11 +167,11 @@ class ClientSubModuleController extends ApiBaseController
     public function trackingUpdateStage(Request $request, Booking $booking): ApiResponse
     {
         $data = $request->validate([
-            'stage' => 'required|string|in:new,contacted,credit_check,bank_approval,shipping,delivered',
+            'stage' => ['required', 'string', Rule::in(array_keys(Booking::STATUSES))],
         ]);
-        $booking->update(['stage' => $data['stage']]);
+        $booking->update(['status' => $data['stage']]);
 
-        return $this->respondSuccess($booking, 'Booking stage updated');
+        return $this->respondSuccess($booking, 'Booking status updated');
     }
 
     // ==========================================

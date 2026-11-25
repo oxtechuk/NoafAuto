@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAdminLanguage } from '../../i18n';
 
 export const apiClient = axios.create({
     headers: {
@@ -9,8 +10,10 @@ export const apiClient = axios.create({
     withXSRFToken: true,
 });
 
-// Normalize request URLs so /api/v1 is never duplicated
+// Normalize request URLs so /api/v1 is never duplicated and attach admin locale
 apiClient.interceptors.request.use((config) => {
+    config.headers['Accept-Language'] = getAdminLanguage();
+
     if (config.url) {
         // Remove accidental duplicate prefixes e.g. /api/v1/api/v1
         config.url = config.url.replace(/^\/?api\/v1\/api\/v1/, '/api/v1');

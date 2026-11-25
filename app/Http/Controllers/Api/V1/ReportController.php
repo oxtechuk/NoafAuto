@@ -6,12 +6,20 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Api\Contracts\ApiResponse;
 use App\Http\Controllers\Api\ApiBaseController;
+use App\Http\Requests\Api\V1\Reports\ReportFiltersRequest;
 use App\Models\Booking;
+use App\Models\Brand;
 use App\Models\Employee;
 use App\Models\Lead;
 use App\Services\AttributionHelper;
+use App\Services\Reports\ReportFilters;
+use App\Services\Reports\ReportMetrics;
+use App\Services\Reports\ReportRegistry;
+use App\Services\Reports\ReportSection;
+use App\Services\Reports\ReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends ApiBaseController
 {
@@ -26,13 +34,19 @@ class ReportController extends ApiBaseController
             ->whereDate('created_at', '>=', $from)
             ->whereDate('created_at', '<=', $to);
 
+        $won = ReportMetrics::isWon('status');
+        $totals = (clone $base)->toBase()->selectRaw("count(*) as total,
+            sum(case when {$won} then 1 else 0 end) as sold,
+            sum(case when {$won} then coalesce(net_commission, 0) else 0 end) as commission,
+            sum(case when {$won} then coalesce(down_payment, 0) else 0 end) as down_payment,
+            sum(case when {$won} then monthly_installment * (duration_years * 12) else 0 end) as remaining")->first();
+
         $financial = [
-            'total_bookings' => (clone $base)->count(),
-            'total_sold' => (clone $base)->whereIn('status', ['sold', 'received'])->count(),
-            'total_commission' => (float) (clone $base)->whereIn('status', ['sold', 'received'])->sum('net_commission'),
-            'total_down_payment' => (float) (clone $base)->whereIn('status', ['sold', 'received'])->sum('down_payment'),
-            'total_remaining' => (float) ((clone $base)->whereIn('status', ['sold', 'received'])
-                ->selectRaw('SUM(monthly_installment * (duration_years * 12)) as total')->value('total') ?? 0),
+            'total_bookings' => (int) ($totals->total ?? 0),
+            'total_sold' => (int) ($totals->sold ?? 0),
+            'total_commission' => (float) ($totals->commission ?? 0),
+            'total_down_payment' => (float) ($totals->down_payment ?? 0),
+            'total_remaining' => (float) ($totals->remaining ?? 0),
         ];
 
         $employees = (clone $base)->whereNotNull('assigned_to')
@@ -208,6 +222,98 @@ class ReportController extends ApiBaseController
         return $this->respondSuccess([
             'months' => array_values($months),
         ], 'Monthly performance report retrieved successfully');
+    }
+
+    /**
+     * Report tabs the viewer can open, plus the filter options.
+     * Every employee has a report: without "manage-reports" it only covers their own work.
+     */
+    public function sections(Request $request, ReportRegistry $registry): ApiResponse
+    {
+        $employee = $this->viewer($request);
+        $canViewAll = $this->canViewAll($employee);
+
+        return $this->respondSuccess([
+            'can_view_all' => $canViewAll,
+            'sections' => array_values(array_map(fn (ReportSection $section) => [
+                'key' => $section->key(),
+                'label' => $section->label(),
+                'icon' => $section->icon(),
+            ], $registry->visibleTo($employee, $canViewAll))),
+            'employees' => $canViewAll ? Employee::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
+            'brands' => Brand::query()->orderBy('id')->get(['id', 'name'])->map(fn (Brand $brand) => [
+                'id' => $brand->id,
+                'name' => $brand->getTranslation('name', 'ar', false) ?: $brand->getTranslation('name', 'en', false),
+            ]),
+        ], 'Report sections retrieved successfully');
+    }
+
+    public function section(ReportFiltersRequest $request, string $section, ReportRegistry $registry, ReportService $reports): ApiResponse
+    {
+        [$reportSection, $filters] = $this->resolveSection($request, $section, $registry);
+
+        return $this->respondSuccess(
+            $reports->run($reportSection, $filters, $request->boolean('compare', true), $request->boolean('fresh')),
+            'Report retrieved successfully',
+        );
+    }
+
+    /**
+     * CSV of one table of a section (UTF-8 with BOM so Excel shows Arabic correctly).
+     */
+    public function export(ReportFiltersRequest $request, string $section, ReportRegistry $registry, ReportService $reports): StreamedResponse
+    {
+        [$reportSection, $filters] = $this->resolveSection($request, $section, $registry);
+        $payload = $reports->run($reportSection, $filters, $request->boolean('compare', true));
+
+        $table = collect($payload['tables'])->firstWhere('key', $request->input('table')) ?? ($payload['tables'][0] ?? null);
+        if (! $table) {
+            abort(404, 'This report has no table to export.');
+        }
+
+        $filename = "report-{$section}-{$table['key']}-{$payload['range']['from']}-{$payload['range']['to']}.csv";
+
+        return response()->streamDownload(function () use ($table) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, array_column($table['columns'], 'label'));
+            foreach ($table['rows'] as $row) {
+                fputcsv($out, array_map(fn (array $column) => $row[$column['key']] ?? '', $table['columns']));
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * @return array{0: ReportSection, 1: ReportFilters}
+     */
+    private function resolveSection(ReportFiltersRequest $request, string $key, ReportRegistry $registry): array
+    {
+        $employee = $this->viewer($request);
+        $canViewAll = $this->canViewAll($employee);
+
+        $section = $registry->find($key);
+        if (! $section || ! $section->visibleTo($employee, $canViewAll)) {
+            abort(404, 'Report not found');
+        }
+
+        return [$section, $request->toFilters($employee, $canViewAll)];
+    }
+
+    private function viewer(Request $request): Employee
+    {
+        /** @var Employee|null $employee */
+        $employee = $request->user('employee');
+        if (! $employee) {
+            abort(401);
+        }
+
+        return $employee;
+    }
+
+    private function canViewAll(Employee $employee): bool
+    {
+        return $employee->isAdmin() || $employee->checkPermissionTo('manage-reports', 'employee');
     }
 
     private function authorizeReports(Request $request): void

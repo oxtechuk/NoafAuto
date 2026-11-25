@@ -4,27 +4,25 @@ declare(strict_types=1);
 
 namespace App\Modules\WhatsApp\Services;
 
-use App\Models\ContactSource;
-use App\Models\Lead;
 use App\Modules\WhatsApp\Jobs\ReplyWithAssistant;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Support\InboundMessage;
 use App\Modules\WhatsApp\Support\PhoneNumber;
 use App\Modules\WhatsApp\Support\StatusUpdate;
-use App\Services\BookingAssignmentService;
-use Throwable;
 
 /**
  * Stores incoming WhatsApp messages, links them to the CRM and triggers the auto reply.
  */
 class InboundProcessor
 {
-    public const LEAD_SOURCE = 'واتساب';
+    public const LEAD_SOURCE = LeadLinker::LEAD_SOURCE;
 
     public function __construct(
         private readonly WhatsAppSettings $settings,
         private readonly WhatsAppManager $manager,
+        private readonly ConversationAssigner $assigner,
+        private readonly LeadLinker $leads,
     ) {}
 
     public function handleMessage(InboundMessage $inbound): ?WhatsAppMessage
@@ -50,9 +48,11 @@ class InboundProcessor
             'last_inbound_at' => now(),
             'last_message_at' => now(),
             'unread_count' => $conversation->unread_count + 1,
+            'status' => 'open', // a customer writing again reopens a closed / pending conversation
         ])->save();
 
         $this->linkLead($conversation, $inbound);
+        $this->assigner->assign($conversation);
         $this->autoReply($conversation, $message);
 
         return $message;
@@ -64,7 +64,10 @@ class InboundProcessor
             return;
         }
 
-        WhatsAppMessage::query()->where('provider_message_id', $update->providerMessageId)->first()?->advanceStatus($update->status, $update->error);
+        $message = WhatsAppMessage::query()->where('provider_message_id', $update->providerMessageId)->first();
+
+        $message?->recordPricing($update->pricingCategory, $update->billable);
+        $message?->advanceStatus($update->status, $update->error);
     }
 
     private function linkLead(WhatsAppConversation $conversation, InboundMessage $inbound): void
@@ -73,31 +76,11 @@ class InboundProcessor
             return;
         }
 
-        $lead = Lead::query()->whereIn('client_phone', PhoneNumber::variants($conversation->phone))->latest('id')->first();
-
-        if (! $lead && $this->settings->get('inbound.create_lead', true)) {
-            $source = ContactSource::firstOrCreate(['name' => self::LEAD_SOURCE], ['is_active' => true]);
-            $lead = Lead::create([
-                'client_name' => $inbound->name ?: 'عميل واتساب',
-                'client_phone' => $conversation->phone,
-                'subject' => 'general_inquiry',
-                'status_details' => 'أول رسالة واتساب: '.mb_substr((string) $inbound->body, 0, 500),
-                'contact_source_id' => $source->id,
-                'status' => 'new',
-                'started_at' => now(),
-                'marketing_channel' => self::LEAD_SOURCE,
-            ]);
-
-            try {
-                app(BookingAssignmentService::class)->autoAssignLead($lead);
-            } catch (Throwable) {
-                // best effort
-            }
-        }
-
-        if ($lead) {
-            $conversation->forceFill(['lead_id' => $lead->id])->save();
-        }
+        $this->leads->linkConversation(
+            $conversation,
+            (bool) $this->settings->get('inbound.create_lead', true),
+            'أول رسالة واتساب: '.mb_substr((string) $inbound->body, 0, 480),
+        );
     }
 
     private function autoReply(WhatsAppConversation $conversation, WhatsAppMessage $message): void

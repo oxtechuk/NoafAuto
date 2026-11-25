@@ -33,6 +33,18 @@ final class PhoneNumber
     }
 
     /**
+     * Masked number for employees who must not see it: 966551234567 → 966•••••••67.
+     */
+    public static function mask(string $e164): string
+    {
+        if (strlen($e164) <= 5) {
+            return str_repeat('•', strlen($e164));
+        }
+
+        return substr($e164, 0, 3).str_repeat('•', strlen($e164) - 5).substr($e164, -2);
+    }
+
+    /**
      * Variants used to match the CRM, which stores phones in several formats.
      *
      * @return list<string>

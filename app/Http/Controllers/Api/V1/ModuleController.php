@@ -22,11 +22,29 @@ class ModuleController extends ApiBaseController
 
     public function index(Request $request): ApiResponse
     {
-        $this->authorizeAdmin($request);
+        /** @var Employee|null $employee */
+        $employee = $request->user('employee');
+        if (! $employee) {
+            abort(401);
+        }
 
-        $modules = $this->moduleManager->all()->values();
+        $modules = $this->moduleManager->all();
 
-        return $this->respondSuccess($modules, 'Modules retrieved successfully');
+        if (! $employee->isAdmin()) {
+            $modules = $modules->filter(function (array $module) use ($employee): bool {
+                if (empty($module['enabled'])) {
+                    return false;
+                }
+
+                try {
+                    return $employee->hasPermissionTo("manage-module-{$module['key']}", 'employee');
+                } catch (\Throwable) {
+                    return false;
+                }
+            });
+        }
+
+        return $this->respondSuccess($modules->values(), 'Modules retrieved successfully');
     }
 
     public function enable(Request $request, string $key): ApiResponse
@@ -37,6 +55,9 @@ class ModuleController extends ApiBaseController
         if (! $success) {
             return $this->respondError("Module [{$key}] could not be found", 404);
         }
+
+        // The module's provider is only registered on the next request, so its tables must be created now.
+        $this->moduleManager->migrate($key);
 
         return $this->respondSuccess(
             $this->moduleManager->find($key),

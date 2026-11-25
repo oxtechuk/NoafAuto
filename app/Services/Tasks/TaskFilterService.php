@@ -80,6 +80,11 @@ class TaskFilterService
 
         if ($view === 'today') {
             $query->whereDate('due_date', today());
+        } elseif ($view === 'month') {
+            $query->whereBetween('due_date', [
+                now()->startOfMonth()->toDateString(),
+                now()->endOfMonth()->toDateString(),
+            ]);
         } elseif ($view === 'overdue') {
             $query->where('status', '!=', 'done')
                 ->whereDate('due_date', '<', today());

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Modules;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
 class ModuleManager
@@ -73,6 +74,18 @@ class ModuleManager
         return $this->setEnabledState($key, false);
     }
 
+    /**
+     * Run the module's own migrations (app/Modules/<Name>/database/migrations), if it has any.
+     */
+    public function migrate(string $key): void
+    {
+        $path = ($this->find($key)['path'] ?? '').DIRECTORY_SEPARATOR.'database'.DIRECTORY_SEPARATOR.'migrations';
+
+        if (File::isDirectory($path)) {
+            Artisan::call('migrate', ['--path' => $path, '--realpath' => true, '--force' => true]);
+        }
+    }
+
     private function setEnabledState(string $key, bool $enabled): bool
     {
         $module = $this->find($key);
@@ -84,7 +97,7 @@ class ModuleManager
         $module['enabled'] = $enabled;
         unset($module['path']);
 
-        File::put($manifestPath, json_encode($module, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        File::put($manifestPath, json_encode($module, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n");
 
         return true;
     }

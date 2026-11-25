@@ -38,6 +38,7 @@ use App\Observers\SpecificationObserver;
 use App\Observers\TestimonialObserver;
 use App\Policies\RolePolicy;
 use App\Services\Cache\BaseCacheService;
+use App\Services\Reports\ReportRegistry;
 use App\Services\Storefront\StorefrontManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\View\View as ViewContract;
@@ -61,7 +62,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Modules add their report sections to it from their own providers.
+        $this->app->singleton(ReportRegistry::class);
     }
 
     /**

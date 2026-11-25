@@ -1,18 +1,21 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
 
 // 1. Calculator Leads Page
 export const CalculatorLeadsPage: React.FC = () => {
+    const { t, i18n } = useTranslation('admin');
+    const dateLocale = i18n.language === 'en' ? 'en-US' : 'ar-SA';
     return (
         <CrudTableManager
-            title="عملاء حاسبة التمويل"
-            subtitle="قائمة العملاء الذين استخدموا حاسبة الأقساط وقاموا بطلب تفاصيل الحسبة"
+            title={t('clients.calc_leads_title')}
+            subtitle={t('clients.calc_leads_sub')}
             endpoint="/api/v1/leads/calculator"
             columns={[
-                { key: 'name', title: 'اسم العميل' },
+                { key: 'name', title: t('clients.client_name') },
                 {
                     key: 'phone',
-                    title: 'رقم الجوال',
+                    title: t('clients.phone'),
                     render: (val) => (
                         <a
                             href={`tel:${val}`}
@@ -25,7 +28,7 @@ export const CalculatorLeadsPage: React.FC = () => {
                 },
                 {
                     key: 'car',
-                    title: 'السيارة المهتم بها',
+                    title: t('clients.interested_car'),
                     render: (val) => (
                         <span className="font-semibold text-slate-800">
                             {formatLocaleString(val?.name)}
@@ -34,24 +37,24 @@ export const CalculatorLeadsPage: React.FC = () => {
                 },
                 {
                     key: 'details',
-                    title: 'تفاصيل الحسبة',
+                    title: t('clients.calc_details'),
                     render: (val) => {
                         if (!val || typeof val !== 'object') return '-';
                         return (
                             <div className="text-[11px] space-y-0.5">
-                                {val.salary && <div>راتب: {val.salary} ر.س</div>}
-                                {val.down_payment && <div>دفعة: {val.down_payment} ر.س</div>}
-                                {val.months && <div>المدة: {val.months} شهر</div>}
+                                {val.salary && <div>{t('clients.salary')}: {val.salary} {t('common.sar')}</div>}
+                                {val.down_payment && <div>{t('clients.down_payment')}: {val.down_payment} {t('common.sar')}</div>}
+                                {val.months && <div>{t('clients.months')}: {val.months} {t('clients.month_unit')}</div>}
                             </div>
                         );
                     },
                 },
                 {
                     key: 'created_at',
-                    title: 'تاريخ الطلب',
+                    title: t('clients.request_date'),
                     render: (val) => (
                         <span className="text-[11px] text-slate-500">
-                            {val ? new Date(val).toLocaleDateString('ar-SA') : '-'}
+                            {val ? new Date(val).toLocaleDateString(dateLocale) : '-'}
                         </span>
                     ),
                 },
@@ -63,28 +66,29 @@ export const CalculatorLeadsPage: React.FC = () => {
 
 // 2. Contact Sources Page
 export const ContactSourcesPage: React.FC = () => {
+    const { t } = useTranslation('admin');
     return (
         <CrudTableManager
-            title="مصادر التواصل والحملات"
-            subtitle="إدارة قنوات ومصادر وصول العملاء (سناب شات، جوجل، إعلانات تيك توك، توصية...)"
+            title={t('clients.sources_title')}
+            subtitle={t('clients.sources_sub')}
             endpoint="/api/v1/leads/sources"
             columns={[
-                { key: 'name', title: 'اسم المصدر / القناة' },
+                { key: 'name', title: t('clients.source_name') },
                 {
                     key: 'leads_count',
-                    title: 'العملاء المستقطبين',
+                    title: t('clients.leads_count'),
                     render: (val) => (
                         <span className="font-bold text-[var(--tenant-primary)]">
                             {val ?? 0}
                         </span>
                     ),
                 },
-                { key: 'is_active', title: 'الحالة', type: 'boolean' },
+                { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
-                { name: 'name', label: 'اسم القناة / المصدر', type: 'text', required: true, placeholder: 'مثال: إعلانات سناب شات' },
-                { name: 'sort_order', label: 'الترتيب', type: 'number', placeholder: '0' },
-                { name: 'is_active', label: 'مفعل', type: 'switch' },
+                { name: 'name', label: t('clients.source_name'), type: 'text', required: true, placeholder: t('clients.source_placeholder') },
+                { name: 'sort_order', label: t('clients.sort_order'), type: 'number', placeholder: '0' },
+                { name: 'is_active', label: t('common.enabled'), type: 'switch' },
             ]}
         />
     );
@@ -92,15 +96,17 @@ export const ContactSourcesPage: React.FC = () => {
 
 // 3. Newsletter Subscribers Page
 export const NewsletterSubscribersPage: React.FC = () => {
+    const { t, i18n } = useTranslation('admin');
+    const dateLocale = i18n.language === 'en' ? 'en-US' : 'ar-SA';
     return (
         <CrudTableManager
-            title="مشتركو النشرة البريدية"
-            subtitle="قائمة العناوين البريدية المشتركة في العروض وأخبار المعرض"
+            title={t('clients.newsletter_title')}
+            subtitle={t('clients.newsletter_sub')}
             endpoint="/api/v1/leads/newsletter"
             columns={[
                 {
                     key: 'email',
-                    title: 'البريد الإلكتروني',
+                    title: t('clients.email'),
                     render: (val) => (
                         <span className="font-mono text-slate-700" dir="ltr">
                             {val}
@@ -109,10 +115,10 @@ export const NewsletterSubscribersPage: React.FC = () => {
                 },
                 {
                     key: 'created_at',
-                    title: 'تاريخ الاشتراك',
+                    title: t('clients.subscribed_at'),
                     render: (val) => (
                         <span className="text-[11px] text-slate-500">
-                            {val ? new Date(val).toLocaleDateString('ar-SA') : '-'}
+                            {val ? new Date(val).toLocaleDateString(dateLocale) : '-'}
                         </span>
                     ),
                 },
