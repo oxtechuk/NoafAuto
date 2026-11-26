@@ -46,19 +46,18 @@ concurrency:
   group: sitekit-update
   cancel-in-progress: false
 
-env:
-  VERSION: ${{ inputs.version }}
-  UPDATE_ID: ${{ inputs.update_id }}
-  CALLBACK_URL: ${{ inputs.callback_url }}
-  SITEKIT_DEPLOY_SECRET: ${{ secrets.SITEKIT_DEPLOY_SECRET }}
-  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
 jobs:
   update:
     name: Merge, test & deploy ${{ inputs.version }}
     if: vars.SITEKIT_ROLE != 'upstream'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      VERSION: ${{ inputs.version }}
+      UPDATE_ID: ${{ inputs.update_id }}
+      CALLBACK_URL: ${{ inputs.callback_url }}
+      SITEKIT_DEPLOY_SECRET: ${{ secrets.SITEKIT_DEPLOY_SECRET }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
