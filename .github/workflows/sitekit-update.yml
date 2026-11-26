@@ -17,6 +17,7 @@
 #              SITEKIT_UPSTREAM_TOKEN (read access to the base repo; only if it is private)
 #              VPS_HOST, VPS_USER, VPS_SSH_KEY, VPS_APP_PATH, VPS_PORT (optional, default 22)
 # ─────────────────────────────────────────────────────────────────────────────
+# Trigger: workflow_dispatch
 name: Sitekit Update
 
 on:
