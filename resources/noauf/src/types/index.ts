@@ -165,4 +165,6 @@ export interface CustomCarRequestPayload {
   extraIncome: number
   obligations: number
   obligationType: string
+  carId?: number
+  isCustom?: boolean
 }

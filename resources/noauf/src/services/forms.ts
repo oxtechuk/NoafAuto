@@ -64,12 +64,16 @@ export async function submitFinanceRequest(payload: FinanceRequestPayload & { le
   return mock({ id: crypto.randomUUID() }, 600)
 }
 
-/** Custom car request → Sitekit contact message (subject "car_import") with all the details. */
+/** Custom car request or showroom car inquiry → Sitekit contact message with all the details. */
 export async function submitCustomCarRequest(payload: CustomCarRequestPayload): Promise<Ok> {
   if (!USE_MOCK) {
+    const isShowroom = Boolean(payload.carId && !payload.isCustom)
     const details = [
+      isShowroom
+        ? `نوع الطلب: حجز/طلب سيارة متوفرة في المعرض (معرّف #${payload.carId})`
+        : `نوع الطلب: استيراد / طلب سيارة مخصصة غير متوفرة في المعرض`,
       `السيارة المطلوبة: ${payload.carName} (${payload.year}) — اللون: ${payload.color}`,
-      `الحالة: ${payload.condition} — الميزانية: ${payload.budget}`,
+      `الحالة: ${payload.condition} — السعر/الميزانية: ${payload.budget}`,
       `المدينة: ${payload.city}`,
       `القطاع: ${payload.sector} — جهة العمل: ${payload.employer}`,
       `الراتب: ${payload.salary} — دخل إضافي: ${payload.extraIncome}`,
@@ -81,7 +85,7 @@ export async function submitCustomCarRequest(payload: CustomCarRequestPayload): 
         name: payload.name,
         phone: payload.phone,
         email: payload.email || undefined,
-        subject: 'car_import',
+        subject: isShowroom ? 'car_booking' : 'car_import',
         message: details,
       })
     )

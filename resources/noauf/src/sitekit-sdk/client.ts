@@ -64,6 +64,7 @@ export const SitekitApi = {
   settings: () => get<{ key: string; value: unknown }[]>('/settings'),
 
   cars: (query: SkCarQuery = {}) => getPaginated<SkCar>('/cars', query),
+  searchCars: (q: string) => get<SkCar[]>('/cars/search', { q }),
   carsMeta: () => get<SkCarsMeta>('/cars/meta'),
   car: (slug: string) => get<SkCarDetail>(`/cars/${encodeURIComponent(slug)}`),
   brands: () => get<SkBrand[]>('/brands'),
