@@ -58,6 +58,14 @@ final class SettingApiService
             $aboutBranches = json_decode($aboutBranches, true) ?: [];
         }
 
+        $floatingWidgets = [
+            'enabled' => filter_var($settings->get('floating_widgets_enabled', true), FILTER_VALIDATE_BOOLEAN),
+            'whatsapp' => (string) ($settings->get('floating_whatsapp') ?: ($settings->get('contact_whatsapp') ?: $settings->get('contact_phone', ''))),
+            'whatsapp_message' => (string) ($settings->get('floating_whatsapp_message') ?: 'مرحباً نواف أوتو، أود الاستفسار عن تفاصيل السيارات وعروض التمويل المتاحة.'),
+            'phone' => (string) ($settings->get('floating_contact_phone') ?: $settings->get('contact_phone', '')),
+            'show_badge' => filter_var($settings->get('floating_contact_badge', true), FILTER_VALIDATE_BOOLEAN),
+        ];
+
         return [
             'logo' => $this->resolveUrl($settings->get('footer_logo') ?: $settings->get('site_logo')),
             'header_logo' => $this->resolveUrl($settings->get('site_logo')),
@@ -75,6 +83,7 @@ final class SettingApiService
             ],
             'social_media' => $socialMedia,
             'about_branches' => $aboutBranches,
+            'floating_widgets' => $floatingWidgets,
         ];
     }
 

@@ -305,6 +305,8 @@ const AdminLayoutInner: React.FC = () => {
                 icon: FileText,
                 perm: 'manage-content',
                 items: [
+                    { label: t('nav.items.privacy_policy', { defaultValue: 'سياسة الخصوصية' }), path: '/admin/content/privacy-policy', icon: ShieldCheck, perm: 'manage-content' },
+                    { label: t('nav.items.terms_conditions', { defaultValue: 'الشروط والأحكام' }), path: '/admin/content/terms-conditions', icon: FileText, perm: 'manage-content' },
                     { label: t('nav.items.blog'), path: '/admin/content/blog', icon: FileText, perm: 'manage-blogs' },
                     { label: t('nav.items.blog_categories'), path: '/admin/content/blog-categories', icon: Tag, perm: 'manage-blogs' },
                     { label: t('nav.items.designs'), path: '/admin/content/designs', icon: Palette, perm: 'manage-content' },

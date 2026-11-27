@@ -188,6 +188,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('content/finance-steps', [V1CmsController::class, 'financeStepsIndex'])->name('content.finance-steps.index');
         Route::get('content/budget-ranges', [V1CmsController::class, 'budgetRangesIndex'])->name('content.budget-ranges.index');
         Route::get('content/home-sections', [V1CmsController::class, 'homeSectionsIndex'])->name('content.home-sections.index');
+        Route::get('content/legal-pages', [V1CmsController::class, 'legalPagesIndex'])->name('content.legal-pages.index');
+        Route::get('content/legal-pages/{slug}', [V1CmsController::class, 'legalPagesShow'])->name('content.legal-pages.show');
+        Route::put('content/legal-pages/{slug}', [V1CmsController::class, 'legalPagesUpdate'])->name('content.legal-pages.update');
 
         Route::get('settings', [V1SettingController::class, 'index'])->name('settings.index');
         Route::get('settings/{key}', [V1SettingController::class, 'show'])->name('settings.show');

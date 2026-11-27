@@ -79,4 +79,5 @@ export const SitekitApi = {
 
   contact: (payload: SkContactPayload) => post('/contact', payload),
   calculatorLead: (payload: SkCalculatorLeadPayload) => post('/calculator/lead', payload),
+  legalPage: (slug: string) => get<{ slug: string; title: string; content: string; updated_at?: string }>(`/legal/${encodeURIComponent(slug)}`),
 }

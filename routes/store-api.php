@@ -63,6 +63,7 @@ Route::prefix('store')->name('store.api.')->group(function () {
     Route::get('/partners', [PartnerController::class, '__invoke'])->middleware('cache.public:300')->name('partners');
 
     // Settings & Gallery (US5)
+    Route::get('/legal/{slug}', [SettingsController::class, 'legalPage'])->middleware('cache.public:60')->name('legal.show');
     Route::get('/settings', [SettingsController::class, 'index'])->middleware('cache.public:300')->name('settings.index');
     Route::get('/settings/footer', [SettingsController::class, 'footer'])->middleware('cache.public:300')->name('settings.footer');
     Route::get('/settings/finance-solution', [SettingsController::class, 'getFinanceSolution'])->middleware('cache.public:300')->name('settings.finance-solution');

@@ -56,9 +56,9 @@ export default function Footer() {
         <div className="mt-16 flex flex-col gap-4 border-t border-ink-2 pt-6 text-small text-silver md:mt-[74px] md:flex-row md:items-center md:justify-between">
           <p>{t('footer.copyright')}</p>
           <p className="flex gap-5">
-            <a href="#" className={link}>{t('footer.privacy')}</a>
+            <Link to="/privacy" className={link}>{t('footer.privacy')}</Link>
             <span>/</span>
-            <a href="#" className={link}>{t('footer.terms')}</a>
+            <Link to="/terms" className={link}>{t('footer.terms')}</Link>
           </p>
         </div>
       </div>

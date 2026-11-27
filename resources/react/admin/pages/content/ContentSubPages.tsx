@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { CrudTableManager, formatLocaleString } from '../../../shared/components/crm/CrudTableManager';
 export { BlogPostsPage } from './BlogPostsPage';
+export { LegalPagesManager } from './LegalPagesManager';
 
 // 2. Blog Categories Page
 export const BlogCategoriesPage: React.FC = () => {

@@ -73,6 +73,7 @@ const PartnersPage = React.lazy(() => import('../pages/content/ContentSubPages')
 const TestimonialsPage = React.lazy(() => import('../pages/content/ContentSubPages').then(m => ({ default: m.TestimonialsPage })));
 const FaqsPage = React.lazy(() => import('../pages/content/ContentSubPages').then(m => ({ default: m.FaqsPage })));
 const HeroSlidesPage = React.lazy(() => import('../pages/content/ContentSubPages').then(m => ({ default: m.HeroSlidesPage })));
+const LegalPagesManager = React.lazy(() => import('../pages/content/ContentSubPages').then(m => ({ default: m.LegalPagesManager })));
 
 export const AppRoutes: React.FC = () => {
     return (
@@ -339,6 +340,30 @@ export const AppRoutes: React.FC = () => {
                 />
 
                 {/* CMS Content */}
+                <Route
+                    path="content/privacy-policy"
+                    element={
+                        <Suspense fallback={<PageFallback />}>
+                            <LegalPagesManager defaultTab="privacy" />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="content/terms-conditions"
+                    element={
+                        <Suspense fallback={<PageFallback />}>
+                            <LegalPagesManager defaultTab="terms" />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="content/legal-pages"
+                    element={
+                        <Suspense fallback={<PageFallback />}>
+                            <LegalPagesManager />
+                        </Suspense>
+                    }
+                />
                 <Route
                     path="content/blog"
                     element={

@@ -1325,6 +1325,74 @@ export const SettingsPage: React.FC = () => {
                                             </div>
                                         </div>
 
+                                        {/* Floating Widgets Configuration */}
+                                        <div className="pt-4 border-t space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h6 className="font-bold text-xs text-slate-800">الأزرار العائمة على الموقع (Floating Action Widgets)</h6>
+                                                    <p className="text-[11px] text-slate-500">أزرار "تواصل معنا" (بأيقونة المنصة والبادج الأحمر) و"واتساب" الثابتة على شاشات الديسكتوب</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={Boolean(settings.floating_widgets_enabled !== false && settings.floating_widgets_enabled !== '0')}
+                                                        onChange={(e) => handleChange('floating_widgets_enabled', e.target.checked ? '1' : '0')}
+                                                        className="sr-only peer"
+                                                    />
+                                                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--tenant-primary)]"></div>
+                                                </label>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">رقم واتساب للزر العائم (اختياري)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.floating_whatsapp || ''}
+                                                        onChange={(e) => handleChange('floating_whatsapp', e.target.value)}
+                                                        placeholder="مثال: 966550000000 (يستخدم رقم واتساب العام إن ترك فارغاً)"
+                                                        className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0"
+                                                        dir="ltr"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">رقم الاتصال المباشر لزر "تواصل معنا" (اختياري)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={settings.floating_contact_phone || ''}
+                                                        onChange={(e) => handleChange('floating_contact_phone', e.target.value)}
+                                                        placeholder="مثال: 920018657 (يستخدم هاتف التواصل إن ترك فارغاً)"
+                                                        className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0"
+                                                        dir="ltr"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">رسالة واتساب الترحيبية التلقائية</label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.floating_whatsapp_message || ''}
+                                                    onChange={(e) => handleChange('floating_whatsapp_message', e.target.value)}
+                                                    placeholder="مرحباً نواف أوتو، أود الاستفسار عن تفاصيل السيارات وعروض التمويل المتاحة."
+                                                    className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-100/70 border-0"
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <input
+                                                    type="checkbox"
+                                                    id="floating_contact_badge"
+                                                    checked={Boolean(settings.floating_contact_badge !== false && settings.floating_contact_badge !== '0')}
+                                                    onChange={(e) => handleChange('floating_contact_badge', e.target.checked ? '1' : '0')}
+                                                    className="h-4 w-4 rounded border-slate-300 text-[var(--tenant-primary)] focus:ring-[var(--tenant-primary)] cursor-pointer"
+                                                />
+                                                <label htmlFor="floating_contact_badge" className="text-xs text-slate-700 cursor-pointer">
+                                                    إظهار نقطة الإشعار الحمراء (Red Notification Badge) على زر تواصل معنا لجذب الانتباه
+                                                </label>
+                                            </div>
+                                        </div>
+
                                         {/* Social Links */}
                                         <div className="space-y-3 pt-3 border-t">
                                             <div className="flex items-center justify-between">

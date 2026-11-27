@@ -4,6 +4,7 @@ import Navbar from './Navbar'
 import Footer from './Footer'
 import MobileNav from './MobileNav'
 import AssistantWidget from '@/components/assistant/AssistantWidget'
+import FloatingContactWidgets from './FloatingContactWidgets'
 
 /** Pages whose hero is dark use the dark navbar (as in the Figma frames). */
 const DARK_NAV = ['/', '/cars/:id', '/compare', '/blog', '/blog/:slug']
@@ -25,6 +26,7 @@ export default function Layout() {
       <Footer />
       <MobileNav />
       <AssistantWidget />
+      <FloatingContactWidgets />
     </div>
   )
 }

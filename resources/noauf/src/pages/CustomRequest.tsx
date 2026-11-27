@@ -127,7 +127,22 @@ export default function CustomRequest() {
                 </Field>
               </div>
               <div className="mt-7 rounded-[4px] bg-sand px-6 pt-5 pb-10">
-                <Checkbox checked={f.consent} onChange={(v) => set('consent', v)}>{t('request.consent')}</Checkbox>
+                <Checkbox checked={f.consent} onChange={(v) => set('consent', v)}>
+                  <span>
+                    {t('common.iAgreeTo', { defaultValue: 'أوافق على' })}{' '}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-gold underline underline-offset-4 hover:opacity-80"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {t('footer.privacy', { defaultValue: 'سياسة الخصوصية' })}
+                    </a>
+                    {' '}
+                    {t('request.consentSuffix', { defaultValue: 'واستخدام بياناتي للتواصل بشأن طلب السيارة المخصصة.' })}
+                  </span>
+                </Checkbox>
               </div>
               <p className="mt-4 text-tiny font-medium text-muted">{t('request.s1Note')}</p>
               <Button variant="dark" className="mt-6 h-[52px] w-full rounded-[4px]" disabled={!step1Ok} onClick={() => setStep(2)}>

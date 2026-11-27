@@ -328,7 +328,30 @@ function StepDetails({ lead, setLead, busy, onNext }: { lead: { name: string; ph
           </div>
           <div className="mt-8 rounded-lg bg-sand px-[22px] py-[18px]">
             <Checkbox checked={lead.consent} onChange={(v) => setLead({ ...lead, consent: v })}>
-              {t('finance.consent')}
+              <span>
+                {t('common.iAgreeTo', { defaultValue: 'أوافق على' })}{' '}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-gold underline underline-offset-4 hover:opacity-80"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {t('footer.privacy', { defaultValue: 'سياسة الخصوصية' })}
+                </a>
+                {' '}{t('common.and', { defaultValue: 'و' })}{' '}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold text-gold underline underline-offset-4 hover:opacity-80"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {t('footer.terms', { defaultValue: 'الشروط والأحكام' })}
+                </a>
+                {' '}
+                {t('finance.consentSuffix', { defaultValue: '، وعلى حفظ بياناتي وتواصل فريق نواف أوتو معي بشأن التمويل حتى لو لم أكمل الحسبة.' })}
+              </span>
             </Checkbox>
           </div>
           <p className="mt-[18px] text-small text-muted">{t('finance.reassurance')}</p>

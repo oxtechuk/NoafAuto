@@ -160,6 +160,13 @@ export interface SkFooter {
   footer_text: string | null
   contact: { email: string; phone: string; whatsapp: string; address: string }
   social_media: { platform?: string; url?: string; icon?: string }[]
+  floating_widgets?: {
+    enabled?: boolean
+    whatsapp?: string
+    whatsapp_message?: string
+    phone?: string
+    show_badge?: boolean
+  }
 }
 
 /* ---------- Payloads ---------- */

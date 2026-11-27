@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Api\Contracts\ApiResponse;
 use App\Http\Api\Response\Builder\ApiResponseBuilder;
 use App\Http\Controllers\Api\ApiBaseController;
+use App\Http\Controllers\Api\Store\SettingsController;
 use App\Models\BlogCategory;
 use App\Models\BlogPost;
 use App\Models\BudgetRange;
@@ -20,6 +21,7 @@ use App\Models\PromoCard;
 use App\Models\Testimonial;
 use App\Services\ImageOptimizerService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class CmsSubModuleController extends ApiBaseController
@@ -336,5 +338,96 @@ class CmsSubModuleController extends ApiBaseController
     public function homeSectionsIndex(): ApiResponse
     {
         return $this->respondSuccess(HomeSection::all(), 'Home sections retrieved');
+    }
+
+    // ==========================================
+    // LEGAL PAGES (PRIVACY POLICY & TERMS)
+    // ==========================================
+    public function legalPagesIndex(): ApiResponse
+    {
+        $privacySetting = Setting::where('key', 'page_privacy_policy')->first();
+        $termsSetting = Setting::where('key', 'page_terms_conditions')->first();
+
+        $privacy = $privacySetting?->value ?: SettingsController::defaultLegalData('privacy');
+        $terms = $termsSetting?->value ?: SettingsController::defaultLegalData('terms');
+
+        return $this->respondSuccess([
+            'privacy' => [
+                'slug' => 'privacy',
+                'key' => 'page_privacy_policy',
+                'title' => $privacy['title'] ?? ['ar' => 'سياسة الخصوصية', 'en' => 'Privacy Policy'],
+                'content' => $privacy['content'] ?? ['ar' => '', 'en' => ''],
+                'updated_at' => $privacy['updated_at'] ?? $privacySetting?->updated_at?->toISOString() ?? now()->toISOString(),
+            ],
+            'terms' => [
+                'slug' => 'terms',
+                'key' => 'page_terms_conditions',
+                'title' => $terms['title'] ?? ['ar' => 'الشروط والأحكام', 'en' => 'Terms & Conditions'],
+                'content' => $terms['content'] ?? ['ar' => '', 'en' => ''],
+                'updated_at' => $terms['updated_at'] ?? $termsSetting?->updated_at?->toISOString() ?? now()->toISOString(),
+            ],
+        ], 'Legal pages retrieved');
+    }
+
+    public function legalPagesShow(string $slug): ApiResponse
+    {
+        $normalized = match (str_replace('_', '-', strtolower($slug))) {
+            'terms', 'terms-conditions', 'terms-and-conditions', 'terms-of-service' => 'terms',
+            default => 'privacy',
+        };
+
+        $key = $normalized === 'terms' ? 'page_terms_conditions' : 'page_privacy_policy';
+        $setting = Setting::where('key', $key)->first();
+        $data = $setting?->value;
+
+        if (! is_array($data) || empty($data['content'])) {
+            $data = SettingsController::defaultLegalData($normalized);
+        }
+
+        return $this->respondSuccess([
+            'slug' => $normalized,
+            'key' => $key,
+            'title' => $data['title'] ?? ($normalized === 'terms' ? ['ar' => 'الشروط والأحكام', 'en' => 'Terms & Conditions'] : ['ar' => 'سياسة الخصوصية', 'en' => 'Privacy Policy']),
+            'content' => $data['content'] ?? ['ar' => '', 'en' => ''],
+            'updated_at' => $data['updated_at'] ?? $setting?->updated_at?->toISOString() ?? now()->toISOString(),
+        ], 'Legal page retrieved');
+    }
+
+    public function legalPagesUpdate(Request $request, string $slug): ApiResponse
+    {
+        $normalized = match (str_replace('_', '-', strtolower($slug))) {
+            'terms', 'terms-conditions', 'terms-and-conditions', 'terms-of-service' => 'terms',
+            default => 'privacy',
+        };
+
+        $key = $normalized === 'terms' ? 'page_terms_conditions' : 'page_privacy_policy';
+
+        $data = $request->validate([
+            'title' => 'required',
+            'content' => 'required',
+        ]);
+
+        $title = is_array($data['title']) ? $data['title'] : ['ar' => $data['title'], 'en' => $data['title']];
+        $content = is_array($data['content']) ? $data['content'] : ['ar' => $data['content'], 'en' => $data['content']];
+
+        $payload = [
+            'title' => $title,
+            'content' => $content,
+            'updated_at' => now()->toISOString(),
+        ];
+
+        Setting::updateOrCreate(['key' => $key], ['value' => $payload]);
+
+        Cache::forget('store.legal.'.$normalized);
+        Cache::forget('store.legal.privacy');
+        Cache::forget('store.legal.terms');
+
+        return $this->respondSuccess([
+            'slug' => $normalized,
+            'key' => $key,
+            'title' => $title,
+            'content' => $content,
+            'updated_at' => $payload['updated_at'],
+        ], 'Legal page updated successfully');
     }
 }
