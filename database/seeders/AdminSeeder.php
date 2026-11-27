@@ -21,7 +21,7 @@ class AdminSeeder extends Seeder
             ['username' => 'admin'],
             [
                 'name' => 'Admin',
-                'email' => 'admin@knoz.com',
+                'email' => 'admin@Tamed.com',
                 'password' => 'Admin@123',
                 'phone' => '0500000000',
                 'role' => 'admin',
