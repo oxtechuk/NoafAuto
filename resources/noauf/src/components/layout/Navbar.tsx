@@ -10,7 +10,6 @@ const NAV_LINKS = [
   { to: '/cars', key: 'cars' },
   { to: '/offers', key: 'offers' },
   { to: '/finance/calculator', key: 'finance' },
-  { to: '/request-car', key: 'customRequest' },
   { to: '/compare', key: 'compare' },
   { to: '/about', key: 'about' },
   { to: '/contact', key: 'contact' },
