@@ -28,6 +28,15 @@ function Field({ label, children, className = '' }: { label: string; children: R
   )
 }
 
+function getCarAvailableColors(car: SkCar | null): { id: string; name: string; hex?: string }[] {
+  if (!car || !car.colors || car.colors.length === 0) return []
+  return car.colors.map((c, idx) => ({
+    id: c.name ? c.name.toLowerCase().replace(/\s+/g, '-') : `color-${idx}`,
+    name: c.name || c.hex || 'لون معتمد',
+    hex: c.hex,
+  }))
+}
+
 export default function CustomRequest() {
   const { t, i18n } = useTranslation()
   const isEn = i18n.language === 'en'
@@ -90,11 +99,11 @@ export default function CustomRequest() {
             (c) => c.slug === carParam || String(c.id) === carParam || c.name.toLowerCase() === carParam.toLowerCase(),
           )
           if (match) {
-            handleSelectCar(match)
+            handleSelectCar(match, false)
           } else {
             SitekitApi.car(carParam)
               .then((detail) => {
-                if (active && detail) handleSelectCar(detail)
+                if (active && detail) handleSelectCar(detail, false)
               })
               .catch(() => {})
           }
@@ -149,10 +158,15 @@ export default function CustomRequest() {
   }
 
   // Handle selecting an existing showroom car
-  const handleSelectCar = (car: SkCar) => {
+  // autoAdvance: when true, if the car has no additional specs to configure (<= 1 color), skip directly to Step 3!
+  const handleSelectCar = (car: SkCar, autoAdvance = true) => {
     setSelectedCar(car)
     setIsCustomMode(false)
     setSearchQuery(car.name)
+
+    const availableColors = getCarAvailableColors(car)
+    const initialColor = availableColors.length > 0 ? availableColors[0].name : 'black'
+
     setF((prev) => ({
       ...prev,
       carName: car.name,
@@ -160,7 +174,14 @@ export default function CustomRequest() {
       budget: car.current_price || car.cash_price || prev.budget || 0,
       carId: car.id,
       isCustom: false,
+      color: initialColor,
+      condition: '0', // 0 = New / from showroom stock
     }))
+
+    // If car has no multiple colors to choose from, auto-advance to step 3!
+    if (autoAdvance && availableColors.length <= 1) {
+      setStep(3)
+    }
   }
 
   // Handle choosing to request a custom car not in stock
@@ -198,8 +219,9 @@ export default function CustomRequest() {
   const conditions = arr('request.conditions')
   const sectors = arr('request.sectors')
   const obligationTypes = arr('request.obligationTypes')
-  const colorName = t(`finance.colors.${f.color}`)
+  const colorName = t(`finance.colors.${f.color}`, { defaultValue: f.color })
   const maskedPhone = f.phone ? `${f.phone.slice(0, 2)}••••••••` : '05••••••••'
+  const carColors = getCarAvailableColors(selectedCar)
 
   const hero = [
     { title: t('request.title1'), subtitle: t('request.subtitle1'), l: t('request.ctx1Label'), v: t('request.ctx1Value') },
@@ -225,7 +247,7 @@ export default function CustomRequest() {
     setBusy(true)
     await submitCustomCarRequest({
       ...f,
-      condition: conditions[Number(f.condition)],
+      condition: selectedCar ? (isEn ? 'New (Showroom)' : 'جديدة (من المعرض)') : conditions[Number(f.condition)],
       sector: sectors[Number(f.sector)],
       obligationType: obligationTypes[Number(f.obligationType)],
     })
@@ -335,89 +357,200 @@ export default function CustomRequest() {
                 }
                 text={
                   selectedCar
-                    ? (isEn ? 'Review the selected car details and continue your request.' : 'راجع بيانات السيارة المختارة وأكمل طلب الشراء أو التمويل.')
+                    ? (isEn ? 'All specifications are loaded from showroom stock.' : 'تم تعيين كافة المواصفات والأسعار المعتمدة من المعرض مباشرة.')
                     : isCustomMode
-                      ? (isEn ? 'Specify the details of the car you want us to source for you.' : 'حدد مواصفات وميزانية السيارة التي ترغب بأن نستوردها لك.')
+                      ? (isEn ? 'Specify the details of the car you want us to source for you.' : 'حدد مواصفات وميزانية السيارة التي ترغب بأن نستوردها لك خصيصاً.')
                       : (isEn ? 'Type to search all showroom cars, or request a car not in stock.' : 'ابحث في كامل سيارات المعرض، أو اطلب سيارة غير متوفرة في حال عدم وجودها.')
                 }
               />
 
               {/* Case 1: A Showroom Car is Selected */}
               {selectedCar ? (
-                <div className="mt-6 rounded-2xl border-2 border-gold/40 bg-gradient-to-br from-cream to-white p-5 shadow-sm">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-                    <div className="flex items-center gap-4">
-                      <div className="relative size-20 sm:size-24 rounded-xl bg-sand/40 p-1 border border-line shrink-0 flex items-center justify-center overflow-hidden">
-                        <img
-                          src={selectedCar.thumbnail || selectedCar.main_image || asset('/images/cars/mercedes-thumb.jpg')}
-                          alt={selectedCar.name}
-                          className="size-full object-contain"
-                        />
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-tiny font-bold text-white shadow-sm">
-                            <span className="size-1.5 rounded-full bg-white animate-pulse" />
-                            {isEn ? 'Showroom Car (Standard Request)' : 'متوفرة بالمعرض (طلب عادي)'}
-                          </span>
-                          <span className="rounded-md bg-sand px-2 py-0.5 text-tiny font-bold text-ink">
-                            {selectedCar.year}
-                          </span>
+                <div className="mt-6 animate-in fade-in duration-300">
+                  <div className="rounded-2xl border-2 border-gold/40 bg-gradient-to-br from-cream to-white p-5 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                      <div className="flex items-center gap-4">
+                        <div className="relative size-20 sm:size-24 rounded-xl bg-sand/40 p-1 border border-line shrink-0 flex items-center justify-center overflow-hidden">
+                          <img
+                            src={selectedCar.thumbnail || selectedCar.main_image || asset('/images/cars/mercedes-thumb.jpg')}
+                            alt={selectedCar.name}
+                            className="size-full object-contain"
+                          />
                         </div>
-                        <h3 className="mt-1.5 text-h3 font-bold text-ink">{selectedCar.name}</h3>
-                        <p className="text-small text-muted">
-                          {selectedCar.brand?.name} {selectedCar.model ? `· ${selectedCar.model}` : ''} {selectedCar.type ? `· ${selectedCar.type}` : ''}
-                        </p>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-tiny font-bold text-white shadow-sm">
+                              <span className="size-1.5 rounded-full bg-white animate-pulse" />
+                              {isEn ? 'Showroom Stock (Instant Booking)' : 'متوفرة بالمعرض (حجز فوري)'}
+                            </span>
+                            <span className="rounded-md bg-sand px-2 py-0.5 text-tiny font-bold text-ink">
+                              {selectedCar.year}
+                            </span>
+                          </div>
+                          <h3 className="mt-1.5 text-h3 font-bold text-ink">{selectedCar.name}</h3>
+                          <p className="text-small text-muted">
+                            {selectedCar.brand?.name} {selectedCar.model ? `· ${selectedCar.model}` : ''} {selectedCar.type ? `· ${selectedCar.type}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col items-end justify-between border-t sm:border-t-0 border-line/70 pt-3 sm:pt-0">
+                        <div className="text-end">
+                          <p className="text-tiny font-medium text-muted">{t('common.price', { defaultValue: 'السعر النقدي' })}</p>
+                          <p className="text-h3 font-bold text-ink">{sar(selectedCar.current_price || selectedCar.cash_price)}</p>
+                          {selectedCar.min_installment ? (
+                            <p className="text-tiny font-bold text-gold">{sar(selectedCar.min_installment)} {t('common.monthly')}</p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleClearSelection}
+                          className="mt-2 text-small font-bold text-bronze underline hover:text-ink transition cursor-pointer"
+                        >
+                          {isEn ? 'Change car / Search again' : 'تغيير السيارة / بحث آخر'}
+                        </button>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex sm:flex-col items-end justify-between border-t sm:border-t-0 border-line/70 pt-3 sm:pt-0">
-                      <div className="text-end">
-                        <p className="text-tiny font-medium text-muted">{t('common.price', { defaultValue: 'السعر النقدي' })}</p>
-                        <p className="text-h3 font-bold text-ink">{sar(selectedCar.current_price || selectedCar.cash_price)}</p>
-                        {selectedCar.min_installment ? (
-                          <p className="text-tiny font-bold text-gold">{sar(selectedCar.min_installment)} {t('common.monthly')}</p>
-                        ) : null}
+                  {/* Dynamic Color Selector: ONLY show if this specific car has multiple colors defined in the showroom! */}
+                  {carColors.length > 1 ? (
+                    <div className="mt-6 rounded-2xl border border-line bg-sand/30 p-5">
+                      <Label className="mb-3 block text-body font-bold text-ink">
+                        {isEn ? 'Choose from available colors for this car in showroom:' : 'اختر من الألوان المتاحة لهذه السيارة في المعرض:'}
+                      </Label>
+                      <div className="flex flex-wrap gap-3">
+                        {carColors.map((c) => {
+                          const isSelected = f.color === c.name || f.color === c.id
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => set('color', c.name)}
+                              className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-small font-bold transition border cursor-pointer ${
+                                isSelected
+                                  ? 'border-gold bg-ink text-white shadow-md'
+                                  : 'border-line bg-white text-ink hover:border-gold/60'
+                              }`}
+                            >
+                              {c.hex && (
+                                <span
+                                  className="size-4 rounded-full border border-black/20"
+                                  style={{ backgroundColor: c.hex }}
+                                />
+                              )}
+                              <span>{c.name}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Actions for Selected Showroom Car */}
+                  <div className="mt-8 grid gap-4 sm:grid-cols-[1fr_200px] sm:gap-6">
+                    <Button
+                      variant="dark"
+                      className="h-[52px] rounded-[4px]"
+                      onClick={() => setStep(3)}
+                    >
+                      {isEn ? 'Continue to Financial Details →' : 'المتابعة لإكمال الطلب (المعلومات المالية) ←'}
+                    </Button>
+                    <Button variant="soft" className="h-[52px] rounded-[4px]" onClick={() => setStep(1)}>
+                      {t('request.back1')}
+                    </Button>
+                  </div>
+                </div>
+              ) : isCustomMode ? (
+                /* Case 2: Custom Car Mode (Car not in showroom - full customization form) */
+                <div className="animate-in fade-in duration-300">
+                  <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50/60 p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <span className="flex size-9 items-center justify-center rounded-full bg-amber-200 text-amber-900 shrink-0 font-bold">
+                          ✦
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-tiny font-bold text-white">
+                              {isEn ? 'Custom Order (Not in Showroom)' : 'طلب سيارة غير متوفرة (استيراد خاص)'}
+                            </span>
+                          </div>
+                          <h4 className="mt-1 text-h3 font-bold text-ink">{f.carName}</h4>
+                          <p className="mt-1 text-small text-muted">
+                            {isEn
+                              ? 'Our sourcing team will find and import this vehicle specifically for you.'
+                              : 'سيقوم فريق نواف أوتو بالبحث عن هذه السيارة وتوفيرها لك بأفضل المواصفات والأسعار.'}
+                          </p>
+                        </div>
                       </div>
                       <button
                         type="button"
                         onClick={handleClearSelection}
-                        className="mt-2 text-small font-bold text-bronze underline hover:text-ink transition cursor-pointer"
+                        className="text-small font-bold text-bronze underline hover:text-ink transition self-start sm:self-auto cursor-pointer"
                       >
-                        {isEn ? 'Change car / Search again' : 'تغيير السيارة / بحث آخر'}
+                        {isEn ? 'Search showroom again' : 'العودة للبحث في المعرض'}
                       </button>
                     </div>
                   </div>
-                </div>
-              ) : isCustomMode ? (
-                /* Case 2: Custom Car Mode (Car not in showroom) */
-                <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50/50 p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex size-9 items-center justify-center rounded-full bg-amber-200 text-amber-900 shrink-0 font-bold">
-                        ✦
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-tiny font-bold text-white">
-                            {isEn ? 'Custom Order (Not in Showroom)' : 'طلب سيارة غير متوفرة (استيراد خاص)'}
-                          </span>
-                        </div>
-                        <h4 className="mt-1 text-h3 font-bold text-ink">{f.carName}</h4>
-                        <p className="mt-1 text-small text-muted">
-                          {isEn
-                            ? 'Our sourcing team will find and import this vehicle specifically for you.'
-                            : 'سيقوم فريق نواف أوتو بالبحث عن هذه السيارة وتوفيرها لك بأفضل المواصفات والأسعار.'}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleClearSelection}
-                      className="text-small font-bold text-bronze underline hover:text-ink transition self-start sm:self-auto cursor-pointer"
+
+                  {/* Editable Car Name for Custom Request */}
+                  <div className="mt-6 rounded-[4px] bg-sand px-6 pt-4 pb-[26px]">
+                    <p className="text-body font-bold text-bronze">{t('request.carNameTitle')}</p>
+                    <p className="mt-2.5 text-small">{t('request.carName')}</p>
+                    <Input
+                      className="mt-2.5 rounded-[4px] border-transparent bg-white"
+                      value={f.carName}
+                      onChange={(e) => set('carName', e.target.value)}
+                      placeholder={t('request.carNamePlaceholder')}
+                      dir="auto"
+                    />
+                  </div>
+
+                  {/* Custom Vehicle Specifications */}
+                  <div className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                    <Field label={t('request.year')}>
+                      <Select value={f.year} onChange={(e) => set('year', e.target.value)}>
+                        {YEARS.map((y) => (
+                          <option key={y}>{y}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label={t('request.color')}>
+                      <Select value={f.color} onChange={(e) => set('color', e.target.value)}>
+                        {COLORS.map((c) => (
+                          <option key={c.id} value={c.id}>{t(`finance.colors.${c.id}`)}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label={t('request.budget')}>
+                      <Input
+                        className={flat}
+                        inputMode="numeric"
+                        value={f.budget ? num(f.budget) : ''}
+                        onChange={(e) => set('budget', toNum(e.target.value))}
+                        placeholder="350,000"
+                      />
+                    </Field>
+                    <Field label={t('request.condition')}>
+                      <Select value={f.condition} onChange={(e) => set('condition', e.target.value)}>
+                        {conditions.map((c, i) => (
+                          <option key={c} value={i}>{c}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+
+                  <div className="mt-9 grid gap-4 sm:grid-cols-[1fr_200px] sm:gap-6">
+                    <Button
+                      variant="dark"
+                      className="h-[52px] rounded-[4px]"
+                      disabled={!step2Ok}
+                      onClick={() => setStep(3)}
                     >
-                      {isEn ? 'Search showroom again' : 'العودة للبحث في المعرض'}
-                    </button>
+                      {isEn ? 'Continue Custom Request' : 'المتابعة لإكمال الطلب المخصص'}
+                    </Button>
+                    <Button variant="soft" className="h-[52px] rounded-[4px]" onClick={() => setStep(1)}>{t('request.back1')}</Button>
                   </div>
                 </div>
               ) : (
@@ -479,7 +612,7 @@ export default function CustomRequest() {
                           {searchResults.map((car) => (
                             <div
                               key={car.id}
-                              onClick={() => handleSelectCar(car)}
+                              onClick={() => handleSelectCar(car, true)}
                               className="group flex items-center justify-between gap-3 p-3 rounded-xl border border-line bg-white hover:border-gold hover:bg-gold/5 cursor-pointer transition shadow-sm"
                             >
                               <div className="flex items-center gap-3 min-w-0">
@@ -576,69 +709,6 @@ export default function CustomRequest() {
                   </div>
                 </div>
               )}
-
-              {/* Editable Name if in Custom Mode */}
-              {isCustomMode && (
-                <div className="mt-6 rounded-[4px] bg-sand px-6 pt-4 pb-[26px]">
-                  <p className="text-body font-bold text-bronze">{t('request.carNameTitle')}</p>
-                  <p className="mt-2.5 text-small">{t('request.carName')}</p>
-                  <Input
-                    className="mt-2.5 rounded-[4px] border-transparent bg-white"
-                    value={f.carName}
-                    onChange={(e) => set('carName', e.target.value)}
-                    placeholder={t('request.carNamePlaceholder')}
-                    dir="auto"
-                  />
-                </div>
-              )}
-
-              {/* Detailed Car Specs (Year, Color, Budget, Condition) */}
-              {(selectedCar || isCustomMode) && (
-                <div className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2 animate-in fade-in duration-300">
-                  <Field label={t('request.year')}>
-                    <Select value={f.year} onChange={(e) => set('year', e.target.value)}>
-                      {YEARS.map((y) => (
-                        <option key={y}>{y}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label={t('request.color')}>
-                    <Select value={f.color} onChange={(e) => set('color', e.target.value)}>
-                      {COLORS.map((c) => (
-                        <option key={c.id} value={c.id}>{t(`finance.colors.${c.id}`)}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label={selectedCar ? (isEn ? 'Showroom Cash Price' : 'سعر السيارة في المعرض') : t('request.budget')}>
-                    <Input
-                      className={flat}
-                      inputMode="numeric"
-                      value={f.budget ? num(f.budget) : ''}
-                      onChange={(e) => set('budget', toNum(e.target.value))}
-                      placeholder="350,000"
-                    />
-                  </Field>
-                  <Field label={t('request.condition')}>
-                    <Select value={f.condition} onChange={(e) => set('condition', e.target.value)}>
-                      {conditions.map((c, i) => (
-                        <option key={c} value={i}>{c}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                </div>
-              )}
-
-              <div className="mt-9 grid gap-4 sm:grid-cols-[1fr_200px] sm:gap-6">
-                <Button
-                  variant="dark"
-                  className="h-[52px] rounded-[4px]"
-                  disabled={!step2Ok}
-                  onClick={() => setStep(3)}
-                >
-                  {selectedCar ? (isEn ? 'Continue Booking Request' : 'المتابعة لإكمال الطلب العادي') : t('request.s2Next')}
-                </Button>
-                <Button variant="soft" className="h-[52px] rounded-[4px]" onClick={() => setStep(1)}>{t('request.back1')}</Button>
-              </div>
             </>
           }
           aside={
@@ -725,7 +795,10 @@ export default function CustomRequest() {
                 </span>
                 <p className="mt-2 text-body font-bold text-white" dir="auto">{f.carName}</p>
               </div>
-              <p className="mt-3 text-small text-silver">{f.year}&nbsp; · &nbsp;{colorName}&nbsp; · &nbsp;{conditions[Number(f.condition)]}</p>
+              <p className="mt-3 text-small text-silver">
+                {f.year}&nbsp; · &nbsp;{colorName}&nbsp; · &nbsp;
+                {selectedCar ? (isEn ? 'New' : 'جديدة') : conditions[Number(f.condition)]}
+              </p>
               <div className="my-6 h-px bg-ink-2" />
               <div className="flex flex-col gap-5">
                 <SummaryRow label={selectedCar ? (isEn ? 'Car Price' : 'سعر السيارة') : t('request.budgetShort')} value={sar(f.budget)} />
@@ -781,7 +854,9 @@ export default function CustomRequest() {
                   </span>
                   <p className="mt-2 text-body font-bold" dir="auto">{f.carName}</p>
                 </div>
-                <p className="mt-4 text-small text-silver">{f.year} · {colorName} · {conditions[Number(f.condition)]}</p>
+                <p className="mt-4 text-small text-silver">
+                  {f.year} · {colorName} · {selectedCar ? (isEn ? 'New' : 'جديدة') : conditions[Number(f.condition)]}
+                </p>
                 <div className="mt-[23px] h-px bg-ink-2" />
                 <p className="mt-[27px] text-small text-silver">{t('request.status')}</p>
                 <p className="mt-2.5 text-h2 font-bold text-gold">{t('request.statusValue')}</p>
