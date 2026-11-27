@@ -164,7 +164,7 @@ class SystemUpdateController extends ApiBaseController
      */
     private function payload(array $status, GitHubUpdateDispatcher $dispatcher): array
     {
-        $activeRun = $this->activeRun();
+        $activeRun = $this->activeRun($dispatcher);
 
         return [
             ...$status,
@@ -189,11 +189,22 @@ class SystemUpdateController extends ApiBaseController
     /**
      * The currently running update, if any. Runs that stopped reporting are marked failed.
      */
-    private function activeRun(): ?UpdateHistory
+    private function activeRun(?GitHubUpdateDispatcher $dispatcher = null): ?UpdateHistory
     {
         $run = UpdateHistory::query()->whereIn('status', UpdateHistory::ACTIVE_STATUSES)->latest('id')->first();
 
-        if ($run !== null && $run->updated_at?->lt(now()->subMinutes(self::STALE_AFTER_MINUTES))) {
+        if ($run === null) {
+            return null;
+        }
+
+        if ($dispatcher !== null) {
+            $dispatcher->syncStatus($run);
+            if (! in_array($run->status, UpdateHistory::ACTIVE_STATUSES, true)) {
+                return null;
+            }
+        }
+
+        if ($run->updated_at?->lt(now()->subMinutes(self::STALE_AFTER_MINUTES))) {
             $run->appendLog('No progress reported for '.self::STALE_AFTER_MINUTES.' minutes — marked as failed');
             $run->fill(['status' => 'failed', 'error' => 'Timed out waiting for the GitHub Action', 'finished_at' => now()])->save();
 

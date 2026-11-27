@@ -64,4 +64,68 @@ class GitHubUpdateDispatcher
             throw new RuntimeException("GitHub workflow dispatch failed (HTTP {$response->status()}): {$message}");
         }
     }
+
+    /**
+     * Poll the latest GitHub Actions workflow run to sync status when webhooks cannot reach this instance.
+     */
+    public function syncStatus(UpdateHistory $update): void
+    {
+        if (! $this->isConfigured()) {
+            return;
+        }
+
+        $repo = (string) config('sitekit.github.client_repo');
+        $workflow = (string) config('sitekit.github.update_workflow', 'sitekit-update.yml');
+
+        try {
+            $response = Http::baseUrl((string) config('sitekit.github.api_url', 'https://api.github.com'))
+                ->acceptJson()
+                ->withHeaders(['X-GitHub-Api-Version' => '2022-11-28'])
+                ->withToken((string) config('sitekit.github.token'))
+                ->timeout(10)
+                ->get("/repos/{$repo}/actions/workflows/{$workflow}/runs", [
+                    'per_page' => 1,
+                ]);
+
+            if (! $response->successful()) {
+                return;
+            }
+
+            $run = $response->json('workflow_runs.0');
+            if (! is_array($run)) {
+                return;
+            }
+
+            $status = (string) ($run['status'] ?? '');
+            $conclusion = (string) ($run['conclusion'] ?? '');
+            $htmlUrl = (string) ($run['html_url'] ?? '');
+
+            if ($htmlUrl !== '') {
+                $update->run_url = $htmlUrl;
+            }
+
+            if ($status === 'completed') {
+                if ($conclusion === 'success') {
+                    $update->status = 'success';
+                    $update->finished_at = now();
+                    $update->appendLog("Updated successfully via GitHub Action: {$htmlUrl}");
+                    $update->save();
+                    app(UpdateCheckerService::class)->forget();
+                } else {
+                    $update->status = 'failed';
+                    $update->finished_at = now();
+                    $update->error = "Workflow finished with conclusion: {$conclusion}";
+                    $update->appendLog("Workflow failed on GitHub Actions ({$conclusion}): {$htmlUrl}");
+                    $update->save();
+                }
+            } elseif ($status === 'in_progress' && $update->status === 'queued') {
+                $update->status = 'running';
+                $update->step = 'running';
+                $update->appendLog("GitHub Action running: {$htmlUrl}");
+                $update->save();
+            }
+        } catch (\Throwable) {
+            // Ignore API polling errors; fallback to normal flow
+        }
+    }
 }
