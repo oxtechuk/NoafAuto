@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { matchPath, useLocation } from 'react-router-dom'
+import { Link, matchPath, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAssistant } from '@/sitekit-sdk/useAssistant'
 import { useCompare } from '@/context/CompareContext'
@@ -62,9 +62,59 @@ export default function AssistantWidget() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages, sending, open])
 
-  // Assistant not connected/enabled by the showroom: do not show static mascot to avoid cluttering floating widgets
+  // Assistant not connected/enabled by the showroom: keep the Nawaf mascot character -> custom request.
   if (!enabled || !config) {
-    return null
+    if (config === null) return null
+    return (
+      <div className="fixed start-3 bottom-24 z-40 hidden items-end gap-2 sm:bottom-6 sm:flex">
+        <Link
+          to="/request-car"
+          onMouseEnter={() => {
+            setIsHovered(true)
+            setIsStanding(true)
+          }}
+          onMouseLeave={() => setIsHovered(false)}
+          className="relative flex items-end justify-center transition-transform hover:scale-105 active:scale-95 cursor-pointer select-none"
+          style={{ width: '68px', height: '125px' }}
+        >
+          <img
+            src={asset('/images/mascot-sitting.png')}
+            alt="نواف"
+            className={`absolute bottom-0 start-0 max-h-[85px] sm:max-h-[92px] w-auto object-contain transition-all duration-400 ${
+              !isStanding ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'
+            }`}
+          />
+          <img
+            src={asset('/images/mascot-standing.png')}
+            alt="نواف"
+            className={`absolute bottom-0 start-0 max-h-[115px] sm:max-h-[125px] w-auto object-contain transition-all duration-400 ${
+              isStanding ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2 pointer-events-none'
+            }`}
+          />
+        </Link>
+        <div
+          className={`relative mb-4 cursor-pointer rounded-2xl border border-line bg-white/95 px-[18px] py-3 shadow-xl backdrop-blur-md transition-all duration-400 ease-out ${
+            isStanding && !userDismissed ? 'opacity-100 scale-100 translate-x-0' : 'opacity-0 scale-95 translate-x-2 pointer-events-none'
+          }`}
+        >
+          <div className="absolute -start-1.5 bottom-4 size-3 rotate-45 border-b border-s border-line bg-white" />
+          <Link to="/request-car">
+            <p className="text-body font-bold text-ink">{t('home.assistantTitle')}</p>
+            <p className="mt-1 text-small text-muted">{t('home.assistantText')}</p>
+          </Link>
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              setUserDismissed(true)
+            }}
+            aria-label={t('common.close')}
+            className="absolute -end-2 -top-2 flex size-6 items-center justify-center rounded-full border border-line bg-white text-ink shadow-sm hover:bg-sand"
+          >
+            <Icon name="close" size={12} strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const submit = (text = input) => {
