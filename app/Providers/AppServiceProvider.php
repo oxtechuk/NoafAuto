@@ -92,8 +92,8 @@ class AppServiceProvider extends ServiceProvider
         // Fix for MySQL older versions (index key length)
         Schema::defaultStringLength(191);
 
-        // Force HTTPS if APP_URL starts with https
-        if (str_contains(config('app.url'), 'https')) {
+        // Force HTTPS if APP_URL starts with https and not in local/testing
+        if (! app()->environment('local', 'testing') && str_contains(config('app.url'), 'https')) {
             URL::forceScheme('https');
         }
     }
