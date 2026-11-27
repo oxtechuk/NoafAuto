@@ -30,6 +30,7 @@
     "terms": "Terms & conditions"
   },
   "common": {
+    "iAgreeShare": "I agree to share my data with the Nawaf team in accordance with",
     "currency": "SAR",
     "currencyLong": "Saudi riyal",
     "perMonth": "SAR / month",
@@ -440,7 +441,7 @@
     "steps": ["Your details", "The car", "Finance details"],
     "s1Title": "Start with your details",
     "s1Text": "Register your interest first, then choose the car and see the finance estimate.",
-    "consent": "I agree to the privacy policy and terms of use, and to saving my data and being contacted by the Nawaf Auto team about financing even if I don't finish the calculation.",
+    "consent": "I agree to share my data with the Nawaf team in accordance with the Privacy Policy and Terms & Conditions.",
     "reassurance": "By pressing “Next” your details are sent to register your interest; the final finance request is only sent after choosing the car and reviewing the estimate.",
     "s1Next": "Next: save details & choose car",
     "consentHelper": "Consent is required to save your details and continue.",
@@ -524,7 +525,7 @@
     "s1Title": "Let's get to know you",
     "s1Text": "Enter your details so we can contact you about the car you're looking for.",
     "requiredNote": "Fields marked * are required  ·  Sample data for preview",
-    "consent": "I agree to the privacy policy and the use of my data to contact me about the custom car request.",
+    "consent": "I agree to share my data with the Nawaf team in accordance with the Privacy Policy and Terms & Conditions.",
     "s1Note": "The final request is only sent after completing the car and work & income details.",
     "s1Next": "Next: the car you want",
     "asideTitle1": "A car to your taste",

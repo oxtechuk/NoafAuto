@@ -150,6 +150,88 @@ export interface SkFaq {
   answer: string
 }
 
+export interface SkPageSection {
+  badge?: string | null
+  title?: string | null
+  subtitle?: string | null
+  description?: string | null
+  button_text?: string | null
+  button_url?: string | null
+}
+
+export interface SkHeroSlide {
+  id: number
+  title: string
+  subtitle?: string | null
+  description?: string | null
+  image?: string | null
+  image_desktop?: string | null
+  image_mobile?: string | null
+  button_text?: string | null
+  button_url?: string | null
+  badge?: string | null
+}
+
+export interface SkFinanceStep {
+  number: number
+  title: string
+  description: string
+  icon?: string | null
+}
+
+export interface SkBudgetRangeItem {
+  label: string
+  min: number
+  max: number | null
+  cars: SkCar[]
+}
+
+export interface SkPromoCard {
+  id: number
+  type: string
+  title: string
+  subtitle?: string | null
+  image?: string | null
+  button_text?: string | null
+  button_url?: string | null
+  badge?: string | null
+}
+
+export interface SkPromoBanner {
+  id: number
+  title: string
+  subtitle?: string | null
+  description?: string | null
+  image?: string | null
+  button_text?: string | null
+  button_url?: string | null
+}
+
+export interface SkHomeData {
+  hero: { title?: string; subtitle?: string; image?: string | null }
+  featured_cars: SkCar[]
+  active_offers: SkOffer[]
+  offer_cars: SkCar[]
+  brands: SkBrand[]
+  partners: SkPartner[]
+  hero_slides: SkHeroSlide[]
+  featured_section: (SkPageSection & {
+    is_active?: boolean
+    extra_tag?: string
+    disclaimer?: string
+    countdown_end?: string
+    image?: string | null
+    background_image?: string | null
+  }) | null
+  promo_countdown_banner: unknown
+  homepage_stats: unknown[]
+  page_sections: Record<string, SkPageSection | null>
+  finance_steps: SkFinanceStep[]
+  budget_ranges: SkBudgetRangeItem[]
+  promo_cards: SkPromoCard[]
+  promo_banners: SkPromoBanner[]
+}
+
 export interface SkFooter {
   logo: string | null
   header_logo?: string | null

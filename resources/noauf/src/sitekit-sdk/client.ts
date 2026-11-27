@@ -12,6 +12,7 @@ import type {
   SkEnvelope,
   SkFaq,
   SkFooter,
+  SkHomeData,
   SkOffer,
   SkPaginated,
   SkPartner,
@@ -58,7 +59,7 @@ async function post<T = { id?: number }>(url: string, payload: object): Promise<
 }
 
 export const SitekitApi = {
-  home: () => get<Record<string, unknown>>('/home'),
+  home: () => get<SkHomeData>('/home'),
   footer: () => get<SkFooter>('/settings/footer'),
   settings: () => get<{ key: string; value: unknown }[]>('/settings'),
 

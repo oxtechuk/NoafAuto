@@ -10,13 +10,26 @@ use App\Models\FinanceStep;
 use App\Models\HeroSlide;
 use App\Models\HomeSection;
 use App\Models\Offer;
+use App\Models\PromoBanner;
+use App\Models\PromoCard;
 use App\Services\Cache\HomeCacheService;
 use Illuminate\Support\Collection;
 
 final class HomeApiService
 {
     /** @var string[] page_sections keys that are still backed by a HomeSection CMS row */
-    private const TEXT_SECTION_KEYS = ['filter', 'featured_cars', 'offers', 'brands', 'budget', 'finance'];
+    private const TEXT_SECTION_KEYS = [
+        'hero',
+        'filter',
+        'featured_cars',
+        'latest_cars',
+        'offers',
+        'brands',
+        'budget',
+        'finance',
+        'promo',
+        'featured_banner',
+    ];
 
     public function __construct(
         private readonly HomeCacheService $cache,
@@ -61,6 +74,8 @@ final class HomeApiService
             'page_sections' => $this->pageSections($homeSections),
             'finance_steps' => $this->financeSteps($data['financeSteps'] ?? collect()),
             'budget_ranges' => $this->budgetRanges($data['budgetRanges'] ?? collect()),
+            'promo_cards' => $this->promoCards($data['promoCards'] ?? collect()),
+            'promo_banners' => $this->promoBanners($data['promoBanners'] ?? collect()),
         ];
     }
 
@@ -178,5 +193,32 @@ final class HomeApiService
                 'cars' => CarMiniResource::collection($entry['cars'])->resolve(),
             ];
         })->values()->all();
+    }
+
+    private function promoCards(Collection $cards): array
+    {
+        return $cards->map(fn (PromoCard $card): array => [
+            'id' => $card->id,
+            'type' => $card->type,
+            'title' => $card->title,
+            'subtitle' => $card->subtitle,
+            'image' => $card->image,
+            'button_text' => $card->button_text,
+            'button_url' => $card->button_url,
+            'badge' => $card->badge,
+        ])->values()->all();
+    }
+
+    private function promoBanners(Collection $banners): array
+    {
+        return $banners->map(fn (PromoBanner $banner): array => [
+            'id' => $banner->id,
+            'title' => $banner->title,
+            'subtitle' => $banner->subtitle,
+            'description' => $banner->description,
+            'image' => $banner->image,
+            'button_text' => $banner->button_text,
+            'button_url' => $banner->button_url,
+        ])->values()->all();
     }
 }

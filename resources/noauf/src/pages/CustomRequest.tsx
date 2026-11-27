@@ -129,7 +129,7 @@ export default function CustomRequest() {
               <div className="mt-7 rounded-[4px] bg-sand px-6 pt-5 pb-10">
                 <Checkbox checked={f.consent} onChange={(v) => set('consent', v)}>
                   <span>
-                    {t('common.iAgreeTo', { defaultValue: 'أوافق على' })}{' '}
+                    {t('common.iAgreeShare', { defaultValue: 'أوافق على مشاركة البيانات مع فريق نواف وفق' })}{' '}
                     <a
                       href="/privacy"
                       target="_blank"
@@ -139,8 +139,16 @@ export default function CustomRequest() {
                     >
                       {t('footer.privacy', { defaultValue: 'سياسة الخصوصية' })}
                     </a>
-                    {' '}
-                    {t('request.consentSuffix', { defaultValue: 'واستخدام بياناتي للتواصل بشأن طلب السيارة المخصصة.' })}
+                    {' '}{t('common.and', { defaultValue: 'و' })}{' '}
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-gold underline underline-offset-4 hover:opacity-80"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {t('footer.terms', { defaultValue: 'الشروط والأحكام' })}
+                    </a>
                   </span>
                 </Checkbox>
               </div>

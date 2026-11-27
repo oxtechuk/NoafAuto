@@ -14,6 +14,8 @@ use App\Models\HeroSlide;
 use App\Models\HomeSection;
 use App\Models\Offer;
 use App\Models\Partner;
+use App\Models\PromoBanner;
+use App\Models\PromoCard;
 use App\Models\Testimonial;
 use Illuminate\Support\Facades\Cache;
 
@@ -171,13 +173,15 @@ class HomeCacheService extends BaseCacheService
             // Cached as raw models (not $this->rememberHeroSlides()) so locale resolves fresh
             // on every request instead of being baked into this hour-long cache entry.
             $heroSlides = HeroSlide::query()->activeOrdered()->get();
+            $promoCards = PromoCard::query()->activeOrdered()->get();
+            $promoBanners = PromoBanner::query()->activeOrdered()->get();
 
             return compact(
                 'featuredCars', 'activeOffers', 'brands', 'latestPosts', 'stats',
                 'testimonials', 'partners',
                 'filterBrands', 'filterCategories', 'filterTypes', 'filterYears',
                 'filterBrandTypes', 'filterPrices', 'filterFuels', 'filterHorsepowers', 'highlightCounts',
-                'highlightedCars', 'heroSlides',
+                'highlightedCars', 'heroSlides', 'promoCards', 'promoBanners',
                 'homeSections', 'financeSteps', 'budgetRanges',
             );
         });
