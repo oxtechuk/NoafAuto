@@ -168,12 +168,14 @@ class SystemUpdateController extends ApiBaseController
 
         return [
             ...$status,
+            'source' => 'system',
+            'release_url' => null,
             'can_install' => $status['has_update'] && $dispatcher->isConfigured() && $activeRun === null,
             'configuration' => [
                 'auto_update_ready' => $dispatcher->isConfigured(),
                 'missing' => $dispatcher->missingConfiguration(),
-                'upstream_repo' => config('sitekit.github.upstream_repo'),
-                'client_repo' => config('sitekit.github.client_repo'),
+                'upstream_repo' => null,
+                'client_repo' => null,
             ],
             'active_run' => $activeRun ? $this->serializeRun($activeRun) : null,
             'history' => UpdateHistory::query()
@@ -219,19 +221,30 @@ class SystemUpdateController extends ApiBaseController
      */
     private function serializeRun(UpdateHistory $run): array
     {
+        $sanitizedLog = collect((array) ($run->log ?? []))
+            ->map(function ($line): string {
+                $line = (string) preg_replace('/https?:\/\/[^\s]+/i', '', (string) $line);
+                $line = str_ireplace(['GitHub Action', 'GitHub Actions', 'GitHub'], 'نظام التحديث الآلي', $line);
+
+                return trim($line);
+            })
+            ->filter(fn (string $line): bool => $line !== '')
+            ->values()
+            ->all();
+
         return [
             'id' => $run->id,
             'from_version' => $run->from_version,
             'to_version' => $run->to_version,
             'status' => $run->status,
-            'source' => $run->source,
+            'source' => 'system',
             'step' => $run->step,
-            'run_url' => $run->run_url,
+            'run_url' => null,
             'triggered_by' => $run->relationLoaded('triggeredBy') ? $run->triggeredBy?->name : null,
             'started_at' => $run->started_at?->toIso8601String(),
             'finished_at' => $run->finished_at?->toIso8601String(),
-            'error' => $run->error,
-            'log' => (array) ($run->log ?? []),
+            'error' => $run->error ? (string) preg_replace('/https?:\/\/[^\s]+/i', '', (string) $run->error) : null,
+            'log' => $sanitizedLog,
         ];
     }
 

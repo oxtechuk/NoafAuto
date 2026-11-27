@@ -804,7 +804,7 @@
   "updates": {
     "title_embedded": "System Updates",
     "title_page": "System & Updates",
-    "subtitle": "Manage platform updates via GitHub Actions with automatic backup and tests",
+    "subtitle": "Manage secure platform updates with automatic backup and tests",
     "check_now": "Check for Updates",
     "not_ready_title": "Auto-update is not fully configured on this server",
     "not_ready_desc": "Please configure these variables in .env:",

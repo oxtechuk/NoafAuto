@@ -239,11 +239,6 @@ export const UpdatesPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
                 <Card padding="sm">
                     <p className="text-[11px] text-[var(--text-muted)]">{t('updates.last_check')}</p>
                     <p className="text-sm font-semibold text-[var(--text-primary)] mt-1">{formatDate(status.checked_at)}</p>
-                    {status.configuration.upstream_repo && (
-                        <p className="text-[11px] text-[var(--text-muted)] mt-1 flex items-center gap-1 font-mono" dir="ltr">
-                            <GitBranch className="h-3 w-3" /> {status.configuration.upstream_repo}
-                        </p>
-                    )}
                 </Card>
             </div>
 
@@ -280,18 +275,6 @@ export const UpdatesPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
                 <Card
                     title={t('updates.new_update_available', { version: status.latest_version })}
                     subtitle={`${status.release_name ?? ''} · ${t('updates.published_at', { date: formatDate(status.published_at) })}${status.prerelease ? ` · ${t('updates.prerelease')}` : ''}`}
-                    action={
-                        status.release_url ? (
-                            <a
-                                href={status.release_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-xs text-[var(--tenant-primary)] inline-flex items-center gap-1"
-                            >
-                                {t('updates.details')} <ExternalLink className="h-3 w-3" />
-                            </a>
-                        ) : undefined
-                    }
                 >
                     {status.changelog && (
                         <div className="text-xs text-[var(--text-secondary)] whitespace-pre-wrap leading-6 max-h-72 overflow-y-auto bg-[var(--surface-secondary)] rounded-[var(--radius-md)] p-3 mb-4">
@@ -357,18 +340,7 @@ export const UpdatesPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
                                         <td className="py-2.5 px-4">{formatDate(run.started_at)}</td>
                                         <td className="py-2.5 px-4">{formatDate(run.finished_at)}</td>
                                         <td className="py-2.5 px-4">
-                                            {run.run_url ? (
-                                                <a
-                                                    href={run.run_url}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-[var(--tenant-primary)] inline-flex items-center gap-1"
-                                                >
-                                                    GitHub <ExternalLink className="h-3 w-3" />
-                                                </a>
-                                            ) : (
-                                                <span className="text-[var(--text-muted)]">{run.error ?? '—'}</span>
-                                            )}
+                                            <span className="text-[var(--text-muted)]">{run.error ?? '—'}</span>
                                         </td>
                                     </tr>
                                 ))}
@@ -384,17 +356,11 @@ export const UpdatesPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
 };
 
 const RunLog: React.FC<{ run: UpdateRun }> = ({ run }) => {
-    const { t } = useTranslation('admin');
     return (
         <div className="space-y-2">
             <div className="bg-slate-900 text-slate-100 rounded-[var(--radius-md)] p-3 text-[11px] font-mono max-h-56 overflow-y-auto" dir="ltr">
-                {run.log.length === 0 ? <p className="text-slate-400">Waiting for GitHub Actions…</p> : run.log.map((line, i) => <p key={i}>{line}</p>)}
+                {run.log.length === 0 ? <p className="text-slate-400">جاري المعالجة...</p> : run.log.map((line, i) => <p key={i}>{line}</p>)}
             </div>
-            {run.run_url && (
-                <a href={run.run_url} target="_blank" rel="noreferrer" className="text-xs text-[var(--tenant-primary)] inline-flex items-center gap-1">
-                    {t('updates.follow_github')} <ExternalLink className="h-3 w-3" />
-                </a>
-            )}
         </div>
     );
 };

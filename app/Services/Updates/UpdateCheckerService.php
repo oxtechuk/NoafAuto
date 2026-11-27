@@ -108,7 +108,16 @@ class UpdateCheckerService
 
     public function currentVersion(): string
     {
-        return $this->normalizeVersion((string) config('sitekit.version', '1.0.0'));
+        $dbVersion = \App\Models\UpdateHistory::query()
+            ->where('status', 'success')
+            ->latest('id')
+            ->value('to_version');
+
+        $fileVersion = is_file(base_path('VERSION')) ? trim((string) file_get_contents(base_path('VERSION'))) : null;
+
+        $version = $dbVersion ?? $fileVersion ?? (string) config('sitekit.version', '1.0.0');
+
+        return $this->normalizeVersion($version);
     }
 
     public function normalizeVersion(string $version): string
@@ -151,9 +160,9 @@ class UpdateCheckerService
             'latest_version' => $latestVersion,
             'has_update' => version_compare($latestVersion, $currentVersion, '>'),
             'changelog' => $latest['body'] ?? null,
-            'source' => 'github',
+            'source' => 'system',
             'release_name' => $latest['name'] ?? $latest['tag_name'],
-            'release_url' => $latest['html_url'] ?? null,
+            'release_url' => null,
             'published_at' => $latest['published_at'] ?? null,
             'prerelease' => (bool) ($latest['prerelease'] ?? false),
             'error' => null,
