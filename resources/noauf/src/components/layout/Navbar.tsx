@@ -10,8 +10,10 @@ const NAV_LINKS = [
   { to: '/cars', key: 'cars' },
   { to: '/offers', key: 'offers' },
   { to: '/finance/calculator', key: 'finance' },
+  { to: '/request-car', key: 'customRequest' },
   { to: '/compare', key: 'compare' },
   { to: '/about', key: 'about' },
+  { to: '/contact', key: 'contact' },
 ] as const
 
 export default function Navbar({ variant = 'dark' }: { variant?: 'dark' | 'light' }) {
@@ -30,7 +32,7 @@ export default function Navbar({ variant = 'dark' }: { variant?: 'dark' | 'light
             <img src={dark ? asset('/images/logo.png') : asset('/images/logo-dark.png')} alt={t('brand')} className="h-9 w-auto lg:h-[47px]" />
           </Link>
 
-          <nav className="hidden flex-1 items-center justify-center gap-8 lg:flex xl:gap-10">
+          <nav className="hidden flex-1 items-center justify-center gap-5 lg:flex xl:gap-8">
             {NAV_LINKS.map((l) => (
               <NavLink
                 key={l.to}
