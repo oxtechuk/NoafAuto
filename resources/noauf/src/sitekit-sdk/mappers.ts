@@ -24,9 +24,17 @@ const categoryIds = new Map<string, number>()
 export const carIdFromSlug = (slug: string): number | undefined => carIds.get(slug)
 
 export function rememberMeta(meta: SkCarsMeta): void {
-  meta.filter_brands.forEach((b) => brandSlugs.set(b.name, b.slug))
-  meta.filter_categories.forEach((c) => categoryIds.set(c.slug, c.id))
+  rememberBrands(meta.filter_brands, meta.filter_categories)
 }
+
+/** Learn brand slugs / category ids from any payload that has them (e.g. /home's filter_brands). */
+export function rememberBrands(brands: SkBrand[] = [], categories: { id: number; slug: string }[] = []): void {
+  brands.forEach((b) => b?.name && b.slug && brandSlugs.set(b.name, b.slug))
+  categories.forEach((c) => c?.slug && categoryIds.set(c.slug, c.id))
+}
+
+export const knowsBrand = (name: string): boolean => brandSlugs.has(name)
+export const knowsCategory = (slug: string): boolean => categoryIds.has(slug)
 
 /* ---------------------------------------------------------------- cars */
 

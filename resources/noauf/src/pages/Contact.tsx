@@ -7,6 +7,7 @@ import { Checkbox, FieldError, Input, Label, Textarea } from '@/components/ui/Fi
 import { PHONE_RE, SITE } from '@/lib/constants'
 import { useApi } from '@/hooks/useApi'
 import { getFaqs } from '@/services/content'
+import { FaqSkeleton } from '@/components/skeletons/PageSkeletons'
 import { sendContact } from '@/services/forms'
 
 const TOPICS = ['general', 'finance', 'followUp', 'booking', 'import', 'complaint', 'other'] as const
@@ -210,7 +211,7 @@ function ContactForm() {
 
 function Faq() {
   const { t } = useTranslation()
-  const { data } = useApi(getFaqs)
+  const { data, loading } = useApi(getFaqs)
   const [open, setOpen] = useState<string | null>('f1')
 
   return (
@@ -222,6 +223,7 @@ function Faq() {
         </div>
         <div className="mt-1.5 grid gap-8 lg:grid-cols-[1fr_352px]">
           <div className="flex flex-col gap-3">
+            {!data && loading && <FaqSkeleton />}
             {(data ?? []).map((f) => {
               const isOpen = open === f.id
               return (

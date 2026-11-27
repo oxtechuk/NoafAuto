@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import type { Car } from '@/types'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
-import { useApi } from '@/hooks/useApi'
+import Skeleton from '@/components/ui/Skeleton'
+import { useCarPool } from '@/hooks/useCarPool'
 import { useCompare } from '@/context/CompareContext'
-import { getCars } from '@/services/cars'
 import { num, sar } from '@/lib/format'
 
 const DEFAULT_IDS = ['mercedes-s500-4matic', 'bmw-x7-xdrive40i']
@@ -14,14 +14,21 @@ const DEFAULT_IDS = ['mercedes-s500-4matic', 'bmw-x7-xdrive40i']
 export default function Compare() {
   const { t } = useTranslation()
   const { ids, set } = useCompare()
-  const { data } = useApi(() => getCars({}))
-  const all = data?.data ?? []
+  const { cars: all, loading } = useCarPool(ids)
 
-  // Pre-fill with the design's default pair the first time
+  // Once cars are loaded: drop saved ids that no longer exist (they're kept in localStorage),
+  // and pre-fill an empty selection with the design's default pair, or else the first two cars.
   useEffect(() => {
-    if (ids.length === 0) set(DEFAULT_IDS)
+    if (loading || all.length === 0) return
+    const valid = ids.filter((id) => all.some((c) => c.id === id))
+    if (valid.length > 0) {
+      if (valid.length !== ids.length) set(valid)
+      return
+    }
+    const defaults = DEFAULT_IDS.filter((id) => all.some((c) => c.id === id))
+    set(defaults.length === 2 ? defaults : all.slice(0, 2).map((c) => c.id))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loading, all.length])
 
   const slots: (Car | undefined)[] = [0, 1].map((i) => all.find((c) => c.id === ids[i]))
   const [a, b] = slots
@@ -48,14 +55,16 @@ export default function Compare() {
       <section className="bg-cream py-10 pb-16">
         <div className="container-x">
           <div className="mx-auto grid max-w-[960px] gap-8 md:grid-cols-2 md:gap-16">
-            {slots.map((car, i) => (
-              <SelectorCard key={i} index={i} car={car} options={all.filter((c) => !ids.includes(c.id) || c.id === car?.id)} onChoose={(id) => choose(i, id)} onRemove={() => remove(i)} />
-            ))}
+            {loading
+              ? [0, 1].map((i) => <Skeleton key={i} className="h-[380px] rounded-2xl" />)
+              : slots.map((car, i) => (
+                  <SelectorCard key={i} index={i} car={car} options={all.filter((c) => !ids.includes(c.id) || c.id === car?.id)} onChoose={(id) => choose(i, id)} onRemove={() => remove(i)} />
+                ))}
           </div>
         </div>
       </section>
 
-      {a && b ? <Comparison a={a} b={b} /> : <p className="bg-cream pb-24 text-center text-muted">{t('compare.pick')}</p>}
+      {a && b ? <Comparison a={a} b={b} /> : !loading && <p className="bg-cream pb-24 text-center text-muted">{t('compare.pick')}</p>}
     </>
   )
 }

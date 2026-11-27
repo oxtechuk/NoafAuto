@@ -8,6 +8,7 @@ import Icon from '@/components/ui/Icon'
 import CarCard from '@/components/CarCard'
 import Pagination from '@/components/Pagination'
 import CtaBox from '@/components/CtaBox'
+import { CarGridSkeleton } from '@/components/skeletons/PageSkeletons'
 import { useApi } from '@/hooks/useApi'
 import { getCarFilterOptions, getCars } from '@/services/cars'
 
@@ -420,11 +421,15 @@ export default function Cars() {
               </div>
 
               {/* Cars Cards Grid */}
-              <div className={`grid gap-5 sm:grid-cols-2 xl:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
-                {(data?.data ?? []).map((c) => (
-                  <CarCard key={c.id} car={c} />
-                ))}
-              </div>
+              {!data && loading ? (
+                <CarGridSkeleton />
+              ) : (
+                <div className={`grid gap-5 transition-opacity sm:grid-cols-2 xl:grid-cols-3 ${loading ? 'opacity-60' : ''}`} aria-busy={loading}>
+                  {(data?.data ?? []).map((c) => (
+                    <CarCard key={c.id} car={c} />
+                  ))}
+                </div>
+              )}
 
               {data && data.data.length === 0 && (
                 <div className="rounded-2xl border border-line bg-white py-20 text-center">

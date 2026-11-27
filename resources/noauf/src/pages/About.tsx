@@ -7,6 +7,7 @@ import Icon from '@/components/ui/Icon'
 import CtaBox from '@/components/CtaBox'
 import { useApi } from '@/hooks/useApi'
 import { getPartners, getTestimonials } from '@/services/content'
+import { LogoGridSkeleton, TestimonialSkeleton } from '@/components/skeletons/PageSkeletons'
 import { ugcStories } from '@/data/content'
 
 type Metric = { value: string; label: string; context?: string }
@@ -18,8 +19,8 @@ export default function About() {
   const purpose = t('about.purpose', { returnObjects: true }) as Item[]
   const reviewMetrics = t('about.reviewMetrics', { returnObjects: true }) as Metric[]
   const journey = t('about.journey', { returnObjects: true }) as Item[]
-  const { data: partners } = useApi(getPartners)
-  const { data: testimonials } = useApi(getTestimonials)
+  const { data: partners, loading: partnersLoading } = useApi(getPartners)
+  const { data: testimonials, loading: testimonialsLoading } = useApi(getTestimonials)
 
   return (
     <>
@@ -84,6 +85,7 @@ export default function About() {
             <p className="text-small text-muted">{t('about.partnersContext')}</p>
           </div>
           <div className="mt-[26px] grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-6">
+            {!partners && partnersLoading && <LogoGridSkeleton />}
             {(partners ?? []).map((p) => (
               <div key={p.id} className="flex h-[100px] items-center justify-center rounded-lg border border-line bg-white px-5">
                 <img src={p.logo} alt={p.name} loading="lazy" className="max-h-[84px] max-w-full object-contain" />
@@ -101,6 +103,7 @@ export default function About() {
           <h2 className="text-h2 font-bold">{t('about.testimonialsTitle')}</h2>
           <p className="mt-2 text-lead text-muted">{t('about.testimonialsIntro')}</p>
           <div className="mt-6 grid gap-6 md:grid-cols-3">
+            {!testimonials && testimonialsLoading && <TestimonialSkeleton />}
             {(testimonials ?? []).map((r, i) => (
               <figure key={r.id} className={`flex min-h-[304px] flex-col rounded-lg px-6 pt-5 pb-7 ${i === 1 ? 'bg-sand' : 'bg-white'}`}>
                 <p className="text-body font-bold text-bronze" aria-label={`${r.rating}/5`}>{'★'.repeat(r.rating)}</p>

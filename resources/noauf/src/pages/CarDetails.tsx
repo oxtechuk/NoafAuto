@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import CarCard from '@/components/CarCard'
+import { CarDetailsSkeleton } from '@/components/skeletons/PageSkeletons'
 import { SITE } from '@/lib/constants'
 import { useApi } from '@/hooks/useApi'
 import { useCompare } from '@/context/CompareContext'
@@ -42,7 +43,7 @@ export default function CarDetails() {
     return () => clearInterval(timer)
   }, [slides.length, isPaused])
 
-  if (loading && !car) return <div className="min-h-[60vh] bg-ink" />
+  if (loading && !car) return <CarDetailsSkeleton />
   if (!car) return <p className="container-x py-32 text-center text-muted">{t('car.notFound')}</p>
 
   const nextSlide = () => {

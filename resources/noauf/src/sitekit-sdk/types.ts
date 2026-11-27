@@ -213,7 +213,10 @@ export interface SkHomeData {
   active_offers: SkOffer[]
   offer_cars: SkCar[]
   brands: SkBrand[]
+  filter_brands?: SkBrand[]
+  filter_categories?: SkCategory[]
   partners: SkPartner[]
+  testimonials?: SkTestimonial[]
   hero_slides: SkHeroSlide[]
   featured_section: (SkPageSection & {
     is_active?: boolean

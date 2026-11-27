@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Button from '@/components/ui/Button'
 import ArticleCard from '@/components/ArticleCard'
+import { ArticleSkeleton } from '@/components/skeletons/PageSkeletons'
 import { useApi } from '@/hooks/useApi'
 import { getArticle, getRelatedArticles } from '@/services/content'
 
@@ -25,7 +26,7 @@ export default function Article() {
     return () => obs.disconnect()
   }, [a])
 
-  if (loading && !a) return <div className="min-h-[60vh] bg-ink" />
+  if (loading && !a) return <ArticleSkeleton />
   if (!a) return <p className="container-x py-32 text-center text-muted">{t('article.notFound')}</p>
 
   return (

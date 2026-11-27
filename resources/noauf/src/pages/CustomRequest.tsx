@@ -8,6 +8,7 @@ import { Checkbox, FieldError, Input, Label, Select } from '@/components/ui/Fiel
 import { Confirmation, DarkAside, HelpCard, StepHeader, Stepper, SummaryRow, WizardHero, WizardShell } from '@/components/Wizard'
 import { submitCustomCarRequest } from '@/services/forms'
 import { SitekitApi } from '@/sitekit-sdk/client'
+import { loadCarOptions } from '@/services/cars'
 import type { SkCar } from '@/sitekit-sdk/types'
 import { asset } from '@/lib/asset'
 import { num, sar } from '@/lib/format'
@@ -109,7 +110,7 @@ export default function CustomRequest() {
         })
     }
 
-    SitekitApi.cars({ per_page: 50 })
+    loadCarOptions()
       .then((res) => {
         if (!active) return
         setAllCars(res.data)

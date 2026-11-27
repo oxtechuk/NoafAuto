@@ -17,7 +17,7 @@ export const peekFooter = () => peekCached<SkFooter>('footer')
 /** GET /offers?tag= */
 export async function getOffers(tag: OfferTag | 'all' = 'all'): Promise<{ featured: Offer | null; data: Offer[] }> {
   if (!USE_MOCK) {
-    const page = await SitekitApi.offers({ per_page: 24, tag: tag === 'all' ? undefined : tag })
+    const page = await cached(`offers:${tag}`, () => SitekitApi.offers({ per_page: 24, tag: tag === 'all' ? undefined : tag }), 60_000)
     const [first, ...rest] = page.data
     // The first (newest active) offer is the hero card when showing all offers.
     if (tag === 'all' && first) return { featured: toOffer(first, true), data: (rest.length > 0 ? rest : page.data).map((o) => toOffer(o)) }
@@ -43,7 +43,8 @@ const toSummary = (a: (typeof articles)[number]): ArticleSummary => ({
 /** GET /articles?tag=&search=&page= */
 export async function getArticles(params: { tag?: OfferTag | 'all'; search?: string; page?: number } = {}) {
   if (!USE_MOCK) {
-    const page = await SitekitApi.blog({ page: params.page ?? 1, per_page: 9, tag: params.tag === 'all' ? undefined : params.tag })
+    const query = { page: params.page ?? 1, per_page: 9, tag: params.tag === 'all' ? undefined : params.tag }
+    const page = await cached(`blog:${JSON.stringify(query)}`, () => SitekitApi.blog(query))
     const featuredPosts = (page.meta.featured_posts as Parameters<typeof toArticleSummary>[0][] | undefined) ?? []
     let list = page.data.map(toArticleSummary)
     const featured = featuredPosts[0] ? toArticleSummary(featuredPosts[0]) : list[0]
@@ -71,6 +72,9 @@ function loadPost(slug: string) {
   }
   return postRequests.get(slug)!
 }
+
+/** GET /legal/{slug} */
+export const getLegalPage = (slug: string) => cached(`legal:${slug}`, () => SitekitApi.legalPage(slug))
 
 /** GET /articles/{slug} */
 export async function getArticle(slug: string): Promise<Article | null> {
@@ -120,18 +124,18 @@ export async function getBrands(): Promise<Brand[]> {
 
 /** GET /partners */
 export async function getPartners(): Promise<Brand[]> {
-  if (!USE_MOCK) return (await SitekitApi.partners()).map(toBrand)
+  if (!USE_MOCK) return (await cached('partners', SitekitApi.partners)).map(toBrand)
   return mock(partners)
 }
 
 /** GET /testimonials */
 export async function getTestimonials(): Promise<Testimonial[]> {
-  if (!USE_MOCK) return (await SitekitApi.testimonials()).map(toTestimonial)
+  if (!USE_MOCK) return (await cached('testimonials', SitekitApi.testimonials)).map(toTestimonial)
   return mock(testimonials.map((t) => ({ id: t.id, name: tr(t.name), role: tr(t.role), quote: tr(t.quote), avatar: t.avatar, rating: 5 })))
 }
 
 /** GET /faqs */
 export async function getFaqs(): Promise<FaqItem[]> {
-  if (!USE_MOCK) return (await SitekitApi.faqs()).map(toFaq)
+  if (!USE_MOCK) return (await cached('faqs', SitekitApi.faqs)).map(toFaq)
   return mock(faqs.map((f) => ({ id: f.id, question: tr(f.question), answer: tr(f.answer) })))
 }

@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import ArticleCard from '@/components/ArticleCard'
 import Pagination from '@/components/Pagination'
+import { ArticleListSkeleton, FeaturedPostSkeleton } from '@/components/skeletons/PageSkeletons'
 import { useApi } from '@/hooks/useApi'
 import { getArticles } from '@/services/content'
 
@@ -17,7 +18,7 @@ export default function Blog() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const { data } = useApi(() => getArticles({ tag, search: query, page }), [tag, query, page])
+  const { data, loading } = useApi(() => getArticles({ tag, search: query, page }), [tag, query, page])
   const featured = data?.featured
   const list = data?.data ?? []
 
@@ -32,6 +33,7 @@ export default function Blog() {
         </div>
       </section>
 
+      {!data && loading && <FeaturedPostSkeleton />}
       {featured && (
         <section className="bg-ink pt-6 pb-8">
           <div className="container-x">
@@ -101,12 +103,13 @@ export default function Blog() {
             <p className="text-small text-muted">{t('blog.moreSubtitle')}</p>
           </div>
           {list.length === 0 && !featured && data && <p className="py-20 text-center text-muted">{t('common.empty')}</p>}
-          <div className="mt-[18px] grid gap-8 md:grid-cols-2">
+          {!data && loading && <ArticleListSkeleton />}
+          <div className={`mt-[18px] grid gap-8 transition-opacity md:grid-cols-2 ${loading ? 'opacity-60' : ''}`}>
             {list.slice(0, 2).map((a) => (
               <ArticleCard key={a.slug} article={a} variant="dark" />
             ))}
           </div>
-          <div className="mt-8 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <div className={`mt-8 grid gap-8 transition-opacity md:grid-cols-2 lg:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
             {list.slice(2).map((a) => (
               <ArticleCard key={a.slug} article={a} />
             ))}

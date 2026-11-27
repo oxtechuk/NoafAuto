@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { SitekitApi } from '@/sitekit-sdk/client'
+import { getLegalPage } from '@/services/content'
 import Button from '@/components/ui/Button'
 
 interface LegalPageProps {
@@ -30,7 +30,7 @@ export default function LegalPage({ slug: propSlug }: LegalPageProps) {
     setLoading(true)
     setError(null)
 
-    SitekitApi.legalPage(slug)
+    getLegalPage(slug)
       .then((res) => {
         if (active) {
           setData(res)

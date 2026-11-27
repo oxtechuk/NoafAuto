@@ -1,7 +1,7 @@
 import type { Car, CarFilters, Paginated } from '@/types'
 import { cars, categoryLabels, fuelLabels, transmissionLabel, type CarRecord } from '@/data/cars'
 import { SitekitApi } from '@/sitekit-sdk/client'
-import { rememberMeta, toCar as fromSitekit, toCarQuery, toFilterOptions, toPaginated } from '@/sitekit-sdk/mappers'
+import { knowsBrand, knowsCategory, rememberMeta, toCar as fromSitekit, toCarQuery, toFilterOptions, toPaginated } from '@/sitekit-sdk/mappers'
 import { cached } from '@/lib/requestCache'
 import { USE_MOCK, mock, tr } from './api'
 
@@ -23,7 +23,10 @@ const loadMeta = () => (metaPromise ??= SitekitApi.carsMeta().then((meta) => (re
 /** GET /cars?search=&category=&brand=&...&page= */
 export async function getCars(filters: CarFilters = {}): Promise<Paginated<Car>> {
   if (!USE_MOCK) {
-    if (filters.brand || (filters.category && filters.category !== 'all')) await loadMeta()
+    // Brand/category filters need slug/id lookups from /cars/meta, unless we already know them.
+    const needsBrand = filters.brand && !knowsBrand(filters.brand)
+    const needsCategory = filters.category && filters.category !== 'all' && !knowsCategory(filters.category)
+    if (needsBrand || needsCategory) await loadMeta()
     const query = toCarQuery(filters, PER_PAGE)
     const page = toPaginated(await cached(`cars:${JSON.stringify(query)}`, () => SitekitApi.cars(query), 60_000), fromSitekit)
     if (filters.budgetType === 'monthly' && (filters.minPrice || filters.maxPrice)) {
@@ -88,6 +91,20 @@ export async function getLatestCars(): Promise<Car[]> {
   if (!USE_MOCK) return (await cached('cars:latest', () => SitekitApi.cars({ sort: 'latest', per_page: 5 }), 60_000)).data.map(fromSitekit)
   return mock(cars.slice(0, 5).map(toCar))
 }
+
+/**
+ * Showroom list for pickers (compare, finance calculator, custom request).
+ * One shared, cached request; a car outside it is loaded on its own with getCar().
+ */
+export const loadCarOptions = () => cached('cars:options', () => SitekitApi.cars({ per_page: 50 }))
+
+export async function getCarOptions(): Promise<Car[]> {
+  if (!USE_MOCK) return (await loadCarOptions()).data.map(fromSitekit)
+  return mock(cars.map(toCar))
+}
+
+/** Brand name → slug map from data we already have (e.g. /home), so getCars() can skip waiting for /cars/meta. */
+export { rememberBrands } from '@/sitekit-sdk/mappers'
 
 /** GET /cars/{id}/similar */
 export async function getSimilarCars(id: string): Promise<Car[]> {

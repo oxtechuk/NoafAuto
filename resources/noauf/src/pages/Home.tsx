@@ -9,7 +9,7 @@ import CarCard from '@/components/CarCard'
 import Carousel from '@/components/Carousel'
 import HomeSkeleton, { CarRowSkeleton } from '@/components/skeletons/HomeSkeleton'
 import { useApi } from '@/hooks/useApi'
-import { getCarFilterOptions, getCars, getLatestCars } from '@/services/cars'
+import { getCarFilterOptions, getCars, getLatestCars, rememberBrands } from '@/services/cars'
 import { getBrands, getHome, peekHome } from '@/services/content'
 import { toCar } from '@/sitekit-sdk/mappers'
 import type { SkCar, SkHomeData } from '@/sitekit-sdk/types'
@@ -23,6 +23,11 @@ const cardW = 'w-[300px] shrink-0 snap-start sm:w-[355px]'
  */
 export default function Home() {
   const { data: homeData, loading } = useApi(getHome, [], { peek: peekHome })
+
+  // Lets /cars?brand=… search right away instead of waiting for /cars/meta.
+  useEffect(() => {
+    if (homeData) rememberBrands(homeData.filter_brands, homeData.filter_categories)
+  }, [homeData])
 
   if (loading && !homeData) return <HomeSkeleton />
 
@@ -443,7 +448,7 @@ const DEFAULT_BUDGETS = [
 
 function BudgetCollection({ data }: { data?: SkHomeData | null }) {
   const { t } = useTranslation()
-  const cmsRanges = data?.budget_ranges ?? []
+  const cmsRanges = useMemo(() => data?.budget_ranges ?? [], [data])
 
   const [activeId, setActiveId] = useState('all')
 

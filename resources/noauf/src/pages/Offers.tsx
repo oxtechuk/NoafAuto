@@ -5,6 +5,7 @@ import type { Offer, OfferTag } from '@/types'
 import Button from '@/components/ui/Button'
 import OfferCard from '@/components/OfferCard'
 import CtaBox from '@/components/CtaBox'
+import { FeaturedOfferSkeleton, OfferGridSkeleton } from '@/components/skeletons/PageSkeletons'
 import { useApi } from '@/hooks/useApi'
 import { useCountdown } from '@/hooks/useCountdown'
 import { getOffers } from '@/services/content'
@@ -14,7 +15,7 @@ const TAGS: (OfferTag | 'all')[] = ['all', 'popular', 'exclusive', 'new', 'limit
 export default function Offers() {
   const { t } = useTranslation()
   const [tag, setTag] = useState<OfferTag | 'all'>('all')
-  const { data } = useApi(() => getOffers(tag), [tag])
+  const { data, loading } = useApi(() => getOffers(tag), [tag])
   const tagLabel = (x: OfferTag | 'all') => (x === 'all' ? t('common.all') : t(`offerTags.${x}`))
 
   return (
@@ -30,7 +31,9 @@ export default function Offers() {
       </section>
 
       <section className="bg-cream pb-12">
-        <div className="container-x">{data?.featured && <FeaturedOffer offer={data.featured} />}</div>
+        <div className="container-x">
+          {!data && loading ? <FeaturedOfferSkeleton /> : data?.featured && <FeaturedOffer offer={data.featured} />}
+        </div>
       </section>
 
       <section className="bg-cream pb-9">
@@ -50,11 +53,15 @@ export default function Offers() {
               </button>
             ))}
           </div>
-          <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {(data?.data ?? []).map((o) => (
-              <OfferCard key={o.id} offer={o} />
-            ))}
-          </div>
+          {!data && loading ? (
+            <OfferGridSkeleton />
+          ) : (
+            <div className={`mt-8 grid gap-6 transition-opacity md:grid-cols-2 lg:grid-cols-3 ${loading ? 'opacity-60' : ''}`}>
+              {(data?.data ?? []).map((o) => (
+                <OfferCard key={o.id} offer={o} />
+              ))}
+            </div>
+          )}
           {data && data.data.length === 0 && <p className="py-20 text-center text-muted">{t('common.empty')}</p>}
         </div>
       </section>

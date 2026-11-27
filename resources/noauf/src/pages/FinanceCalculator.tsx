@@ -6,8 +6,7 @@ import Button from '@/components/ui/Button'
 import Icon from '@/components/ui/Icon'
 import { Checkbox, FieldError, Input, Label, UnitInput } from '@/components/ui/Field'
 import { Confirmation, DarkAside, HelpCard, StepHeader, Stepper, SummaryRow, WizardHero, WizardShell } from '@/components/Wizard'
-import { useApi } from '@/hooks/useApi'
-import { getCars } from '@/services/cars'
+import { useCarPool } from '@/hooks/useCarPool'
 import { saveFinanceLead, submitFinanceRequest } from '@/services/forms'
 import { monthlyPayment, num, sar } from '@/lib/format'
 import { COLORS, PHONE_RE } from '@/lib/constants'
@@ -18,8 +17,8 @@ const DEFAULT_CAR = 'mercedes-s500-4matic'
 export default function FinanceCalculator() {
   const { t } = useTranslation()
   const [params] = useSearchParams()
-  const { data } = useApi(() => getCars({}))
-  const cars = data?.data ?? []
+  // Full showroom list + the ?car= car itself (it may be outside the list).
+  const { cars } = useCarPool([params.get('car')])
 
   // ?step=N lets you open a step directly (handy for previews/QA)
   const [step, setStep] = useState(() => Math.min(4, Math.max(1, Number(params.get('step')) || 1)))
