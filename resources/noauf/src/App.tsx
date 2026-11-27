@@ -1,19 +1,22 @@
+import { lazy } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import Layout from '@/components/layout/Layout'
 import { CompareProvider } from '@/context/CompareContext'
 import Home from '@/pages/Home'
-import Cars from '@/pages/Cars'
-import CarDetails from '@/pages/CarDetails'
-import Compare from '@/pages/Compare'
-import Offers from '@/pages/Offers'
-import Blog from '@/pages/Blog'
-import Article from '@/pages/Article'
-import About from '@/pages/About'
-import Contact from '@/pages/Contact'
-import FinanceCalculator from '@/pages/FinanceCalculator'
-import CustomRequest from '@/pages/CustomRequest'
-import LegalPage from '@/pages/LegalPage'
-import NotFound from '@/pages/NotFound'
+
+// Home ships in the main bundle (first paint); every other page is its own chunk.
+const Cars = lazy(() => import('@/pages/Cars'))
+const CarDetails = lazy(() => import('@/pages/CarDetails'))
+const Compare = lazy(() => import('@/pages/Compare'))
+const Offers = lazy(() => import('@/pages/Offers'))
+const Blog = lazy(() => import('@/pages/Blog'))
+const Article = lazy(() => import('@/pages/Article'))
+const About = lazy(() => import('@/pages/About'))
+const Contact = lazy(() => import('@/pages/Contact'))
+const FinanceCalculator = lazy(() => import('@/pages/FinanceCalculator'))
+const CustomRequest = lazy(() => import('@/pages/CustomRequest'))
+const LegalPage = lazy(() => import('@/pages/LegalPage'))
+const NotFound = lazy(() => import('@/pages/NotFound'))
 
 export default function App() {
   return (

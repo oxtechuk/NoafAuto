@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { asset } from '@/lib/asset'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -7,18 +7,24 @@ import Icon from '@/components/ui/Icon'
 import SectionHeading from '@/components/ui/SectionHeading'
 import CarCard from '@/components/CarCard'
 import Carousel from '@/components/Carousel'
+import HomeSkeleton, { CarRowSkeleton } from '@/components/skeletons/HomeSkeleton'
 import { useApi } from '@/hooks/useApi'
 import { getCarFilterOptions, getCars, getLatestCars } from '@/services/cars'
-import { getBrands } from '@/services/content'
-import { SitekitApi } from '@/sitekit-sdk/client'
+import { getBrands, getHome, peekHome } from '@/services/content'
 import { toCar } from '@/sitekit-sdk/mappers'
-import type { SkHomeData } from '@/sitekit-sdk/types'
+import type { SkCar, SkHomeData } from '@/sitekit-sdk/types'
 import { sar } from '@/lib/format'
 
 const cardW = 'w-[300px] shrink-0 snap-start sm:w-[355px]'
 
+/**
+ * Everything on this page comes from GET /home (inlined in the HTML on first visit).
+ * The per-section requests below are fallbacks only: they run when /home failed or a list is empty.
+ */
 export default function Home() {
-  const { data: homeData } = useApi(SitekitApi.home)
+  const { data: homeData, loading } = useApi(getHome, [], { peek: peekHome })
+
+  if (loading && !homeData) return <HomeSkeleton />
 
   return (
     <>
@@ -49,7 +55,7 @@ function Hero({ data }: { data?: SkHomeData | null }) {
   const subtitle = activeSlide?.description || activeSlide?.subtitle || heroSection?.subtitle || t('home.subtitle')
   const primaryBtnText = activeSlide?.button_text || heroSection?.button_text || t('home.exploreCars')
   const primaryBtnUrl = activeSlide?.button_url || heroSection?.button_url || '/cars'
-  const slideImage = activeSlide?.image_desktop || activeSlide?.image || heroSection?.button_url || asset('/images/cars/cayenne-gts.png')
+  const slideImage = activeSlide?.image_desktop || activeSlide?.image || data?.hero?.image || asset('/images/cars/cayenne-gts.png')
 
   return (
     <section className="bg-ink">
@@ -150,7 +156,14 @@ function FinderField({ label, value, onChange, options, all }: { label: string; 
 function CarFinder({ data }: { data?: SkHomeData | null }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: filterOpts } = useApi(getCarFilterOptions)
+  // Models only exist in /cars/meta: load it after first paint (or as soon as the user reaches for the finder).
+  const [wantOpts, setWantOpts] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setWantOpts(true), 2500)
+    return () => clearTimeout(timer)
+  }, [])
+  const loadOpts = () => setWantOpts(true)
+  const { data: filterOpts } = useApi(getCarFilterOptions, [], { enabled: wantOpts })
   const [f, setF] = useState({ brand: '', fuel: '', category: '', model: '' })
   const set = (k: keyof typeof f) => (v: string) => setF((s) => ({ ...s, [k]: v }))
 
@@ -177,7 +190,11 @@ function CarFinder({ data }: { data?: SkHomeData | null }) {
       <div className="container-x">
         {eyebrow && <p className="text-tiny font-medium text-bronze">{eyebrow}</p>}
         <h2 className="mt-1.5 text-[28px] leading-[38px] font-bold md:text-h2 md:leading-[46px]">{title}</h2>
-        <div className="mt-[18px] flex flex-col gap-4 rounded-2xl border border-line bg-white p-4 lg:h-[102px] lg:flex-row lg:items-center lg:gap-8 lg:py-0 lg:ps-4 lg:pe-4">
+        <div
+          onPointerEnter={loadOpts}
+          onTouchStart={loadOpts}
+          onFocus={loadOpts}
+          className="mt-[18px] flex flex-col gap-4 rounded-2xl border border-line bg-white p-4 lg:h-[102px] lg:flex-row lg:items-center lg:gap-8 lg:py-0 lg:ps-4 lg:pe-4">
           <div className="grid flex-1 grid-cols-2 gap-4 lg:flex lg:gap-10 lg:divide-x lg:divide-line rtl:lg:divide-x-reverse [&>*]:lg:ps-0">
             <FinderField label={t('home.brand')} all={t('home.allBrands')} value={f.brand} onChange={set('brand')} options={availableBrands.map((b) => ({ v: b, l: b }))} />
             <FinderField label={t('home.type')} all={t('home.allTypes')} value={f.fuel} onChange={set('fuel')} options={fuels} />
@@ -196,7 +213,7 @@ function CarFinder({ data }: { data?: SkHomeData | null }) {
 
 function Brands({ data }: { data?: SkHomeData | null }) {
   const { t } = useTranslation()
-  const { data: fallbackBrands } = useApi(getBrands)
+  const { data: fallbackBrands } = useApi(getBrands, [], { enabled: !data?.brands?.length })
 
   const section = data?.page_sections?.brands
   const title = section?.title || t('home.brandsTitle')
@@ -246,7 +263,7 @@ function Brands({ data }: { data?: SkHomeData | null }) {
 
 function LatestCars({ data }: { data?: SkHomeData | null }) {
   const { t } = useTranslation()
-  const { data: fallbackCars } = useApi(getLatestCars)
+  const { data: fallbackCars } = useApi(getLatestCars, [], { enabled: !data?.featured_cars?.length })
 
   const section = data?.page_sections?.latest_cars || data?.page_sections?.featured_cars
   const eyebrow = section?.badge || t('home.latestEyebrow')
@@ -368,7 +385,7 @@ function Services({ data }: { data?: SkHomeData | null }) {
 
 function SelectedOffers({ data }: { data?: SkHomeData | null }) {
   const { t } = useTranslation()
-  const { data: fallbackCars } = useApi(() => getCars({}))
+  const { data: fallbackCars } = useApi(() => getCars({}), [], { enabled: !data?.offer_cars?.length })
 
   const section = data?.page_sections?.offers
   const eyebrow = section?.badge || t('home.offersEyebrow')
@@ -440,7 +457,18 @@ function BudgetCollection({ data }: { data?: SkHomeData | null }) {
   const selectedCmsRange = cmsRanges.find((_, idx) => `cms-${idx}` === activeId)
   const defaultBudget = DEFAULT_BUDGETS.find((x) => x.id === activeId)
 
-  const { data: fallbackData } = useApi(
+  // Cars already shipped with /home: the selected range, or every range (deduplicated) for "all".
+  const preloadedCars = useMemo(() => {
+    const source: SkCar[] = selectedCmsRange
+      ? (selectedCmsRange.cars ?? [])
+      : activeId === 'all'
+        ? cmsRanges.flatMap((r) => r.cars ?? [])
+        : []
+    const seen = new Set<number>()
+    return source.filter((c) => !seen.has(c.id) && seen.add(c.id)).map(toCar)
+  }, [selectedCmsRange, activeId, cmsRanges])
+
+  const { data: fallbackData, loading: fallbackLoading } = useApi(
     () =>
       getCars({
         budgetType: 'monthly',
@@ -448,15 +476,10 @@ function BudgetCollection({ data }: { data?: SkHomeData | null }) {
         maxPrice: selectedCmsRange ? (selectedCmsRange.max ?? undefined) : defaultBudget?.max,
       }),
     [activeId, selectedCmsRange?.min, selectedCmsRange?.max, defaultBudget?.min, defaultBudget?.max],
+    { enabled: preloadedCars.length === 0 },
   )
 
-  // Preloaded cars from CMS range if available, otherwise fetched fallback
-  const displayedCars = useMemo(() => {
-    if (selectedCmsRange && selectedCmsRange.cars && selectedCmsRange.cars.length > 0) {
-      return selectedCmsRange.cars.map(toCar)
-    }
-    return fallbackData?.data ?? []
-  }, [selectedCmsRange, fallbackData])
+  const displayedCars = preloadedCars.length > 0 ? preloadedCars : (fallbackData?.data ?? [])
 
   const chips = useMemo(() => {
     if (cmsRanges.length > 0) {
@@ -516,7 +539,9 @@ function BudgetCollection({ data }: { data?: SkHomeData | null }) {
       <div className="container-x">
         <SectionHeading eyebrow={eyebrow} title={title} subtitle={subtitle} aside={chips} />
         <div className="mt-9">
-          {displayedCars.length === 0 ? (
+          {displayedCars.length === 0 && fallbackLoading ? (
+            <CarRowSkeleton />
+          ) : displayedCars.length === 0 ? (
             <p className="py-20 text-center text-muted">{t('common.empty')}</p>
           ) : (
             <Carousel count={displayedCars.length}>

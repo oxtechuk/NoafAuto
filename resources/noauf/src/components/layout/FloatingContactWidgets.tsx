@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { SitekitApi } from '@/sitekit-sdk/client'
+import { getFooter, peekFooter } from '@/services/content'
 import type { SkFooter } from '@/sitekit-sdk/types'
 import { useSiteFavicon } from '@/hooks/useSiteFavicon'
 import { SITE } from '@/lib/constants'
@@ -32,7 +32,7 @@ export default function FloatingContactWidgets() {
   const isEn = i18n.language === 'en'
   const siteFavicon = useSiteFavicon()
 
-  const [footerData, setFooterData] = useState<SkFooter | null>(null)
+  const [footerData, setFooterData] = useState<SkFooter | null>(() => peekFooter() ?? null)
   const [openCard, setOpenCard] = useState(false)
   const [badgeDismissed, setBadgeDismissed] = useState(() => {
     try {
@@ -45,7 +45,7 @@ export default function FloatingContactWidgets() {
 
   useEffect(() => {
     let active = true
-    SitekitApi.footer()
+    getFooter()
       .then((data) => {
         if (active) setFooterData(data)
       })

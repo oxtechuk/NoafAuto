@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { SitekitApi } from '@/sitekit-sdk/client'
+import { getFooter } from '@/services/content'
 
 let cachedFavicon: string | null = null
 
@@ -23,7 +23,7 @@ export function useSiteFavicon(): string | null {
     }
 
     // Fallback 2: fetch from API
-    SitekitApi.footer()
+    getFooter()
       .then((data) => {
         const fav = data.favicon
         if (fav) {

@@ -11,6 +11,7 @@ use App\Models\Car;
 use App\Models\CarSlugRedirect;
 use App\Models\Setting;
 use App\Services\Api\Store\Helpers\SlugResolver;
+use App\Services\Api\Store\HomeApiService;
 use App\Services\Api\Store\SettingApiService;
 use App\Services\Seo\SeoContentBuilder;
 use App\Services\Seo\SeoEntryResolver;
@@ -95,7 +96,32 @@ class StoreSpaController extends Controller
             'ogType' => 'website',
             'jsonLd' => $jsonLd,
             'seoContent' => $this->seo->home($description),
+            'bootHome' => $this->bootHome(),
         ]);
+    }
+
+    /**
+     * Homepage API payload inlined into the shell (window.__BOOT_HOME__) so the
+     * storefront renders the homepage without waiting for GET /api/v1/store/home.
+     *
+     * @return array{locale: string, data: array<string, mixed>}|null
+     */
+    private function bootHome(): ?array
+    {
+        if (! config('sitekit.storefront.enabled')) {
+            return null;
+        }
+
+        try {
+            return [
+                'locale' => app()->getLocale(),
+                'data' => app(HomeApiService::class)->resolved(),
+            ];
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     public function cars(Request $request): Response

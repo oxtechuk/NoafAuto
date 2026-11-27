@@ -48,7 +48,7 @@ export default function CarCard({ car, className = '' }: { car: Car; className?:
         </div>
         <div className="mt-auto flex gap-5 pt-4">
           <button
-            onClick={() => navigate(`/finance/calculator?car=${car.id}`)}
+            onClick={() => navigate(`/request-car?car=${encodeURIComponent(car.id)}`)}
             className="h-[46px] flex-1 rounded-lg bg-gold text-body font-bold text-ink transition hover:bg-[#d4c49d]"
           >
             {t('common.requestNow')}

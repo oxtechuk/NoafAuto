@@ -2,7 +2,17 @@ import type { Article, ArticleSummary, Brand, FaqItem, Offer, OfferTag, Testimon
 import { articles, brands, faqs, financeGuide, offerTagLabels, offers, partners, testimonials } from '@/data/content'
 import { SitekitApi } from '@/sitekit-sdk/client'
 import { toArticle, toArticleSummary, toBrand, toFaq, toOffer, toTestimonial } from '@/sitekit-sdk/mappers'
+import type { SkFooter, SkHomeData } from '@/sitekit-sdk/types'
+import { cached, peekCached } from '@/lib/requestCache'
 import { USE_MOCK, mock, tr } from './api'
+
+/** GET /home — on the first visit it comes inlined in the page (window.__BOOT_HOME__). */
+export const getHome = () => cached<SkHomeData>('home', SitekitApi.home, 60_000)
+export const peekHome = () => peekCached<SkHomeData>('home', 60_000)
+
+/** GET /settings/footer — inlined in every page as window.__BOOT_SETTINGS__. */
+export const getFooter = () => cached<SkFooter>('footer', SitekitApi.footer)
+export const peekFooter = () => peekCached<SkFooter>('footer')
 
 /** GET /offers?tag= */
 export async function getOffers(tag: OfferTag | 'all' = 'all'): Promise<{ featured: Offer | null; data: Offer[] }> {
@@ -104,7 +114,7 @@ export async function getRelatedArticles(slug: string): Promise<ArticleSummary[]
 
 /** GET /brands */
 export async function getBrands(): Promise<Brand[]> {
-  if (!USE_MOCK) return (await SitekitApi.brands()).map(toBrand)
+  if (!USE_MOCK) return (await cached('brands', SitekitApi.brands)).map(toBrand)
   return mock(brands)
 }
 

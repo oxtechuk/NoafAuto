@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services\Api\Store;
 
+use App\Http\Resources\Store\BrandResource;
+use App\Http\Resources\Store\BrandTypeResource;
+use App\Http\Resources\Store\CarCategoryResource;
 use App\Http\Resources\Store\CarMiniResource;
+use App\Http\Resources\Store\CarTypeResource;
+use App\Http\Resources\Store\HomeOfferResource;
+use App\Http\Resources\Store\PartnerResource;
+use App\Http\Resources\Store\TestimonialResource;
 use App\Models\Car;
 use App\Models\FinanceStep;
 use App\Models\HeroSlide;
@@ -14,6 +21,7 @@ use App\Models\PromoBanner;
 use App\Models\PromoCard;
 use App\Services\Cache\HomeCacheService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 final class HomeApiService
 {
@@ -34,6 +42,36 @@ final class HomeApiService
     public function __construct(
         private readonly HomeCacheService $cache,
     ) {}
+
+    /**
+     * The GET /home payload with every model resolved through its API resource.
+     * Shared by the API and the SPA shell (inlined as window.__BOOT_HOME__), cached per locale.
+     *
+     * @return array<string, mixed>
+     */
+    public function resolved(): array
+    {
+        $locale = app()->getLocale();
+
+        return Cache::remember("store.api.home.resolved.{$locale}", 600, function (): array {
+            $data = $this->home();
+
+            $data['featured_cars'] = CarMiniResource::collection($data['featured_cars'])->resolve();
+            $data['active_offers'] = HomeOfferResource::collection($data['active_offers'])->resolve();
+            $data['offer_cars'] = CarMiniResource::collection($data['offer_cars'] ?? [])->resolve();
+            $data['highlighted_cars'] = CarMiniResource::collection($data['highlighted_cars'])->resolve();
+            $data['brands'] = BrandResource::collection($data['brands'])->resolve();
+            $data['filter_brands'] = BrandResource::collection($data['filter_brands'])->resolve();
+            $data['filter_categories'] = CarCategoryResource::collection($data['filter_categories'])->resolve();
+            $data['filter_types'] = CarTypeResource::collection($data['filter_types'])->resolve();
+            $data['filter_brand_types'] = BrandTypeResource::collection($data['filter_brand_types'])->resolve();
+            $data['latest_posts'] = $data['latest_posts']->toArray();
+            $data['testimonials'] = TestimonialResource::collection($data['testimonials'])->resolve();
+            $data['partners'] = PartnerResource::collection($data['partners'])->resolve();
+
+            return $data;
+        });
+    }
 
     public function home(): array
     {

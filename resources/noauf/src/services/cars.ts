@@ -2,6 +2,7 @@ import type { Car, CarFilters, Paginated } from '@/types'
 import { cars, categoryLabels, fuelLabels, transmissionLabel, type CarRecord } from '@/data/cars'
 import { SitekitApi } from '@/sitekit-sdk/client'
 import { rememberMeta, toCar as fromSitekit, toCarQuery, toFilterOptions, toPaginated } from '@/sitekit-sdk/mappers'
+import { cached } from '@/lib/requestCache'
 import { USE_MOCK, mock, tr } from './api'
 
 const PER_PAGE = 9
@@ -23,7 +24,8 @@ const loadMeta = () => (metaPromise ??= SitekitApi.carsMeta().then((meta) => (re
 export async function getCars(filters: CarFilters = {}): Promise<Paginated<Car>> {
   if (!USE_MOCK) {
     if (filters.brand || (filters.category && filters.category !== 'all')) await loadMeta()
-    const page = toPaginated(await SitekitApi.cars(toCarQuery(filters, PER_PAGE)), fromSitekit)
+    const query = toCarQuery(filters, PER_PAGE)
+    const page = toPaginated(await cached(`cars:${JSON.stringify(query)}`, () => SitekitApi.cars(query), 60_000), fromSitekit)
     if (filters.budgetType === 'monthly' && (filters.minPrice || filters.maxPrice)) {
       page.data = page.data.filter((c) => (!filters.minPrice || c.monthlyPrice >= filters.minPrice) && (!filters.maxPrice || c.monthlyPrice <= filters.maxPrice))
     }
@@ -83,7 +85,7 @@ export async function getCar(id: string): Promise<Car | null> {
 
 /** GET /cars/latest */
 export async function getLatestCars(): Promise<Car[]> {
-  if (!USE_MOCK) return (await SitekitApi.cars({ sort: 'latest', per_page: 5 })).data.map(fromSitekit)
+  if (!USE_MOCK) return (await cached('cars:latest', () => SitekitApi.cars({ sort: 'latest', per_page: 5 }), 60_000)).data.map(fromSitekit)
   return mock(cars.slice(0, 5).map(toCar))
 }
 

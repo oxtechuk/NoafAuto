@@ -97,7 +97,8 @@ export default function CarDetails() {
     setCompare(other ? [car.id, other] : [car.id])
     navigate('/compare')
   }
-  const financeUrl = `/finance/calculator?car=${car.id}`
+  const financeUrl = `/finance/calculator?car=${encodeURIComponent(car.id)}`
+  const requestCarUrl = `/request-car?car=${encodeURIComponent(car.id)}`
 
   return (
     <>
@@ -222,8 +223,8 @@ export default function CarDetails() {
                 <span className="flex h-8 w-[104px] items-center justify-center rounded bg-ink text-tiny font-medium text-silver">{t('common.monthsLong', { count: months })}</span>
                 <span className="flex h-8 flex-1 items-center justify-center rounded bg-ink text-tiny font-medium text-silver">{t('car.rate')}</span>
               </div>
-              <Button to={financeUrl} className="mt-[25px] h-[52px] w-full">{t('car.applyNow')}</Button>
-              <Button to={`/contact?topic=booking&car=${car.id}`} className="mt-3 h-[46px] w-full border border-silver bg-transparent text-white hover:bg-white/5">{t('car.reserve')}</Button>
+              <Button to={requestCarUrl} className="mt-[25px] h-[52px] w-full">{t('car.applyNow')}</Button>
+              <Button to={requestCarUrl} className="mt-3 h-[46px] w-full border border-silver bg-transparent text-white hover:bg-white/5">{t('car.reserve')}</Button>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <a href={SITE.whatsappHref} target="_blank" rel="noreferrer" className="flex h-[38px] items-center justify-center gap-2 rounded-lg bg-whatsapp text-small text-white">
                   <Icon name="whatsapp" size={22} />

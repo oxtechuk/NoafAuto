@@ -202,6 +202,10 @@
         {{-- Same payload as GET /api/v1/store/settings/footer: the SPA uses it as initial data and skips that request. --}}
         window.__BOOT_SETTINGS__ = @json($bootSettings);
         @endif
+        @if (! empty($bootHome))
+        {{-- Same payload as GET /api/v1/store/home: the storefront homepage renders from it without a request. --}}
+        window.__BOOT_HOME__ = @json($bootHome);
+        @endif
     </script>
 
     @if (! empty($storefront))

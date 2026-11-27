@@ -78,6 +78,40 @@ class StoreShellBootTest extends TestCase
             ->assertDontSee('class="boot-sk"', false);
     }
 
+    public function test_storefront_homepage_inlines_the_home_api_payload(): void
+    {
+        config(['sitekit.storefront.enabled' => true]);
+
+        $html = $this->get(route('store.home'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/window\.__BOOT_HOME__ = (\{.*\});/', $html);
+        preg_match('/window\.__BOOT_HOME__ = (\{.*\});/', $html, $matches);
+        $boot = json_decode($matches[1], true);
+
+        $api = $this->getJson(route('v1.store.api.home'))->assertOk()->json('data');
+
+        $this->assertSame(app()->getLocale(), $boot['locale']);
+        $this->assertEquals($api, $boot['data']);
+    }
+
+    public function test_home_payload_is_not_inlined_without_the_storefront(): void
+    {
+        config(['sitekit.storefront.enabled' => false]);
+
+        $html = $this->get(route('store.home'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('__BOOT_HOME__', $html);
+    }
+
+    public function test_home_payload_is_only_inlined_on_the_homepage(): void
+    {
+        config(['sitekit.storefront.enabled' => true]);
+
+        $html = $this->get(route('store.cars'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('__BOOT_HOME__', $html);
+    }
+
     public function test_not_found_page_still_renders_without_boot_settings(): void
     {
         $response = $this->get('/this-page-does-not-exist')->assertNotFound();

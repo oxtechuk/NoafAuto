@@ -87,26 +87,46 @@ export default function CustomRequest() {
   // Preload showroom cars on mount and check for ?car= or ?car_id= query param
   useEffect(() => {
     let active = true
+    const rawCar = params.get('car') || params.get('car_id')
+    const carParam = rawCar ? decodeURIComponent(rawCar).trim() : ''
+
+    if (carParam) {
+      // Fetch specific car immediately
+      SitekitApi.car(carParam)
+        .then((detail) => {
+          if (active && detail) {
+            handleSelectCar(detail, false)
+          }
+        })
+        .catch(() => {
+          SitekitApi.searchCars(carParam)
+            .then((list) => {
+              if (active && list && list.length > 0) {
+                handleSelectCar(list[0], false)
+              }
+            })
+            .catch(() => {})
+        })
+    }
+
     SitekitApi.cars({ per_page: 50 })
       .then((res) => {
         if (!active) return
         setAllCars(res.data)
         setSearchResults(res.data)
 
-        const carParam = params.get('car') || params.get('car_id')
-        if (carParam) {
+        if (carParam && !selectedCar) {
+          const clean = carParam.toLowerCase()
           const match = res.data.find(
-            (c) => c.slug === carParam || String(c.id) === carParam || c.name.toLowerCase() === carParam.toLowerCase(),
+            (c) =>
+              c.slug === carParam ||
+              c.slug.toLowerCase() === clean ||
+              String(c.id) === carParam ||
+              c.name.toLowerCase() === clean ||
+              c.name.toLowerCase().includes(clean) ||
+              clean.includes(c.slug.toLowerCase()),
           )
-          if (match) {
-            handleSelectCar(match, false)
-          } else {
-            SitekitApi.car(carParam)
-              .then((detail) => {
-                if (active && detail) handleSelectCar(detail, false)
-              })
-              .catch(() => {})
-          }
+          if (match) handleSelectCar(match, false)
         }
       })
       .catch(() => {})
@@ -277,6 +297,32 @@ export default function CustomRequest() {
           main={
             <>
               <StepHeader step={1} title={t('request.s1Title')} text={t('request.s1Text')} note={t('request.requiredNote')} />
+
+              {/* Pre-selected Car Banner if arriving from a car page */}
+              {selectedCar && (
+                <div className="mt-5 mb-2 flex items-center justify-between rounded-xl border border-gold/40 bg-sand/60 p-4 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-3.5">
+                    <img
+                      src={selectedCar.thumbnail || selectedCar.main_image || asset('/images/cars/mercedes-thumb.jpg')}
+                      alt={selectedCar.name}
+                      className="size-14 rounded-lg object-contain bg-white border border-line"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-emerald-600 px-2 py-0.5 text-tiny font-bold text-white">
+                          {isEn ? 'Selected Car' : 'السيارة المختارة'}
+                        </span>
+                        <h4 className="text-small font-bold text-ink">{selectedCar.name}</h4>
+                      </div>
+                      <p className="text-tiny text-muted mt-0.5">
+                        {sar(selectedCar.current_price || selectedCar.cash_price)} · {selectedCar.year} {selectedCar.brand?.name ? `· ${selectedCar.brand.name}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-tiny text-gold font-bold hidden sm:inline-block">✓ {isEn ? 'Data auto-filled' : 'تم تعبئة بيانات السيارة تلقائياً'}</span>
+                </div>
+              )}
+
               <div className="mt-6 grid gap-x-8 gap-y-5 sm:grid-cols-2">
                 <Field label={t('wizard.fullName')}>
                   <Input className={flat} value={f.name} onChange={(e) => set('name', e.target.value)} placeholder={t('contact.namePlaceholder')} />
@@ -323,7 +369,18 @@ export default function CustomRequest() {
                 </Checkbox>
               </div>
               <p className="mt-4 text-tiny font-medium text-muted">{t('request.s1Note')}</p>
-              <Button variant="dark" className="mt-6 h-[52px] w-full rounded-[4px]" disabled={!step1Ok} onClick={() => setStep(2)}>
+              <Button
+                variant="dark"
+                className="mt-6 h-[52px] w-full rounded-[4px]"
+                disabled={!step1Ok}
+                onClick={() => {
+                  if (selectedCar && carColors.length <= 1) {
+                    setStep(3)
+                  } else {
+                    setStep(2)
+                  }
+                }}
+              >
                 {t('request.s1Next')}
               </Button>
             </>
