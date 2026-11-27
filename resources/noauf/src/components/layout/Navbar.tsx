@@ -49,7 +49,7 @@ export default function Navbar({ variant = 'dark' }: { variant?: 'dark' | 'light
             <button onClick={switchLang} className={`w-10 text-small ${dark ? 'text-silver hover:text-white' : 'text-ink hover:text-bronze'}`}>
               {t('nav.switchLang')}
             </button>
-            <Button to="/request-car" className="hidden h-[52px] w-[150px] sm:inline-flex">
+            <Button to="/request-car" className="hidden h-[52px] w-[150px] lg:inline-flex">
               {t('nav.requestCar')}
             </Button>
             <button

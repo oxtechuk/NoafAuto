@@ -106,20 +106,26 @@ export default function FloatingContactWidgets() {
   }
 
   const effectiveFavicon = siteFavicon || footerData?.favicon
+  const hasCustomFavicon =
+    effectiveFavicon &&
+    !effectiveFavicon.includes('favicon.svg') &&
+    !effectiveFavicon.includes('logo-dark.png')
 
   return (
     <div
       ref={cardRef}
-      className="fixed left-6 bottom-8 z-50 hidden md:flex flex-col items-center gap-3.5 select-none print:hidden"
-      dir="rtl"
+      className="fixed end-6 bottom-8 z-50 hidden md:flex flex-col items-center gap-3.5 select-none print:hidden"
     >
       {/* Quick Contact Modal / Popover Card */}
       {openCard && (
-        <div className="absolute left-0 bottom-[125px] w-[320px] rounded-2xl border border-line/70 bg-white/95 p-5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
+        <div
+          dir={isEn ? 'ltr' : 'rtl'}
+          className="absolute end-0 bottom-[125px] w-[320px] rounded-2xl border border-line/70 bg-white/95 p-5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-200"
+        >
           <div className="flex items-center justify-between border-b border-line/60 pb-3.5">
             <div className="flex items-center gap-2.5">
               <span className="flex size-8 items-center justify-center rounded-full bg-ink text-gold">
-                {effectiveFavicon ? (
+                {hasCustomFavicon ? (
                   <img src={effectiveFavicon} alt="" className="size-4 object-contain" />
                 ) : (
                   <svg viewBox="0 0 24 24" className="size-4 text-gold fill-current">
@@ -176,8 +182,8 @@ export default function FloatingContactWidgets() {
                   <p className="text-small font-bold text-ink" dir="ltr">{formatDisplayPhone(rawPhone)}</p>
                 </div>
               </div>
-              <span className="text-tiny font-bold text-gold group-hover:translate-x-[-2px] transition-transform">
-                &larr;
+              <span className={`text-tiny font-bold text-gold transition-transform ${isEn ? 'group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`}>
+                {isEn ? '→' : '←'}
               </span>
             </a>
 
@@ -199,8 +205,8 @@ export default function FloatingContactWidgets() {
                   <p className="text-small font-bold text-emerald-950">{isEn ? 'Instant Reply' : 'رد فوري على مدار الساعة'}</p>
                 </div>
               </div>
-              <span className="text-tiny font-bold text-emerald-700 group-hover:translate-x-[-2px] transition-transform">
-                &larr;
+              <span className={`text-tiny font-bold text-emerald-700 transition-transform ${isEn ? 'group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`}>
+                {isEn ? '→' : '←'}
               </span>
             </a>
 
@@ -211,7 +217,7 @@ export default function FloatingContactWidgets() {
               className="flex items-center justify-between rounded-xl px-3.5 py-2 text-tiny font-semibold text-muted hover:bg-sand/50 hover:text-ink transition"
             >
               <span>{isEn ? 'Custom Car Request' : 'طلب سيارة بمواصفات خاصة'}</span>
-              <span>&larr;</span>
+              <span>{isEn ? '→' : '←'}</span>
             </Link>
 
             {/* Contact Page link */}
@@ -221,7 +227,7 @@ export default function FloatingContactWidgets() {
               className="flex items-center justify-between rounded-xl px-3.5 py-2 text-tiny font-semibold text-muted hover:bg-sand/50 hover:text-ink transition"
             >
               <span>{isEn ? 'Full Contact & Branches Page' : 'صفحة التواصل الكاملة والفروع'}</span>
-              <span>&larr;</span>
+              <span>{isEn ? '→' : '←'}</span>
             </Link>
           </div>
         </div>
@@ -237,7 +243,7 @@ export default function FloatingContactWidgets() {
             openCard ? 'ring-2 ring-gold/60 scale-105' : ''
           }`}
         >
-          {effectiveFavicon ? (
+          {hasCustomFavicon ? (
             <img src={effectiveFavicon} alt="" className="size-6 object-contain" />
           ) : (
             <svg viewBox="0 0 24 24" className="size-6 text-gold fill-current">
@@ -258,9 +264,9 @@ export default function FloatingContactWidgets() {
         </button>
 
         {/* Hover Tooltip */}
-        <div className="pointer-events-none absolute start-[66px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-tiny font-bold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+        <div className="pointer-events-none absolute end-[66px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-tiny font-bold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
           {isEn ? 'Contact Us' : 'تواصل معنا'}
-          <div className="absolute -start-1 top-1/2 -translate-y-1/2 size-2 rotate-45 bg-ink" />
+          <div className="absolute -end-1 top-1/2 -translate-y-1/2 size-2 rotate-45 bg-ink" />
         </div>
       </div>
 
@@ -282,9 +288,9 @@ export default function FloatingContactWidgets() {
         </a>
 
         {/* Hover Tooltip */}
-        <div className="pointer-events-none absolute start-[66px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-tiny font-bold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+        <div className="pointer-events-none absolute end-[66px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-3 py-1.5 text-tiny font-bold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
           {isEn ? 'WhatsApp Chat' : 'تواصل عبر واتساب'}
-          <div className="absolute -start-1 top-1/2 -translate-y-1/2 size-2 rotate-45 bg-ink" />
+          <div className="absolute -end-1 top-1/2 -translate-y-1/2 size-2 rotate-45 bg-ink" />
         </div>
       </div>
     </div>
