@@ -140,9 +140,12 @@ export function toOffer(o: SkOffer, featured = false): Offer {
     benefit: o.description ?? '',
     image: o.image || PLACEHOLDER_IMAGE,
     tag,
-    tagLabel: tr(offerTagLabels[tag]),
+    tagLabel: offerTagLabels[tag] ? tr(offerTagLabels[tag]) : (o.tag || 'عروض مميزة'),
     endsAt: o.ends_at ?? new Date(Date.now() + 30 * 864e5).toISOString(),
     featured,
+    discountPercent: o.discount_percent,
+    specialPrice: o.special_price,
+    specialInstallment: o.special_installment,
   }
 }
 
@@ -154,12 +157,20 @@ const formatReadTime = (minutes: number | null): string => {
   return currentLang() === 'en' ? `${n} min read` : `${n} دقائق قراءة`
 }
 
+const resolveCategoryName = (c: any): string => {
+  if (!c) return ''
+  const name = c.name ?? c
+  if (typeof name === 'string') return name
+  if (typeof name === 'object' && name !== null) return name[currentLang()] || name.ar || name.en || ''
+  return String(name)
+}
+
 export function toArticleSummary(p: SkBlogPost): ArticleSummary {
   return {
     slug: p.slug,
     title: p.title,
     excerpt: p.excerpt ?? '',
-    category: p.categories?.[0]?.name ?? '',
+    category: resolveCategoryName(p.categories?.[0]),
     date: formatDate(p.published_at),
     readTime: formatReadTime(p.reading_time),
     image: p.thumbnail || PLACEHOLDER_IMAGE,
@@ -188,9 +199,12 @@ function toSections(html: string, fallbackTitle: string): ArticleSection[] {
     }
     const items = node instanceof HTMLElement && /^(UL|OL)$/.test(node.tagName) ? Array.from(node.querySelectorAll('li')) : [node]
     for (const item of items) {
-      const text = item.textContent?.trim()
-      if (!text) continue
-      text.split(/\n{2,}/).forEach((part) => ensure().paragraphs!.push(part.trim()))
+      const htmlOrText = item instanceof HTMLElement ? (item.innerHTML?.trim() || item.textContent?.trim()) : item.textContent?.trim()
+      if (!htmlOrText) continue
+      htmlOrText.split(/\n{2,}/).forEach((part) => {
+        const clean = part.trim()
+        if (clean) ensure().paragraphs!.push(clean)
+      })
     }
   }
   if (current) sections.push(current)

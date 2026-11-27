@@ -106,12 +106,33 @@ function FeaturedOffer({ offer }: { offer: Offer }) {
   return (
     <div className="grid overflow-hidden rounded-lg bg-ink lg:grid-cols-2">
       <div className="flex flex-col px-6 py-8 lg:px-8">
-        <div className="flex items-center gap-7">
+        <div className="flex items-center gap-4">
           <span className="flex h-[30px] w-20 items-center justify-center rounded-lg bg-gold text-tiny font-medium text-ink">{offer.tagLabel}</span>
+          {offer.discountPercent ? (
+            <span className="rounded-lg bg-emerald-500/20 px-2.5 py-1 text-tiny font-bold text-emerald-400">
+              {t('common.discount', { defaultValue: 'خصم' })} {offer.discountPercent}%
+            </span>
+          ) : null}
           <span className="text-small text-silver">{t('offers.featured')}</span>
         </div>
         <h2 className="mt-6 text-h2 font-bold text-white">{offer.title}</h2>
         <p className="mt-3 text-h3 font-bold text-gold">{offer.benefit}</p>
+        {(offer.specialPrice || offer.specialInstallment) ? (
+          <div className="mt-4 flex flex-wrap items-center gap-6 border-t border-ink-2 pt-4">
+            {offer.specialPrice ? (
+              <div>
+                <span className="block text-tiny text-silver">{t('common.specialPrice', { defaultValue: 'السعر الخاص' })}</span>
+                <span className="text-body font-bold text-white">{offer.specialPrice.toLocaleString()} {t('common.sar')}</span>
+              </div>
+            ) : null}
+            {offer.specialInstallment ? (
+              <div>
+                <span className="block text-tiny text-silver">{t('common.monthlyInstallment', { defaultValue: 'القسط الشهري' })}</span>
+                <span className="text-body font-bold text-gold">{offer.specialInstallment.toLocaleString()} {t('common.sar')} / {t('common.month', { defaultValue: 'شهر' })}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <p className="mt-7 text-small text-silver">{t('offers.endsIn')}</p>
         <div className="mt-2.5 flex gap-3">
           {units.map((u) => (

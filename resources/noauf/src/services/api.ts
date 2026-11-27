@@ -5,10 +5,10 @@ import i18n from '@/i18n'
  * Single switch between mock data and the Laravel backend.
  * In .env:  VITE_USE_MOCK=false   VITE_API_URL=http://your-laravel.test/api
  */
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api/v1/store',
   headers: { Accept: 'application/json' },
 })
 

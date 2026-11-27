@@ -66,6 +66,9 @@ export interface Offer {
   /** ISO date-time */
   endsAt: string
   featured?: boolean
+  discountPercent?: number | null
+  specialPrice?: number | null
+  specialInstallment?: number | null
 }
 
 export interface ArticleSummary {

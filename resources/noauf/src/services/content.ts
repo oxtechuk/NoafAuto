@@ -10,7 +10,7 @@ export async function getOffers(tag: OfferTag | 'all' = 'all'): Promise<{ featur
     const page = await SitekitApi.offers({ per_page: 24, tag: tag === 'all' ? undefined : tag })
     const [first, ...rest] = page.data
     // The first (newest active) offer is the hero card when showing all offers.
-    if (tag === 'all' && first) return { featured: toOffer(first, true), data: rest.map((o) => toOffer(o)) }
+    if (tag === 'all' && first) return { featured: toOffer(first, true), data: (rest.length > 0 ? rest : page.data).map((o) => toOffer(o)) }
     return { featured: null, data: page.data.map((o) => toOffer(o)) }
   }
   const all = offers.map((o) => ({ ...o, title: tr(o.title), benefit: tr(o.benefit), tagLabel: tr(offerTagLabels[o.tag]) }))

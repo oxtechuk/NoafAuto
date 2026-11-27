@@ -197,6 +197,8 @@ class SettingController extends ApiBaseController
         Cache::forget('settings.hero.store_booking_hero');
         Cache::forget('settings.hero.store_hero');
         Cache::forget('settings.hero.store_offers_hero');
+        Cache::forget('blog.hero');
+        Cache::forget('offers.data');
         Cache::forget('crm_settings_all');
         $this->cacheService->forgetSettings();
 

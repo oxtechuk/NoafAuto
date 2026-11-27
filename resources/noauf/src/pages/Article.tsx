@@ -74,7 +74,7 @@ export default function Article() {
                   </div>
                 )}
                 {s.paragraphs?.map((p, k) => (
-                  <p key={k} className="mt-5 text-lead first-of-type:mt-6">{p}</p>
+                  <p key={k} className="mt-5 text-lead first-of-type:mt-6" dangerouslySetInnerHTML={{ __html: p }} />
                 ))}
                 {s.callout && (
                   <blockquote className="mt-6 rounded-lg bg-sand px-7 py-6">

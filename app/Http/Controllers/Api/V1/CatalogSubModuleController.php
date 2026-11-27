@@ -386,8 +386,10 @@ class CatalogSubModuleController extends ApiBaseController
         $data = $request->validate([
             'title' => 'required',
             'description' => 'nullable',
+            'tag' => 'nullable|string|in:popular,exclusive,new,limited',
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'special_price' => 'nullable|numeric|min:0',
+            'special_installment' => 'nullable|numeric|min:0',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date',
             'is_active' => 'boolean',
@@ -413,8 +415,10 @@ class CatalogSubModuleController extends ApiBaseController
         $data = $request->validate([
             'title' => 'sometimes',
             'description' => 'nullable',
+            'tag' => 'nullable|string|in:popular,exclusive,new,limited',
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'special_price' => 'nullable|numeric|min:0',
+            'special_installment' => 'nullable|numeric|min:0',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date',
             'is_active' => 'boolean',

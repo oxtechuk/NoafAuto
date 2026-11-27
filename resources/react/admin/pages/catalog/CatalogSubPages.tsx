@@ -238,6 +238,23 @@ export const OffersManagerPage: React.FC = () => {
                 { key: 'image', title: t('catalog.offer_banner'), type: 'image' },
                 { key: 'title', title: t('catalog.offer_title') },
                 {
+                    key: 'tag',
+                    title: t('catalog.offer_tag', { defaultValue: 'نوع العرض' }),
+                    render: (val) => {
+                        const labels: Record<string, string> = {
+                            popular: 'شائع',
+                            exclusive: 'حصري',
+                            new: 'جديد',
+                            limited: 'محدود',
+                        };
+                        return val ? (
+                            <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                {labels[String(val)] || val}
+                            </span>
+                        ) : '-';
+                    },
+                },
+                {
                     key: 'discount_percent',
                     title: t('catalog.discount_percent'),
                     render: (val) =>
@@ -253,12 +270,32 @@ export const OffersManagerPage: React.FC = () => {
                     render: (val) =>
                         val ? `${Number(val).toLocaleString()} ${t('common.sar')}` : '-',
                 },
+                {
+                    key: 'special_installment',
+                    title: t('catalog.special_installment', { defaultValue: 'القسط الخاص' }),
+                    render: (val) =>
+                        val ? `${Number(val).toLocaleString()} ${t('common.sar')}` : '-',
+                },
                 { key: 'is_active', title: t('common.status'), type: 'boolean' },
             ]}
             formFields={[
                 { name: 'title', label: t('catalog.offer_title'), type: 'text', required: true, multilingual: true },
+                { name: 'description', label: t('catalog.offer_description', { defaultValue: 'وصف / فائدة العرض' }), type: 'textarea', multilingual: true },
+                {
+                    name: 'tag',
+                    label: t('catalog.offer_tag', { defaultValue: 'نوع / شارة العرض' }),
+                    type: 'select',
+                    options: [
+                        { label: 'شائع (Popular)', value: 'popular' },
+                        { label: 'حصري (Exclusive)', value: 'exclusive' },
+                        { label: 'جديد (New)', value: 'new' },
+                        { label: 'محدود (Limited)', value: 'limited' },
+                    ],
+                },
                 { name: 'discount_percent', label: t('catalog.discount_percent'), type: 'number', placeholder: '15' },
                 { name: 'special_price', label: t('catalog.special_price'), type: 'number' },
+                { name: 'special_installment', label: t('catalog.special_installment', { defaultValue: 'القسط الشهري الخاص' }), type: 'number' },
+                { name: 'ends_at', label: t('catalog.ends_at', { defaultValue: 'تاريخ انتهاء العرض (YYYY-MM-DD)' }), type: 'text', placeholder: '2026-12-31' },
                 { name: 'image', label: t('catalog.offer_banner'), type: 'file' },
                 { name: 'is_active', label: t('catalog.activate_offer'), type: 'switch' },
             ]}

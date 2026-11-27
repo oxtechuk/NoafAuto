@@ -100,14 +100,14 @@ export default function Blog() {
             <h2 className="text-h2 font-bold">{t('blog.moreTitle')}</h2>
             <p className="text-small text-muted">{t('blog.moreSubtitle')}</p>
           </div>
-          {list.length === 0 && data && <p className="py-20 text-center text-muted">{t('common.empty')}</p>}
+          {list.length === 0 && !featured && data && <p className="py-20 text-center text-muted">{t('common.empty')}</p>}
           <div className="mt-[18px] grid gap-8 md:grid-cols-2">
             {list.slice(0, 2).map((a) => (
               <ArticleCard key={a.slug} article={a} variant="dark" />
             ))}
           </div>
           <div className="mt-8 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {list.slice(2, 5).map((a) => (
+            {list.slice(2).map((a) => (
               <ArticleCard key={a.slug} article={a} />
             ))}
           </div>
