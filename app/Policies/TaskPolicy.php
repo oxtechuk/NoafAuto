@@ -11,7 +11,7 @@ class TaskPolicy
 {
     public function viewAny(Employee $employee): bool
     {
-        return true;
+        return $employee->isAdmin() || $employee->hasPermissionTo('manage-tasks', 'employee');
     }
 
     /**

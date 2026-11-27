@@ -43,7 +43,7 @@ class GeminiProvider implements LlmProvider
         ], fn ($value) => $value !== null);
 
         if ($genConfig !== []) {
-            $body['generationConfig'] = (object) $genConfig;
+            $body['generationConfig'] = $genConfig;
         }
 
         if ($tools !== []) {

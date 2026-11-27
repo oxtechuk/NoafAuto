@@ -86,9 +86,9 @@ class ModuleSystemTest extends TestCase
     {
         $this->artisan('sitekit:make-module', ['name' => 'FeedbackDemo'])->assertSuccessful();
 
-        // Non-admin forbidden
+        // Non-admin forbidden to manage modules
         $this->actingAs($this->sales, 'employee')
-            ->getJson(route('api.v1.modules.index'))
+            ->postJson(route('api.v1.modules.enable', 'feedback-demo'))
             ->assertForbidden();
 
         // Admin lists modules
